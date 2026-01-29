@@ -1,0 +1,713 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { prisma } from '../lib/prisma.js';
+import { authenticate, AuthRequest } from '../middleware/auth.js';
+import { AppError } from '../middleware/error.js';
+import { delhivery } from '../services/delhivery.js';
+import { 
+  getCourierService, 
+  getAvailableCouriers, 
+  isCourierSupported,
+  CourierName,
+  CreateShipmentRequest,
+} from '../services/courier/index.js';
+
+const router = Router();
+
+router.use(authenticate);
+
+// Valid courier names
+const CourierNameEnum = z.enum(['DELHIVERY', 'BLITZ', 'EKART']);
+
+const CreateOrderSchema = z.object({
+  // Customer
+  customerName: z.string(),
+  customerPhone: z.string(),
+  customerEmail: z.string().email().optional(),
+
+  // Shipping
+  shippingAddress: z.string(),
+  shippingCity: z.string(),
+  shippingState: z.string(),
+  shippingPincode: z.string(),
+  shippingLandmark: z.string().optional(),
+
+  // Product
+  productName: z.string(),
+  productValue: z.number(),
+  quantity: z.number().default(1),
+
+  // Payment
+  paymentMode: z.enum(['PREPAID', 'COD']),
+  codAmount: z.number().optional(),
+
+  // Dimensions
+  weight: z.number(),
+  length: z.number().optional(),
+  breadth: z.number().optional(),
+  height: z.number().optional(),
+
+  // B2B
+  isB2B: z.boolean().default(false),
+  gstNumber: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  deliveryType: z.string().optional(),
+  slotDate: z.string().optional(),
+  slotTime: z.string().optional(),
+
+  // Metadata
+  warehouseId: z.string(),
+  channel: z.string().optional(),
+  notes: z.string().optional(),
+  
+  // Courier selection - user manually selects
+  courierName: CourierNameEnum.optional().default('DELHIVERY'),
+});
+
+// Get available couriers
+router.get('/couriers', async (req: AuthRequest, res) => {
+  const couriers = getAvailableCouriers();
+  const courierInfo: Record<string, { displayName: string; description: string }> = {
+    DELHIVERY: {
+      displayName: 'Delhivery',
+      description: 'Pan-India logistics with COD support',
+    },
+    BLITZ: {
+      displayName: 'Blitz',
+      description: 'Quick commerce & same-day delivery',
+    },
+    EKART: {
+      displayName: 'Ekart',
+      description: 'Flipkart logistics - reliable nationwide delivery',
+    },
+  };
+  
+  res.json({
+    couriers: couriers.map(name => ({
+      name,
+      displayName: courierInfo[name]?.displayName || name,
+      description: courierInfo[name]?.description || '',
+    })),
+  });
+});
+
+// List orders
+router.get('/', async (req: AuthRequest, res, next) => {
+  try {
+    const { status, search, page = '1', limit = '50' } = req.query;
+
+    // Handle users without merchantId
+    if (!req.user?.merchantId) {
+      return res.json({
+        orders: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: parseInt(limit as string),
+          totalPages: 0,
+        },
+      });
+    }
+
+    const where: any = {
+      merchantId: req.user.merchantId,
+    };
+
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search as string, mode: 'insensitive' } },
+        { awbNumber: { contains: search as string, mode: 'insensitive' } },
+        { customerName: { contains: search as string, mode: 'insensitive' } },
+        { customerPhone: { contains: search as string } },
+      ];
+    }
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const take = parseInt(limit as string);
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          warehouse: {
+            select: { name: true, pincode: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    res.json({
+      orders,
+      pagination: {
+        total,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        totalPages: Math.ceil(total / parseInt(limit as string)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get single order
+router.get('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user!.merchantId,
+      },
+      include: {
+        warehouse: true,
+        packages: true,
+        trackingEvents: {
+          orderBy: { timestamp: 'desc' },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    res.json(order);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create order
+router.post('/', async (req: AuthRequest, res, next) => {
+  try {
+    console.log('=== CREATE ORDER REQUEST ===');
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+
+    // Validate input
+    const data = CreateOrderSchema.parse(req.body);
+    console.log('Validated data:', data);
+
+    if (!req.user!.merchantId) {
+      return res.status(400).json({ error: 'Merchant account required' });
+    }
+
+    // Generate order number
+    const count = await prisma.order.count({
+      where: { merchantId: req.user!.merchantId },
+    });
+    const orderNumber = `ORD${Date.now()}${count + 1}`;
+    console.log('Generated order number:', orderNumber);
+
+    // Calculate volumetric and chargeable weight
+    let volumetricWeight = 0;
+    if (data.length && data.breadth && data.height) {
+      volumetricWeight = (data.length * data.breadth * data.height) / 5000;
+    }
+    const chargeableWeight = Math.max(data.weight, volumetricWeight);
+
+    // Get or create warehouse
+    let warehouse = await prisma.warehouse.findFirst({
+      where: {
+        id: data.warehouseId,
+        merchantId: req.user!.merchantId,
+      },
+    });
+
+    if (!warehouse) {
+      console.log('Warehouse not found, creating default');
+      warehouse = await prisma.warehouse.create({
+        data: {
+          merchantId: req.user!.merchantId,
+          name: 'Default Warehouse',
+          address: '123 Default Address',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400001',
+          phone: '+91-9876543210',
+          email: 'warehouse@swiftora.com',
+          isDefault: true,
+        },
+      });
+    }
+    console.log('Using warehouse:', warehouse.id);
+
+    // Create order in DB (with selected courier)
+    const selectedCourier = data.courierName || 'DELHIVERY';
+    
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        merchantId: req.user!.merchantId,
+        userId: req.user!.id,
+        warehouseId: warehouse.id,
+
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+
+        shippingAddress: data.shippingAddress,
+        shippingCity: data.shippingCity,
+        shippingState: data.shippingState,
+        shippingPincode: data.shippingPincode,
+        shippingLandmark: data.shippingLandmark,
+
+        productName: data.productName,
+        productValue: data.productValue,
+        quantity: data.quantity,
+
+        paymentMode: data.paymentMode,
+        codAmount: data.codAmount || 0,
+
+        weight: data.weight,
+        length: data.length,
+        breadth: data.breadth,
+        height: data.height,
+        volumetricWeight,
+        chargeableWeight,
+
+        isB2B: data.isB2B,
+        gstNumber: data.gstNumber,
+        invoiceNumber: data.invoiceNumber,
+        deliveryType: data.deliveryType,
+
+        channel: data.channel,
+        notes: data.notes,
+        
+        // Store selected courier (will be updated with actual courier after shipment creation)
+        courierName: selectedCourier,
+
+        status: 'PENDING',
+      },
+    });
+    console.log('Order created:', order.id, 'Selected courier:', selectedCourier);
+
+    // Try to create shipment using the selected courier service
+    let awbNumber: string | null = null;
+    let labelUrl: string | null = null;
+    
+    try {
+      console.log(`Creating shipment with ${selectedCourier} for order:`, orderNumber);
+      
+      // Get the courier service
+      const courierService = getCourierService(selectedCourier as CourierName);
+      
+      // Build standardized shipment request
+      const shipmentRequest: CreateShipmentRequest = {
+        orderNumber,
+        
+        // Customer details
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+        shippingAddress: data.shippingAddress,
+        shippingCity: data.shippingCity,
+        shippingState: data.shippingState,
+        shippingPincode: data.shippingPincode,
+        shippingCountry: 'India',
+        
+        // Pickup/Warehouse details
+        pickupName: warehouse.delhiveryName || warehouse.name,
+        pickupPhone: warehouse.phone,
+        pickupEmail: warehouse.email || undefined,
+        pickupAddress: warehouse.address,
+        pickupCity: warehouse.city,
+        pickupState: warehouse.state,
+        pickupPincode: warehouse.pincode,
+        pickupCountry: 'India',
+        
+        // Product details
+        productName: data.productName,
+        productDescription: data.productName,
+        productValue: data.productValue,
+        quantity: data.quantity,
+        
+        // Package dimensions
+        weight: chargeableWeight,
+        length: data.length,
+        breadth: data.breadth,
+        height: data.height,
+        
+        // Payment
+        paymentMode: data.paymentMode,
+        codAmount: data.codAmount,
+        totalAmount: data.productValue,
+        
+        // Optional metadata
+        channelId: data.channel,
+      };
+      
+      // Create shipment using the courier service
+      const shipmentResponse = await courierService.createShipment(shipmentRequest);
+      console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
+
+      if (shipmentResponse.success && shipmentResponse.awbNumber) {
+        awbNumber = shipmentResponse.awbNumber;
+        labelUrl = shipmentResponse.labelUrl || null;
+        
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            awbNumber: shipmentResponse.awbNumber,
+            courierName: shipmentResponse.courierName,
+            labelUrl: shipmentResponse.labelUrl,
+            status: 'READY_TO_SHIP',
+          },
+        });
+        console.log('Order updated with AWB:', shipmentResponse.awbNumber);
+      } else {
+        console.log(`No AWB from ${selectedCourier}:`, shipmentResponse.error);
+        // Store error in notes for debugging
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            notes: `${selectedCourier} Error: ${shipmentResponse.error || 'Unknown error'}`,
+          },
+        });
+      }
+    } catch (err: any) {
+      const courierErr = err.response?.data || err.message;
+      console.error(`${selectedCourier} shipment creation error:`, courierErr);
+      // Save error for debugging
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          notes: `${selectedCourier} Error: ${JSON.stringify(courierErr)}`,
+        },
+      });
+    }
+
+    // Auto-create support ticket for the order
+    try {
+      const ticketCount = await prisma.ticket.count({
+        where: { merchantId: req.user!.merchantId },
+      });
+      const ticketNumber = `TKT-${new Date().getFullYear()}-${String(ticketCount + 1).padStart(3, '0')}`;
+      
+      // Calculate SLA due date (48 hours default)
+      const dueAt = new Date();
+      dueAt.setHours(dueAt.getHours() + 48);
+
+      await prisma.ticket.create({
+        data: {
+          ticketNumber,
+          merchantId: req.user!.merchantId,
+          userId: req.user!.id,
+          orderId: order.id,
+          type: 'OTHER',
+          subject: `Order Created: ${orderNumber}`,
+          description: `A new order ${orderNumber} has been created. Customer: ${data.customerName}, Product: ${data.productName}, Amount: ₹${data.productValue}`,
+          priority: 'MEDIUM',
+          status: 'OPEN',
+          slaHours: 48,
+          dueAt,
+        },
+      });
+      console.log('Auto-created ticket for order:', orderNumber);
+    } catch (ticketError: any) {
+      console.error('Failed to auto-create ticket:', ticketError);
+      // Don't fail the order creation if ticket creation fails
+    }
+
+    // Return order with AWB and label if available
+    return res.status(201).json({
+      order: {
+        ...order,
+        awbNumber: awbNumber || order.awbNumber,
+        labelUrl: labelUrl,
+        courierName: selectedCourier,
+      }
+    });
+  } catch (error: any) {
+    console.error('=== CREATE ORDER ERROR ===', error);
+
+    // Handle Zod validation errors
+    if (error.name === 'ZodError') {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.errors,
+      });
+    }
+
+    // Handle other errors
+    return res.status(500).json({
+      error: error.message || 'Failed to create order',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+    });
+  }
+});
+
+// Cancel order
+router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user!.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!['PENDING', 'READY_TO_SHIP'].includes(order.status)) {
+      throw new AppError(400, 'Cannot cancel order in current status');
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'CANCELLED' },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk import orders
+router.post('/bulk/import', async (req: AuthRequest, res, next) => {
+  try {
+    const { orders } = req.body;
+
+    if (!Array.isArray(orders) || orders.length === 0) {
+      throw new AppError(400, 'Invalid orders data');
+    }
+
+    // TODO: Implement bulk import with job queue
+    // For now, return placeholder
+    res.json({
+      message: 'Bulk import started',
+      jobId: `job_${Date.now()}`,
+      total: orders.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Note: Orders are created locally, then shipments are created with the selected courier
+
+// Ship order - creates shipment with selected courier and gets AWB
+// Accepts optional courierName in body to override the order's default courier
+router.post('/:id/ship', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    // Get courier from request body (optional, defaults to order's courierName or DELHIVERY)
+    const { courierName: requestedCourier } = req.body;
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+      include: {
+        warehouse: true,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (order.awbNumber) {
+      throw new AppError(400, 'This order has already been shipped. AWB: ' + order.awbNumber);
+    }
+
+    if (!order.warehouse) {
+      throw new AppError(400, 'No pickup location assigned to this order. Please create a pickup location in Settings first.');
+    }
+
+    const warehouse = order.warehouse;
+
+    // Validate warehouse has complete data
+    const missingFields: string[] = [];
+    if (!warehouse.phone) missingFields.push('Phone Number');
+    if (!warehouse.address) missingFields.push('Address');
+    if (!warehouse.city) missingFields.push('City');
+    if (!warehouse.state) missingFields.push('State');
+    if (!warehouse.pincode) missingFields.push('Pincode');
+
+    if (missingFields.length > 0) {
+      throw new AppError(400,
+        `Your pickup location "${warehouse.name}" is missing required information: ${missingFields.join(', ')}. ` +
+        'Please update your pickup location in Settings → Pickup Locations.'
+      );
+    }
+
+    // Determine which courier to use
+    // Priority: 1) Request body, 2) Order's stored courierName, 3) Default to DELHIVERY
+    let selectedCourier: CourierName = 'DELHIVERY';
+    
+    if (requestedCourier && isCourierSupported(requestedCourier)) {
+      selectedCourier = requestedCourier as CourierName;
+    } else if (order.courierName && isCourierSupported(order.courierName)) {
+      selectedCourier = order.courierName as CourierName;
+    }
+
+    console.log(`Shipping order ${order.orderNumber} with courier: ${selectedCourier}`);
+
+    // Get the courier service
+    const courierService = getCourierService(selectedCourier);
+
+    // Build standardized shipment request
+    const shipmentRequest: CreateShipmentRequest = {
+      orderNumber: order.orderNumber,
+      
+      // Customer details
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail || undefined,
+      shippingAddress: order.shippingAddress,
+      shippingCity: order.shippingCity,
+      shippingState: order.shippingState,
+      shippingPincode: order.shippingPincode,
+      shippingCountry: 'India',
+      
+      // Pickup/Warehouse details
+      pickupName: warehouse.delhiveryName || warehouse.name,
+      pickupPhone: warehouse.phone,
+      pickupEmail: warehouse.email || undefined,
+      pickupAddress: warehouse.address,
+      pickupCity: warehouse.city,
+      pickupState: warehouse.state,
+      pickupPincode: warehouse.pincode,
+      pickupCountry: 'India',
+      
+      // Product details
+      productName: order.productName,
+      productDescription: order.productName,
+      productValue: Number(order.productValue),
+      quantity: order.quantity,
+      
+      // Package dimensions
+      weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
+      length: order.length ? Number(order.length) : undefined,
+      breadth: order.breadth ? Number(order.breadth) : undefined,
+      height: order.height ? Number(order.height) : undefined,
+      
+      // Payment
+      paymentMode: order.paymentMode as 'PREPAID' | 'COD',
+      codAmount: order.codAmount ? Number(order.codAmount) : undefined,
+      totalAmount: Number(order.productValue),
+      
+      // Optional metadata
+      channelId: order.channel || undefined,
+    };
+
+    console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));
+
+    // Create shipment using the courier service
+    const shipmentResponse = await courierService.createShipment(shipmentRequest);
+    console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
+
+    // Check for success
+    if (shipmentResponse.success && shipmentResponse.awbNumber) {
+      // Update order with AWB
+      const updated = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          awbNumber: shipmentResponse.awbNumber,
+          courierName: shipmentResponse.courierName,
+          labelUrl: shipmentResponse.labelUrl,
+          status: 'READY_TO_SHIP',
+        },
+      });
+
+      return res.json({
+        success: true,
+        awbNumber: shipmentResponse.awbNumber,
+        courierName: shipmentResponse.courierName,
+        labelUrl: shipmentResponse.labelUrl,
+        order: updated,
+      });
+    } else {
+      // Handle courier error
+      console.error(`${selectedCourier} shipment failed:`, shipmentResponse.error);
+      throw new AppError(400, `${selectedCourier} Error: ${shipmentResponse.error || 'Failed to create shipment'}`);
+    }
+  } catch (error: any) {
+    console.error('=== SHIP ORDER ERROR ===');
+    console.error('Error:', error.message);
+
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to create shipment';
+      return res.status(500).json({
+        success: false,
+        error: errorMsg,
+        debug: error.response?.data || error.message,
+      });
+    }
+  }
+});
+
+// Assign pickup location to an order
+router.put('/:id/pickup-location', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const { warehouseId } = req.body;
+    if (!warehouseId) {
+      throw new AppError(400, 'Pickup location ID is required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (order.awbNumber) {
+      throw new AppError(400, 'Cannot change pickup location for shipped orders');
+    }
+
+    // Verify warehouse belongs to merchant
+    const warehouse = await prisma.warehouse.findFirst({
+      where: {
+        id: warehouseId,
+        merchantId: req.user.merchantId,
+        isActive: true,
+      },
+    });
+
+    if (!warehouse) {
+      throw new AppError(404, 'Pickup location not found');
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { warehouseId: warehouse.id },
+      include: { warehouse: true },
+    });
+
+    res.json({
+      success: true,
+      message: `Pickup location set to "${warehouse.name}"`,
+      order: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export const ordersRouter = router;

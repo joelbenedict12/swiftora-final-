@@ -1,0 +1,26 @@
+.sidebar{
+  width:240px;
+  background:var(--primary);
+  color:#fff;
+  min-height:100vh;
+  padding:var(--space-2);
+  box-sizing:border-box;
+}
+.sidebar .logo{font-weight:700;margin-bottom:var(--space-2);font-size:1.05rem}
+.sidebar nav ul{list-style:none;padding:0}
+.sidebar nav li{margin:0.5rem 0}
+.sidebar a{color:rgba(255,255,255,0.95);text-decoration:none;padding:0.35rem 0;display:inline-block}
+.sidebar a.active{font-weight:700}
+  list-style: none;
+  padding: 0;
+}
+.sidebar nav li {
+  margin: 0.6rem 0;
+}
+.sidebar a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+}
+.sidebar a.active {
+  font-weight: 700;
+}

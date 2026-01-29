@@ -1,0 +1,154 @@
+.dashboard {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Section 1: Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.stat-card {
+  background-color: var(--card-bg);
+  padding: var(--space-3);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-title {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin: 0 0 0.5rem 0;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+  background-color: var(--bg-light);
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+/* Section 2: Charts Grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: var(--space-3);
+}
+
+.chart-card {
+  background-color: var(--card-bg);
+  padding: var(--space-3);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.chart-card h3 {
+  font-size: 1.125rem;
+  margin-bottom: var(--space-3);
+}
+
+.chart-container {
+  height: 300px;
+  width: 100%;
+}
+
+/* Section 3: Recent Activity Table */
+.recent-activity-card {
+  background-color: var(--card-bg);
+  padding: var(--space-3);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.recent-activity-card h3 {
+  font-size: 1.125rem;
+  margin-bottom: var(--space-2);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.activity-table th {
+  text-align: left;
+  padding: 1rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--bg-light);
+}
+
+.activity-table td {
+  padding: 1rem;
+  color: var(--text-dark);
+  border-bottom: 1px solid var(--bg-light);
+  vertical-align: middle;
+}
+
+.activity-table tbody tr:hover {
+  background-color: var(--bg-light);
+}
+
+.activity-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.fw-medium {
+  font-weight: 500;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-badge.completed {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
