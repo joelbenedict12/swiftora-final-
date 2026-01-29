@@ -214,6 +214,7 @@ export const warehousesApi = {
   syncToDelhivery: (id: string) => api.post(`/warehouses/${id}/sync-to-delhivery`),
   linkDelhivery: (id: string, delhiveryName: string) =>
     api.post(`/warehouses/${id}/link-delhivery`, { delhiveryName }),
+  cleanupDefaultDuplicates: () => api.post('/warehouses/cleanup-default-duplicates'),
 };
 
 // Integrations API

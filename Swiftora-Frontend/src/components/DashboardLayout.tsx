@@ -104,21 +104,11 @@ const DashboardLayout = () => {
 
     { name: "Billing & Wallet", href: "/dashboard/billing", icon: Wallet },
     { name: "Remittance", href: "/dashboard/remittance", icon: DollarSign },
-    {
-      name: "Business Success Rate",
-      href: "/dashboard/business-success-rate",
-      icon: TrendingUp,
-    },
     { name: "Pickup Management", href: "/dashboard/pickup", icon: MapPin },
     {
       name: "Support & Disputes",
       href: "/dashboard/support",
       icon: HelpCircle,
-    },
-    {
-      name: "Services",
-      href: "/dashboard/services",
-      icon: Building2,
     },
   ];
 
@@ -133,11 +123,6 @@ const DashboardLayout = () => {
       name: "Pincode Serviceability",
       href: "/dashboard/pincode-serviceability",
       icon: MapPin,
-    },
-    {
-      name: "RTO Predictor",
-      href: "/dashboard/rto-predictor",
-      icon: TrendingUp,
     },
     {
       name: "Restricted Items",
@@ -451,12 +436,6 @@ const DashboardLayout = () => {
               <Link to="/dashboard/all-products">
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 All Products
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="mr-2">
-              <Link to="/dashboard/business-success-rate">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Business Success Rate
               </Link>
             </Button>
             <div className="flex justify-end">

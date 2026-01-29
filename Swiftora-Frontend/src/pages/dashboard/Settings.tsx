@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -69,7 +70,22 @@ import {
 import { toast } from "sonner";
 import { integrationsApi } from "@/lib/api";
 
+const SETTINGS_TABS = ["general", "users", "courier", "notifications", "automation", "security", "tax", "bank", "invoices"] as const;
+
 const Settings = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathSegment = location.pathname.split("/").filter(Boolean).pop() || "";
+  const activeTab = SETTINGS_TABS.includes(pathSegment as any) ? pathSegment : "general";
+
+  const setActiveTab = (value: string) => {
+    if (value === "general") {
+      navigate("/dashboard/settings");
+    } else {
+      navigate(`/dashboard/settings/${value}`);
+    }
+  };
+
   const [showDelhiveryModal, setShowDelhiveryModal] = useState(false);
   const [delhiveryApiKey, setDelhiveryApiKey] = useState("");
   const [delhiveryStatus, setDelhiveryStatus] = useState<{
@@ -355,7 +371,7 @@ const Settings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10 bg-[blue-600]/10 border-gray-200">
           <TabsTrigger
             value="general"

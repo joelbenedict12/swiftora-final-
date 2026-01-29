@@ -213,16 +213,30 @@ router.post('/', async (req: AuthRequest, res, next) => {
     }
     const chargeableWeight = Math.max(data.weight, volumetricWeight);
 
-    // Get or create warehouse
-    let warehouse = await prisma.warehouse.findFirst({
-      where: {
-        id: data.warehouseId,
-        merchantId: req.user!.merchantId,
-      },
-    });
+    // Get or create warehouse: use provided ID, else existing default, else create one only if none exists
+    let warehouse = data.warehouseId
+      ? await prisma.warehouse.findFirst({
+          where: {
+            id: data.warehouseId,
+            merchantId: req.user!.merchantId,
+            isActive: true,
+          },
+        })
+      : null;
 
     if (!warehouse) {
-      console.log('Warehouse not found, creating default');
+      // Reuse existing "Default Warehouse" for this merchant if any (avoid duplicates)
+      warehouse = await prisma.warehouse.findFirst({
+        where: {
+          merchantId: req.user!.merchantId,
+          name: 'Default Warehouse',
+          isActive: true,
+        },
+      });
+    }
+
+    if (!warehouse) {
+      // No warehouse at all: create a single default only once per merchant
       warehouse = await prisma.warehouse.create({
         data: {
           merchantId: req.user!.merchantId,
@@ -237,7 +251,6 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
     }
-    console.log('Using warehouse:', warehouse.id);
 
     // Create order in DB (with selected courier)
     const selectedCourier = data.courierName || 'DELHIVERY';

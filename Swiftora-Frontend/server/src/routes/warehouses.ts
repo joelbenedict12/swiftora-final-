@@ -22,7 +22,7 @@ const CreateWarehouseSchema = z.object({
   syncToDelhivery: z.boolean().optional().default(true),
 });
 
-// List warehouses
+// List warehouses (deduplicate "Default Warehouse" so only one per merchant is shown)
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
     // Handle users without merchantId
@@ -37,11 +37,22 @@ router.get('/', async (req: AuthRequest, res, next) => {
       },
       orderBy: [
         { isDefault: 'desc' },
+        { createdAt: 'asc' },
         { name: 'asc' },
       ],
     });
 
-    res.json(warehouses);
+    // Deduplicate: if multiple "Default Warehouse" exist, show only one (first/default)
+    let defaultIncluded = false;
+    const deduped = warehouses.filter((w) => {
+      if (w.name === 'Default Warehouse') {
+        if (defaultIncluded) return false;
+        defaultIncluded = true;
+      }
+      return true;
+    });
+
+    res.json(deduped);
   } catch (error) {
     next(error);
   }
@@ -470,6 +481,49 @@ router.post('/fix-orders-warehouse', async (req: AuthRequest, res, next) => {
       message: `Fixed ${updateResult.count} orders to use JS Enterprises warehouse`,
       warehouse: jsWarehouse,
       ordersUpdated: updateResult.count,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cleanup duplicate "Default Warehouse" entries: keep one per merchant, soft-delete the rest
+router.post('/cleanup-default-duplicates', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const defaults = await prisma.warehouse.findMany({
+      where: {
+        merchantId: req.user.merchantId,
+        name: 'Default Warehouse',
+        isActive: true,
+      },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    if (defaults.length <= 1) {
+      return res.json({
+        success: true,
+        message: 'No duplicate Default Warehouse entries to clean',
+        kept: defaults.length,
+        removed: 0,
+      });
+    }
+
+    const [keep, ...duplicates] = defaults;
+    const idsToDeactivate = duplicates.map((w) => w.id);
+    await prisma.warehouse.updateMany({
+      where: { id: { in: idsToDeactivate } },
+      data: { isActive: false },
+    });
+
+    res.json({
+      success: true,
+      message: `Kept one Default Warehouse, removed ${duplicates.length} duplicate(s)`,
+      kept: keep.id,
+      removed: duplicates.length,
     });
   } catch (error) {
     next(error);
