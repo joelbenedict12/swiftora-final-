@@ -281,6 +281,12 @@ export const ticketsApi = {
   }) => api.put(`/tickets/${id}`, data),
 };
 
+// KYC (Didit) API — 60s for createSession (cold start + Didit can be slow). Must redeploy frontend for change to apply.
+export const kycApi = {
+  getStatus: () => api.get('/kyc', { timeout: 15000 }),
+  createSession: () => api.post('/kyc/session', {}, { timeout: 60000 }),
+};
+
 // Admin API
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),

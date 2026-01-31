@@ -102,6 +102,7 @@ model Merchant {
   walletTransactions WalletTransaction[]
   rateCaches        RateCache[]
   tickets           Ticket[]
+  kycVerification   KycVerification?
   
   @@index([email])
 }
@@ -484,4 +485,20 @@ enum TicketStatus {
   IN_PROGRESS
   RESOLVED
   CLOSED
+}
+
+// Didit KYC verification status per merchant
+model KycVerification {
+  id              String   @id @default(cuid())
+  merchantId      String   @unique
+  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  diditSessionId  String?
+  status          String   @default("Pending") // Pending, Approved, Declined, In Review, Abandoned
+  vendorData      String?
+  decisionJson    String?  @db.Text // optional snapshot from webhook decision
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantId])
+  @@index([status])
 }

@@ -66,9 +66,10 @@ import {
   Globe,
   Calendar,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { integrationsApi } from "@/lib/api";
+import { integrationsApi, kycApi } from "@/lib/api";
 
 const SETTINGS_TABS = ["general", "users", "courier", "notifications", "automation", "security", "tax", "bank", "invoices"] as const;
 
@@ -88,6 +89,14 @@ const Settings = () => {
 
   const [showDelhiveryModal, setShowDelhiveryModal] = useState(false);
   const [delhiveryApiKey, setDelhiveryApiKey] = useState("");
+  const [kycStatus, setKycStatus] = useState<{
+    businessDocuments?: { status: string };
+    bankAccount?: { status: string };
+    identityVerification?: { status: string };
+  } | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [kycError, setKycError] = useState(false);
+  const [kycSessionLoading, setKycSessionLoading] = useState(false);
   const [delhiveryStatus, setDelhiveryStatus] = useState<{
     connected: boolean;
     lastSync?: string;
@@ -236,6 +245,60 @@ const Settings = () => {
     };
     fetchDelhiveryStatus();
   }, []);
+
+  // Load KYC status when on Security tab
+  const loadKycStatus = async () => {
+    try {
+      setKycLoading(true);
+      setKycError(false);
+      const res = await kycApi.getStatus();
+      setKycStatus(res.data);
+    } catch {
+      setKycStatus(null);
+      setKycError(true);
+    } finally {
+      setKycLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (activeTab === "security") loadKycStatus();
+  }, [activeTab]);
+  // Refetch KYC when user returns to tab (e.g. after Didit redirect)
+  useEffect(() => {
+    if (activeTab !== "security") return;
+    const onFocus = () => loadKycStatus();
+    window.addEventListener("visibilitychange", onFocus);
+    return () => window.removeEventListener("visibilitychange", onFocus);
+  }, [activeTab]);
+
+  const handleStartKycVerification = async () => {
+    try {
+      setKycSessionLoading(true);
+      const res = await kycApi.createSession();
+      const url = res.data?.url;
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+      toast.error("Could not start verification");
+    } catch (err: any) {
+      const d = err?.response?.data;
+      const status = err?.response?.status;
+      const code = err?.code;
+      const isTimeout = code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
+      const msg: string = isTimeout
+        ? "Request timed out. Try again in a moment (first load can be slow)."
+        : (d && (typeof d.error === "string" ? d.error : d.message)) ||
+          (typeof status === "number" ? `Request failed (${status})` : null) ||
+          (typeof err?.message === "string" ? err.message : null) ||
+          "Failed to start KYC verification";
+      console.error("KYC session error:", { status, data: d, code, message: err?.message });
+      const displayMsg = typeof msg === "string" ? msg : "Failed to start KYC verification";
+      toast.error(displayMsg, { duration: 8000 });
+    } finally {
+      setKycSessionLoading(false);
+    }
+  };
 
   // Connect Delhivery
   const handleConnectDelhivery = async () => {
@@ -1337,84 +1400,86 @@ const Settings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-[blue-600]" />
-                  <div>
-                    <div className="font-semibold text-foreground">
-                      Business Documents
-                    </div>
-                    <div className="text-sm text-foreground/60">
-                      GST Certificate, PAN Card, Business License
-                    </div>
-                  </div>
+              {kycLoading ? (
+                <div className="flex items-center gap-2 py-4 text-foreground/70">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading KYC status...
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[blue-600]/20 text-[blue-600] border-gray-200">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Verified
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="hover:bg-[blue-600]/10"
-                  >
-                    <Edit className="w-4 h-4" />
+              ) : kycError ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-foreground/70">
+                  <p>Couldn&apos;t load KYC status. Check your connection and try again.</p>
+                  <Button variant="outline" size="sm" onClick={() => loadKycStatus()}>
+                    Retry
                   </Button>
                 </div>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white ">
-                <div className="flex items-center gap-3">
-                  <Building2 className="w-5 h-5 text-[blue-600]" />
-                  <div>
-                    <div className="font-semibold text-foreground">
-                      Bank Account
+              ) : (
+                <>
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-[blue-600]" />
+                      <div>
+                        <div className="font-semibold text-foreground">
+                          Business Documents
+                        </div>
+                        <div className="text-sm text-foreground/60">
+                          GST Certificate, PAN Card, Business License
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-foreground/60">
-                      For COD remittance and payments
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[blue-600]/20 text-[blue-600] border-gray-200">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Verified
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="hover:bg-[blue-600]/10"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white">
-                <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-[blue-600]" />
-                  <div>
-                    <div className="font-semibold text-foreground">
-                      Identity Verification
-                    </div>
-                    <div className="text-sm text-foreground/60">
-                      Aadhaar, Passport, or Driving License
+                    <div className="flex items-center gap-2">
+                      <Badge className={kycStatus?.businessDocuments?.status === "Verified" ? "bg-[blue-600]/20 text-[blue-600] border-gray-200" : "bg-[orange-600]/20 text-[orange-600] border-orange-200"}>
+                        {kycStatus?.businessDocuments?.status === "Verified" ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        {kycStatus?.businessDocuments?.status || "Pending"}
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="hover:bg-[blue-600]/10" onClick={() => toast.info("Complete Identity Verification first to verify business documents.")}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-[orange-600]/20 text-[orange-600] border-orange-200">
-                    <Clock className="w-3 h-3 mr-1" />
-                    Pending
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-200 hover:bg-[blue-600]/10"
-                  >
-                    Upload
-                  </Button>
-                </div>
-              </div>
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white ">
+                    <div className="flex items-center gap-3">
+                      <Building2 className="w-5 h-5 text-[blue-600]" />
+                      <div>
+                        <div className="font-semibold text-foreground">Bank Account</div>
+                        <div className="text-sm text-foreground/60">For COD remittance and payments</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-[orange-600]/20 text-[orange-600] border-orange-200">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Pending
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="hover:bg-[blue-600]/10">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-blue-50 transition-colors bg-white">
+                    <div className="flex items-center gap-3">
+                      <Shield className="w-5 h-5 text-[blue-600]" />
+                      <div>
+                        <div className="font-semibold text-foreground">Identity Verification</div>
+                        <div className="text-sm text-foreground/60">Aadhaar, Passport, or Driving License (via Didit)</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={kycStatus?.identityVerification?.status === "Verified" ? "bg-[blue-600]/20 text-[blue-600] border-gray-200" : kycStatus?.identityVerification?.status === "Declined" ? "bg-red-100 text-red-700 border-red-200" : "bg-[orange-600]/20 text-[orange-600] border-orange-200"}>
+                        {kycStatus?.identityVerification?.status === "Verified" ? <CheckCircle2 className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                        {kycStatus?.identityVerification?.status || "Pending"}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-200 hover:bg-[blue-600]/10"
+                        onClick={handleStartKycVerification}
+                        disabled={kycSessionLoading}
+                      >
+                        {kycSessionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify with Didit"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

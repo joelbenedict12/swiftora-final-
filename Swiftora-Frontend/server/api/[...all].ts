@@ -15,6 +15,8 @@ import { warehousesRouter } from '../src/routes/warehouses.js';
 import { integrationsRouter } from '../src/routes/integrations.js';
 import { adminRouter } from '../src/routes/admin.js';
 import { ticketsRouter } from '../src/routes/tickets.js';
+import { kycRouter } from '../src/routes/kyc.js';
+import { diditWebhookHandler } from '../src/routes/diditWebhook.js';
 
 dotenv.config();
 
@@ -58,6 +60,18 @@ app.use(cors(corsOptions));
 
 // Explicit OPTIONS handler for all routes - CRITICAL for preflight
 app.options('*', cors(corsOptions));
+
+// Didit webhook: GET so you can verify URL in browser; POST for actual webhooks
+app.get('/api/webhooks/didit', (_req: any, res: any) => {
+  res.status(200).json({ ok: true, message: 'Didit webhook endpoint — use POST for webhooks' });
+});
+app.use(
+  '/api/webhooks/didit',
+  express.raw({ type: 'application/json' }),
+  (req: any, res: any, next: any) => {
+    diditWebhookHandler(req, res).catch(next);
+  }
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -146,6 +160,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/warehouses', warehousesRouter);
 app.use('/api/integrations', integrationsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/kyc', kycRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/tickets', ticketsRouter);
 
