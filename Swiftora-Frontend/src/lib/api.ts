@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://server-liard-nu.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://swiftora-final.onrender.com/api';
 
 // Create axios instance
 export const api = axios.create({

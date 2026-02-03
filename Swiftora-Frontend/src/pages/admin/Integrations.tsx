@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "./Pages.css";
+import { integrationsApi } from "@/lib/api";
 
 interface Integration {
     name: string;
@@ -43,10 +44,8 @@ export default function Integrations() {
         // Check if Delhivery is configured by testing the API
         const checkStatus = async () => {
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'https://server-liard-nu.vercel.app';
-                const response = await fetch(`${apiUrl}/api/test-delhivery`);
-                const data = await response.json();
-                setDelhiveryConnected(data.connected || false);
+                const response = await integrationsApi.getDelhiveryStatus();
+                setDelhiveryConnected(response.data?.connected || false);
             } catch (error) {
                 // If endpoint fails, assume not connected
                 setDelhiveryConnected(false);

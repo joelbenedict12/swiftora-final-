@@ -20,9 +20,26 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Simple CORS configuration that works on Vercel
+// CORS: allow frontend origins (Render + custom domain + local dev)
+const allowedOrigins = [
+  'https://swiftora-final-1.onrender.com',
+  'https://swiftora-final.onrender.com',
+  'https://swiftora.co',
+  'https://www.swiftora.co',
+  'http://localhost:8080',
+  'http://localhost:8081',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: true, // Allow all origins in development, Vercel will handle this
+  origin: (origin, cb) => {
+    // Allow requests with no origin (e.g. Postman, server-to-server)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    // In development, allow all
+    if (process.env.NODE_ENV !== 'production') return cb(null, true);
+    cb(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
