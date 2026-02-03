@@ -13,6 +13,9 @@ const Footer = () => {
               </div>
               <span className="text-white">Swiftora</span>
             </div>
+            <p className="text-sm font-medium text-white/90 mb-2">
+              Legal name: SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES
+            </p>
             <p className="text-sm text-gray-400 mb-4 max-w-md">
               India's leading shipping and logistics platform. Automate shipping, reduce costs, and grow your e-commerce business.
             </p>
@@ -74,10 +77,16 @@ const Footer = () => {
                 Support
               </Link>
               <Link
-                to="/dashboard/terms-and-conditions"
+                to="/terms-and-conditions"
                 className="text-sm text-gray-400 hover:text-white transition-all hover:translate-x-1 inline-block"
               >
                 Terms & Conditions
+              </Link>
+              <Link
+                to="/refund-policy"
+                className="text-sm text-gray-400 hover:text-white transition-all hover:translate-x-1 inline-block"
+              >
+                Refund & Cancellation
               </Link>
             </div>
           </div>
@@ -95,11 +104,11 @@ const Footer = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                <span>+91 1800-XXX-XXXX</span>
+                <span>+91 8043691691</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
-                <span>support@swiftora.com</span>
+                <span>support@swiftora.co</span>
               </div>
             </div>
           </div>
@@ -107,7 +116,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-400">
-            © 2025 Swiftora. All rights reserved.
+            © 2025 Swiftora (SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES). All rights reserved.
           </p>
           <p className="text-sm text-gray-400 flex items-center gap-1">
             Made with{" "}

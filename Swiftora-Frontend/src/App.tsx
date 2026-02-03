@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import About from "./pages/About";
 import Tracking from "./pages/Tracking";
 import Contact from "./pages/Contact";
+import TermsAndConditionsPublic from "./pages/TermsAndConditionsPublic";
+import RefundPolicy from "./pages/RefundPolicy";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -59,6 +61,8 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="/tracking" element={<Tracking />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditionsPublic />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
