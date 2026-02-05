@@ -73,6 +73,17 @@ type XpressbeesService = {
   chargeable_weight?: number;
 };
 
+// Delhivery service option type
+type DelhiveryService = {
+  courier: 'DELHIVERY';
+  service_id: string;
+  service_name: string;
+  freight: number;
+  cod: number;
+  total: number;
+  estimated_days?: number;
+};
+
 type Order = {
   id: string;
   orderNumber: string;
@@ -152,6 +163,13 @@ const Orders = () => {
   const [xpressbeesServices, setXpressbeesServices] = useState<XpressbeesService[]>([]);
   const [loadingXpressbeesPricing, setLoadingXpressbeesPricing] = useState(false);
   const [selectingService, setSelectingService] = useState<string | null>(null);
+
+  // Delhivery pricing modal state
+  const [showDelhiveryModal, setShowDelhiveryModal] = useState(false);
+  const [selectedOrderForDelhivery, setSelectedOrderForDelhivery] = useState<Order | null>(null);
+  const [delhiveryServices, setDelhiveryServices] = useState<DelhiveryService[]>([]);
+  const [loadingDelhiveryPricing, setLoadingDelhiveryPricing] = useState(false);
+  const [selectingDelhiveryService, setSelectingDelhiveryService] = useState<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -316,6 +334,57 @@ const Orders = () => {
       toast.error(message);
     } finally {
       setSelectingService(null);
+    }
+  };
+
+  // Open Delhivery pricing modal
+  const openDelhiveryModal = async (order: Order) => {
+    setSelectedOrderForDelhivery(order);
+    setShowDelhiveryModal(true);
+    setDelhiveryServices([]);
+    setLoadingDelhiveryPricing(true);
+
+    try {
+      const response = await ordersApi.getDelhiveryPricing(order.id);
+      if (response.data.success) {
+        setDelhiveryServices(response.data.services || []);
+      } else {
+        toast.error(response.data.error || "Could not load Delhivery pricing");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to load pricing";
+      toast.error(message);
+    } finally {
+      setLoadingDelhiveryPricing(false);
+    }
+  };
+
+  // Select Delhivery service and ship
+  const handleSelectDelhiveryService = async (service: DelhiveryService) => {
+    if (!selectedOrderForDelhivery) return;
+
+    try {
+      setSelectingDelhiveryService(service.service_id);
+
+      // First, save the selected service
+      await ordersApi.selectDelhiveryService(selectedOrderForDelhivery.id, service);
+
+      // Then ship the order
+      const response = await ordersApi.shipToDelhivery(selectedOrderForDelhivery.id);
+
+      if (response.data.success) {
+        toast.success(`Shipped via Delhivery! AWB: ${response.data.awbNumber}`);
+        setShowDelhiveryModal(false);
+        setSelectedOrderForDelhivery(null);
+        loadOrders();
+      } else {
+        toast.error(response.data.error || "Failed to ship order");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to select service";
+      toast.error(message);
+    } finally {
+      setSelectingDelhiveryService(null);
     }
   };
 
@@ -609,6 +678,16 @@ const Orders = () => {
                               Ship via Xpressbees
                             </DropdownMenuItem>
                           )}
+                          {/* Delhivery with options */}
+                          {!order.awbNumber && order.warehouse && (
+                            <DropdownMenuItem
+                              onClick={() => openDelhiveryModal(order)}
+                              className="gap-2 text-indigo-600"
+                            >
+                              <Package className="h-4 w-4" />
+                              Delhivery (Surface/Express)
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem className="gap-2">
                             <FileText className="h-4 w-4" />
                             View Details
@@ -832,6 +911,72 @@ const Orders = () => {
                           <Loader2 className="h-4 w-4 animate-spin ml-auto mt-1" />
                         ) : (
                           <p className="text-xs text-muted-foreground group-hover:text-green-600 mt-1">
+                            Click to ship →
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delhivery Pricing Modal */}
+      <Dialog open={showDelhiveryModal} onOpenChange={setShowDelhiveryModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-indigo-600" />
+              Ship via Delhivery
+            </DialogTitle>
+            <DialogDescription>
+              Select shipping mode for order {selectedOrderForDelhivery?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {loadingDelhiveryPricing ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-3" />
+                <p className="text-muted-foreground">Loading available services...</p>
+              </div>
+            ) : delhiveryServices.length === 0 ? (
+              <div className="text-center py-6">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No services available for this route</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Please check pickup and delivery pincodes
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {delhiveryServices.map((service) => (
+                  <button
+                    key={service.service_id}
+                    onClick={() => handleSelectDelhiveryService(service)}
+                    disabled={selectingDelhiveryService !== null}
+                    className="w-full p-4 text-left rounded-lg border hover:border-indigo-500 hover:bg-indigo-50 transition-all group disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-base">{service.service_name}</p>
+                        <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                          <span>Freight: <span className="font-medium text-foreground">₹{service.freight}</span></span>
+                          <span>COD: <span className="font-medium text-foreground">₹{service.cod}</span></span>
+                          {service.estimated_days && (
+                            <span>Est: <span className="font-medium text-foreground">{service.estimated_days} days</span></span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-indigo-600">₹{service.total}</p>
+                        {selectingDelhiveryService === service.service_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin ml-auto mt-1" />
+                        ) : (
+                          <p className="text-xs text-muted-foreground group-hover:text-indigo-600 mt-1">
                             Click to ship →
                           </p>
                         )}

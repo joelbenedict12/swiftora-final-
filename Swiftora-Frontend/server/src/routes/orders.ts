@@ -11,6 +11,7 @@ import {
   CourierName,
   CreateShipmentRequest,
   xpressbeesService,
+  delhiveryService,
 } from '../services/courier/index.js';
 
 const router = Router();
@@ -873,6 +874,234 @@ router.post('/xpressbees/ndr/action', async (req: AuthRequest, res, next) => {
       success: result.success,
       results: result.results,
       error: result.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==============================================================
+// DELHIVERY-SPECIFIC ROUTES
+// ==============================================================
+
+// Get Delhivery pricing options (Surface/Express)
+router.post('/:id/delhivery/pricing', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+      include: {
+        warehouse: true,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!order.warehouse) {
+      throw new AppError(400, 'No pickup location assigned to this order');
+    }
+
+    // Calculate weight in grams
+    const weightInGrams = Math.round(Number(order.chargeableWeight || order.weight || 0.5) * 1000);
+
+    const pricingResult = await delhiveryService.getPricingWithOptions({
+      originPincode: order.warehouse.pincode,
+      destinationPincode: order.shippingPincode,
+      paymentMode: order.paymentMode === 'COD' ? 'COD' : 'Prepaid',
+      weight: weightInGrams,
+      codAmount: order.paymentMode === 'COD' ? Number(order.codAmount) || 0 : undefined,
+    });
+
+    if (!pricingResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: pricingResult.error || 'Could not fetch Delhivery pricing',
+      });
+    }
+
+    const normalizedServices = delhiveryService.normalizePricingResponse(pricingResult.services);
+
+    res.json({
+      success: true,
+      services: normalizedServices,
+      raw: pricingResult.services,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Select Delhivery service for an order
+router.post('/:id/delhivery/select-service', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const { service_id, service_name, freight, cod, total, estimated_days } = req.body;
+
+    if (!service_id) {
+      throw new AppError(400, 'Service ID is required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        courierName: 'DELHIVERY',
+        notes: `Delhivery ${service_name} | Freight: ₹${freight} | COD: ₹${cod} | Total: ₹${total} | Est: ${estimated_days} days`,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `Selected ${service_name} for order`,
+      order: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get shipping label for Delhivery order
+router.get('/:id/delhivery/label', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!order.awbNumber) {
+      throw new AppError(400, 'Order has no AWB number');
+    }
+
+    const pdfSize = (req.query.size as '4R' | 'A4') || '4R';
+    const labelResult = await delhiveryService.generateLabel(order.awbNumber, pdfSize);
+
+    if (!labelResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: labelResult.error || 'Could not generate label',
+      });
+    }
+
+    res.json({
+      success: true,
+      labelUrl: labelResult.labelUrl,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create pickup request for Delhivery
+router.post('/delhivery/pickup', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const { warehouseId, pickupDate, pickupTime, expectedPackageCount } = req.body;
+
+    if (!warehouseId || !pickupDate || !expectedPackageCount) {
+      throw new AppError(400, 'warehouseId, pickupDate, and expectedPackageCount are required');
+    }
+
+    const warehouse = await prisma.warehouse.findFirst({
+      where: {
+        id: warehouseId,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!warehouse) {
+      throw new AppError(404, 'Warehouse not found');
+    }
+
+    const pickupResult = await delhiveryService.createPickupRequest({
+      pickupLocation: warehouse.name,
+      pickupDate,
+      pickupTime: pickupTime || '11:00:00',
+      expectedPackageCount,
+    });
+
+    res.json({
+      success: pickupResult.success,
+      pickupId: pickupResult.pickupId,
+      message: pickupResult.message,
+      error: pickupResult.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancel Delhivery shipment
+router.post('/:id/delhivery/cancel', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!order.awbNumber) {
+      throw new AppError(400, 'Order has no AWB number to cancel');
+    }
+
+    const cancelResult = await delhiveryService.cancelShipment({
+      awbNumber: order.awbNumber,
+      orderNumber: order.orderNumber,
+    });
+
+    if (cancelResult.success) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED' },
+      });
+    }
+
+    res.json({
+      success: cancelResult.success,
+      message: cancelResult.message,
+      error: cancelResult.error,
     });
   } catch (error) {
     next(error);

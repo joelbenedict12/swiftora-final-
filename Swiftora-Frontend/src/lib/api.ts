@@ -166,6 +166,32 @@ export const ordersApi = {
     newAddress2?: string;
     newPhone?: string;
   }>) => api.post('/orders/xpressbees/ndr/action', { actions }),
+
+  // Delhivery-specific APIs
+  getDelhiveryPricing: (orderId: string) =>
+    api.post(`/orders/${orderId}/delhivery/pricing`),
+
+  selectDelhiveryService: (orderId: string, service: {
+    service_id: string;
+    service_name: string;
+    freight: number;
+    cod: number;
+    total: number;
+    estimated_days?: number;
+  }) => api.post(`/orders/${orderId}/delhivery/select-service`, service),
+
+  getDelhiveryLabel: (orderId: string, size?: '4R' | 'A4') =>
+    api.get(`/orders/${orderId}/delhivery/label`, { params: { size } }),
+
+  createDelhiveryPickup: (params: {
+    warehouseId: string;
+    pickupDate: string;
+    pickupTime?: string;
+    expectedPackageCount: number;
+  }) => api.post('/orders/delhivery/pickup', params),
+
+  cancelDelhiveryShipment: (orderId: string) =>
+    api.post(`/orders/${orderId}/delhivery/cancel`),
 };
 
 // Pickups API
