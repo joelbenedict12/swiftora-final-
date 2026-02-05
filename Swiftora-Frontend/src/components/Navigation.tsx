@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Package, LogIn } from "lucide-react";
+import { Menu, X, LogIn } from "lucide-react";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,13 +24,13 @@ const Navigation = () => {
             to="/"
             className="flex items-center gap-2 font-bold text-xl text-gray-900 group"
           >
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-100 blur-xl rounded-lg group-hover:bg-blue-200 transition-all"></div>
-              <Package className="w-6 h-6 relative z-10 text-blue-600" />
+            <div className=" flex flex-col items-start  max-w-sm">
+              <img
+                src="/new-logo.jpg"
+                alt="Swiftora Logo"
+                className="w-36 object-contain p-4 "
+              />
             </div>
-            <span className="bg-gradient-to-r from-blue-600 to-orange-500 bg-clip-text text-transparent">
-              Swiftora
-            </span>
           </Link>
 
           {/* Desktop Navigation */}
