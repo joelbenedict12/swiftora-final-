@@ -121,23 +121,51 @@ export const ordersApi = {
   cancel: (id: string) => api.post(`/orders/${id}/cancel`),
 
   // Generic ship method - pass courier name
-  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART') => 
+  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES') =>
     api.post(`/orders/${id}/ship`, { courierName }),
 
   // Convenience methods for each courier
   shipToDelhivery: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'DELHIVERY' }),
-  
+
   shipToBlitz: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'BLITZ' }),
-  
+
   shipToEkart: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'EKART' }),
+
+  shipToXpressbees: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES' }),
 
   assignPickupLocation: (id: string, warehouseId: string) =>
     api.put(`/orders/${id}/pickup-location`, { warehouseId }),
 
   bulkImport: (orders: any[]) => api.post('/orders/bulk/import', { orders }),
-  
+
   // Get available couriers
   getCouriers: () => api.get('/orders/couriers'),
+
+  // Xpressbees-specific APIs
+  getXpressbeesPricing: (orderId: string) =>
+    api.post(`/orders/${orderId}/xpressbees/pricing`),
+
+  selectXpressbeesService: (orderId: string, service: {
+    service_id: string;
+    service_name: string;
+    freight: number;
+    cod: number;
+    total: number;
+    chargeable_weight?: number;
+  }) => api.post(`/orders/${orderId}/xpressbees/select-service`, service),
+
+  // NDR APIs
+  getXpressbeesNdr: () => api.get('/orders/xpressbees/ndr'),
+
+  createXpressbeesNdrAction: (actions: Array<{
+    type: 'RE_ATTEMPT' | 'CHANGE_ADDRESS' | 'CHANGE_PHONE';
+    awbNumber: string;
+    reAttemptDate?: string;
+    newName?: string;
+    newAddress1?: string;
+    newAddress2?: string;
+    newPhone?: string;
+  }>) => api.post('/orders/xpressbees/ndr/action', { actions }),
 };
 
 // Pickups API

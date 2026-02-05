@@ -55,11 +55,23 @@ import {
   Building,
   Zap,
   ShoppingCart,
+  Loader2,
 } from "lucide-react";
 import { ordersApi, warehousesApi, ticketsApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
+
+// Xpressbees service option type
+type XpressbeesService = {
+  courier: string;
+  service_id: string;
+  service_name: string;
+  freight: number;
+  cod: number;
+  total: number;
+  chargeable_weight?: number;
+};
 
 type Order = {
   id: string;
@@ -133,6 +145,13 @@ const Orders = () => {
     priority: "MEDIUM",
   });
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+
+  // Xpressbees pricing modal state
+  const [showXpressbeesModal, setShowXpressbeesModal] = useState(false);
+  const [selectedOrderForXpressbees, setSelectedOrderForXpressbees] = useState<Order | null>(null);
+  const [xpressbeesServices, setXpressbeesServices] = useState<XpressbeesService[]>([]);
+  const [loadingXpressbeesPricing, setLoadingXpressbeesPricing] = useState(false);
+  const [selectingService, setSelectingService] = useState<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -249,6 +268,57 @@ const Orders = () => {
     }
   };
 
+  // Open Xpressbees pricing modal
+  const openXpressbeesModal = async (order: Order) => {
+    setSelectedOrderForXpressbees(order);
+    setShowXpressbeesModal(true);
+    setXpressbeesServices([]);
+    setLoadingXpressbeesPricing(true);
+
+    try {
+      const response = await ordersApi.getXpressbeesPricing(order.id);
+      if (response.data.success) {
+        setXpressbeesServices(response.data.services || []);
+      } else {
+        toast.error(response.data.error || "Could not load Xpressbees pricing");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to load pricing";
+      toast.error(message);
+    } finally {
+      setLoadingXpressbeesPricing(false);
+    }
+  };
+
+  // Select Xpressbees service and ship
+  const handleSelectXpressbeesService = async (service: XpressbeesService) => {
+    if (!selectedOrderForXpressbees) return;
+
+    try {
+      setSelectingService(service.service_id);
+
+      // First, save the selected service
+      await ordersApi.selectXpressbeesService(selectedOrderForXpressbees.id, service);
+
+      // Then ship the order
+      const response = await ordersApi.shipToXpressbees(selectedOrderForXpressbees.id);
+
+      if (response.data.success) {
+        toast.success(`Shipped via Xpressbees! AWB: ${response.data.awbNumber}`);
+        setShowXpressbeesModal(false);
+        setSelectedOrderForXpressbees(null);
+        loadOrders();
+      } else {
+        toast.error(response.data.error || "Failed to ship order");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to select service";
+      toast.error(message);
+    } finally {
+      setSelectingService(null);
+    }
+  };
+
   // Raise Ticket handlers
   const openTicketModal = (order: Order) => {
     setSelectedOrderForTicket(order);
@@ -263,7 +333,7 @@ const Orders = () => {
 
   const handleCreateTicket = async () => {
     if (!selectedOrderForTicket) return;
-    
+
     if (!ticketData.subject.trim() || !ticketData.description.trim()) {
       toast.error("Please fill in all required fields");
       return;
@@ -529,6 +599,16 @@ const Orders = () => {
                               {shippingOrderId === order.id ? "Shipping..." : "Ship to Ekart"}
                             </DropdownMenuItem>
                           )}
+                          {/* Xpressbees option */}
+                          {!order.awbNumber && order.warehouse && (
+                            <DropdownMenuItem
+                              onClick={() => openXpressbeesModal(order)}
+                              className="gap-2 text-green-600"
+                            >
+                              <Truck className="h-4 w-4" />
+                              Ship via Xpressbees
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem className="gap-2">
                             <FileText className="h-4 w-4" />
                             View Details
@@ -695,6 +775,72 @@ const Orders = () => {
                 {isCreatingTicket ? "Creating..." : "Create Ticket"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Xpressbees Pricing Modal */}
+      <Dialog open={showXpressbeesModal} onOpenChange={setShowXpressbeesModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5 text-green-600" />
+              Ship via Xpressbees
+            </DialogTitle>
+            <DialogDescription>
+              Select a shipping service for order {selectedOrderForXpressbees?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {loadingXpressbeesPricing ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-green-600 mb-3" />
+                <p className="text-muted-foreground">Loading available services...</p>
+              </div>
+            ) : xpressbeesServices.length === 0 ? (
+              <div className="text-center py-6">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No services available for this route</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Please check pickup and delivery pincodes
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {xpressbeesServices.map((service) => (
+                  <button
+                    key={service.service_id}
+                    onClick={() => handleSelectXpressbeesService(service)}
+                    disabled={selectingService !== null}
+                    className="w-full p-4 text-left rounded-lg border hover:border-green-500 hover:bg-green-50 transition-all group disabled:opacity-50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-base">{service.service_name}</p>
+                        <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                          <span>Freight: <span className="font-medium text-foreground">₹{service.freight}</span></span>
+                          <span>COD: <span className="font-medium text-foreground">₹{service.cod}</span></span>
+                          {service.chargeable_weight && (
+                            <span>Weight: <span className="font-medium text-foreground">{(service.chargeable_weight / 1000).toFixed(2)} kg</span></span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-green-600">₹{service.total}</p>
+                        {selectingService === service.service_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin ml-auto mt-1" />
+                        ) : (
+                          <p className="text-xs text-muted-foreground group-hover:text-green-600 mt-1">
+                            Click to ship →
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

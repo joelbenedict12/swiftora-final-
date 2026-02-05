@@ -13,12 +13,14 @@ import { ICourierService, CourierName } from './types.js';
 import { DelhiveryService, delhiveryService } from './DelhiveryService.js';
 import { BlitzService, blitzService } from './BlitzService.js';
 import { EkartService, ekartService } from './EkartService.js';
+import { XpressbeesService, xpressbeesService } from './XpressbeesService.js';
 
 // Map of courier names to service instances
 const courierMap: Record<CourierName, ICourierService> = {
   DELHIVERY: delhiveryService,
   BLITZ: blitzService,
   EKART: ekartService,
+  XPRESSBEES: xpressbeesService,
 };
 
 /**
@@ -26,11 +28,11 @@ const courierMap: Record<CourierName, ICourierService> = {
  */
 export function getCourierService(courierName: CourierName): ICourierService {
   const service = courierMap[courierName];
-  
+
   if (!service) {
     throw new Error(`Unknown courier: ${courierName}. Available couriers: ${Object.keys(courierMap).join(', ')}`);
   }
-  
+
   return service;
 }
 
@@ -59,21 +61,25 @@ export function createCourierService(courierName: CourierName): ICourierService 
       return new BlitzService();
     case 'EKART':
       return new EkartService();
+    case 'XPRESSBEES':
+      return new XpressbeesService();
     default:
       throw new Error(`Unknown courier: ${courierName}`);
   }
 }
 
 // Export everything for convenience
-export { 
-  ICourierService, 
+export {
+  ICourierService,
   CourierName,
   DelhiveryService,
   BlitzService,
   EkartService,
+  XpressbeesService,
   delhiveryService,
   blitzService,
   ekartService,
+  xpressbeesService,
 };
 
 // Re-export types

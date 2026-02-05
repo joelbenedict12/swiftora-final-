@@ -6,13 +6,13 @@
  */
 
 // Supported courier names
-export type CourierName = 'DELHIVERY' | 'BLITZ' | 'EKART';
+export type CourierName = 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES';
 
 // Standardized shipment request (courier-agnostic)
 export interface CreateShipmentRequest {
   // Order details
   orderNumber: string;
-  
+
   // Customer/Delivery details
   customerName: string;
   customerPhone: string;
@@ -23,7 +23,7 @@ export interface CreateShipmentRequest {
   shippingState: string;
   shippingPincode: string;
   shippingCountry?: string;
-  
+
   // Pickup/Warehouse details
   pickupName: string;
   pickupPhone: string;
@@ -34,24 +34,24 @@ export interface CreateShipmentRequest {
   pickupState: string;
   pickupPincode: string;
   pickupCountry?: string;
-  
+
   // Product details
   productName: string;
   productDescription?: string;
   productValue: number;
   quantity: number;
-  
+
   // Package dimensions
   weight: number; // in kg (will be converted as needed)
   length?: number; // in cm
   breadth?: number; // in cm
   height?: number; // in cm
-  
+
   // Payment
   paymentMode: 'PREPAID' | 'COD';
   codAmount?: number;
   totalAmount: number;
-  
+
   // Optional metadata
   channelId?: string;
   sellerName?: string;
@@ -148,12 +148,12 @@ export interface CheckServiceabilityResponse {
  */
 export interface ICourierService {
   readonly name: CourierName;
-  
+
   // Core shipment operations
   createShipment(request: CreateShipmentRequest): Promise<CreateShipmentResponse>;
   trackShipment(request: TrackShipmentRequest): Promise<TrackShipmentResponse>;
   cancelShipment(request: CancelShipmentRequest): Promise<CancelShipmentResponse>;
-  
+
   // Optional operations (not all couriers support these)
   calculateRate?(request: CalculateRateRequest): Promise<CalculateRateResponse>;
   checkServiceability?(request: CheckServiceabilityRequest): Promise<CheckServiceabilityResponse>;

@@ -4,12 +4,13 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/error.js';
 import { delhivery } from '../services/delhivery.js';
-import { 
-  getCourierService, 
-  getAvailableCouriers, 
+import {
+  getCourierService,
+  getAvailableCouriers,
   isCourierSupported,
   CourierName,
   CreateShipmentRequest,
+  xpressbeesService,
 } from '../services/courier/index.js';
 
 const router = Router();
@@ -17,7 +18,7 @@ const router = Router();
 router.use(authenticate);
 
 // Valid courier names
-const CourierNameEnum = z.enum(['DELHIVERY', 'BLITZ', 'EKART']);
+const CourierNameEnum = z.enum(['DELHIVERY', 'BLITZ', 'EKART', 'XPRESSBEES']);
 
 const CreateOrderSchema = z.object({
   // Customer
@@ -59,7 +60,7 @@ const CreateOrderSchema = z.object({
   warehouseId: z.string(),
   channel: z.string().optional(),
   notes: z.string().optional(),
-  
+
   // Courier selection - user manually selects
   courierName: CourierNameEnum.optional().default('DELHIVERY'),
 });
@@ -80,8 +81,12 @@ router.get('/couriers', async (req: AuthRequest, res) => {
       displayName: 'Ekart',
       description: 'Flipkart logistics - reliable nationwide delivery',
     },
+    XPRESSBEES: {
+      displayName: 'Xpressbees',
+      description: 'Multi-service options with Surface, Air, and Same Day',
+    },
   };
-  
+
   res.json({
     couriers: couriers.map(name => ({
       name,
@@ -216,12 +221,12 @@ router.post('/', async (req: AuthRequest, res, next) => {
     // Get or create warehouse: use provided ID, else existing default, else create one only if none exists
     let warehouse = data.warehouseId
       ? await prisma.warehouse.findFirst({
-          where: {
-            id: data.warehouseId,
-            merchantId: req.user!.merchantId,
-            isActive: true,
-          },
-        })
+        where: {
+          id: data.warehouseId,
+          merchantId: req.user!.merchantId,
+          isActive: true,
+        },
+      })
       : null;
 
     if (!warehouse) {
@@ -254,7 +259,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     // Create order in DB (with selected courier)
     const selectedCourier = data.courierName || 'DELHIVERY';
-    
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -293,7 +298,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
         channel: data.channel,
         notes: data.notes,
-        
+
         // Store selected courier (will be updated with actual courier after shipment creation)
         courierName: selectedCourier,
 
@@ -305,17 +310,17 @@ router.post('/', async (req: AuthRequest, res, next) => {
     // Try to create shipment using the selected courier service
     let awbNumber: string | null = null;
     let labelUrl: string | null = null;
-    
+
     try {
       console.log(`Creating shipment with ${selectedCourier} for order:`, orderNumber);
-      
+
       // Get the courier service
       const courierService = getCourierService(selectedCourier as CourierName);
-      
+
       // Build standardized shipment request
       const shipmentRequest: CreateShipmentRequest = {
         orderNumber,
-        
+
         // Customer details
         customerName: data.customerName,
         customerPhone: data.customerPhone,
@@ -325,7 +330,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         shippingState: data.shippingState,
         shippingPincode: data.shippingPincode,
         shippingCountry: 'India',
-        
+
         // Pickup/Warehouse details
         pickupName: warehouse.delhiveryName || warehouse.name,
         pickupPhone: warehouse.phone,
@@ -335,28 +340,28 @@ router.post('/', async (req: AuthRequest, res, next) => {
         pickupState: warehouse.state,
         pickupPincode: warehouse.pincode,
         pickupCountry: 'India',
-        
+
         // Product details
         productName: data.productName,
         productDescription: data.productName,
         productValue: data.productValue,
         quantity: data.quantity,
-        
+
         // Package dimensions
         weight: chargeableWeight,
         length: data.length,
         breadth: data.breadth,
         height: data.height,
-        
+
         // Payment
         paymentMode: data.paymentMode,
         codAmount: data.codAmount,
         totalAmount: data.productValue,
-        
+
         // Optional metadata
         channelId: data.channel,
       };
-      
+
       // Create shipment using the courier service
       const shipmentResponse = await courierService.createShipment(shipmentRequest);
       console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
@@ -364,7 +369,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       if (shipmentResponse.success && shipmentResponse.awbNumber) {
         awbNumber = shipmentResponse.awbNumber;
         labelUrl = shipmentResponse.labelUrl || null;
-        
+
         await prisma.order.update({
           where: { id: order.id },
           data: {
@@ -403,7 +408,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         where: { merchantId: req.user!.merchantId },
       });
       const ticketNumber = `TKT-${new Date().getFullYear()}-${String(ticketCount + 1).padStart(3, '0')}`;
-      
+
       // Calculate SLA due date (48 hours default)
       const dueAt = new Date();
       dueAt.setHours(dueAt.getHours() + 48);
@@ -562,7 +567,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     // Determine which courier to use
     // Priority: 1) Request body, 2) Order's stored courierName, 3) Default to DELHIVERY
     let selectedCourier: CourierName = 'DELHIVERY';
-    
+
     if (requestedCourier && isCourierSupported(requestedCourier)) {
       selectedCourier = requestedCourier as CourierName;
     } else if (order.courierName && isCourierSupported(order.courierName)) {
@@ -577,7 +582,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     // Build standardized shipment request
     const shipmentRequest: CreateShipmentRequest = {
       orderNumber: order.orderNumber,
-      
+
       // Customer details
       customerName: order.customerName,
       customerPhone: order.customerPhone,
@@ -587,7 +592,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       shippingState: order.shippingState,
       shippingPincode: order.shippingPincode,
       shippingCountry: 'India',
-      
+
       // Pickup/Warehouse details
       pickupName: warehouse.delhiveryName || warehouse.name,
       pickupPhone: warehouse.phone,
@@ -597,24 +602,24 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       pickupState: warehouse.state,
       pickupPincode: warehouse.pincode,
       pickupCountry: 'India',
-      
+
       // Product details
       productName: order.productName,
       productDescription: order.productName,
       productValue: Number(order.productValue),
       quantity: order.quantity,
-      
+
       // Package dimensions
       weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
       length: order.length ? Number(order.length) : undefined,
       breadth: order.breadth ? Number(order.breadth) : undefined,
       height: order.height ? Number(order.height) : undefined,
-      
+
       // Payment
       paymentMode: order.paymentMode as 'PREPAID' | 'COD',
       codAmount: order.codAmount ? Number(order.codAmount) : undefined,
       totalAmount: Number(order.productValue),
-      
+
       // Optional metadata
       channelId: order.channel || undefined,
     };
@@ -723,4 +728,156 @@ router.put('/:id/pickup-location', async (req: AuthRequest, res, next) => {
   }
 });
 
+// ==============================================================
+// XPRESSBEES-SPECIFIC ROUTES
+// ==============================================================
+
+// Get Xpressbees pricing/service options for an order
+router.post('/:id/xpressbees/pricing', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+      include: {
+        warehouse: true,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!order.warehouse) {
+      throw new AppError(400, 'No pickup location assigned to this order');
+    }
+
+    // Calculate weight in grams
+    const weightInGrams = Math.round(Number(order.chargeableWeight || order.weight || 0.5) * 1000);
+
+    // Call Xpressbees serviceability API
+    const pricingResult = await xpressbeesService.checkServiceabilityWithPricing({
+      origin: order.warehouse.pincode,
+      destination: order.shippingPincode,
+      payment_type: order.paymentMode === 'COD' ? 'cod' : 'prepaid',
+      order_amount: Number(order.productValue) || 0,
+      weight: weightInGrams,
+      length: Number(order.length) || 10,
+      breadth: Number(order.breadth) || 10,
+      height: Number(order.height) || 10,
+    });
+
+    if (!pricingResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: pricingResult.error || 'Could not fetch Xpressbees pricing',
+      });
+    }
+
+    // Normalize the response to platform format
+    const normalizedServices = xpressbeesService.normalizePricingResponse(pricingResult.services);
+
+    res.json({
+      success: true,
+      services: normalizedServices,
+      raw: pricingResult.services,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Select Xpressbees service for an order
+router.post('/:id/xpressbees/select-service', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const { service_id, service_name, freight, cod, total, chargeable_weight } = req.body;
+
+    if (!service_id) {
+      throw new AppError(400, 'Service ID is required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    // Update order with selected courier and pricing info
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        courierName: 'XPRESSBEES',
+        notes: `Xpressbees Service: ${service_name} | Freight: ₹${freight} | COD: ₹${cod} | Total: ₹${total} | Weight: ${chargeable_weight}g`,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `Selected ${service_name} for order`,
+      order: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get NDR list for Xpressbees
+router.get('/xpressbees/ndr', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const ndrResult = await xpressbeesService.getNdrList();
+
+    res.json({
+      success: ndrResult.success,
+      items: ndrResult.items,
+      error: ndrResult.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create NDR action for Xpressbees
+router.post('/xpressbees/ndr/action', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const { actions } = req.body;
+
+    if (!Array.isArray(actions) || actions.length === 0) {
+      throw new AppError(400, 'Actions array is required');
+    }
+
+    const result = await xpressbeesService.createNdrAction(actions);
+
+    res.json({
+      success: result.success,
+      results: result.results,
+      error: result.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export const ordersRouter = router;
+
