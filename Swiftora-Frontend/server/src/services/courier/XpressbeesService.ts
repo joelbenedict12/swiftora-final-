@@ -94,7 +94,8 @@ export class XpressbeesService implements ICourierService {
     private password: string;
 
     constructor() {
-        this.token = process.env.XPRESSBEES_TOKEN || '';
+        // XPRESSBEES_API is the bearer token set in environment
+        this.token = process.env.XPRESSBEES_API || '';
         this.username = process.env.XPRESSBEES_USERNAME || '';
         this.password = process.env.XPRESSBEES_PASSWORD || '';
     }
@@ -243,6 +244,9 @@ export class XpressbeesService implements ICourierService {
         breadth: number;
         height: number;
     }): Promise<XpressbeesPricingResponse> {
+        console.log('=== XPRESSBEES PRICING REQUEST ===');
+        console.log('Request:', JSON.stringify(request, null, 2));
+
         try {
             const client = await this.getClient();
             const payload = {
@@ -256,7 +260,12 @@ export class XpressbeesService implements ICourierService {
                 height: request.height.toString(),
             };
 
+            console.log('Payload:', JSON.stringify(payload, null, 2));
+
             const response = await client.post('/api/courier/serviceability', payload);
+
+            console.log('Response:', JSON.stringify(response.data, null, 2));
+
             const services: XpressbeesServiceOption[] = [];
 
             if (response.data?.status === true && Array.isArray(response.data.data)) {
@@ -272,9 +281,13 @@ export class XpressbeesService implements ICourierService {
                 }
             }
 
-            return { success: services.length > 0, services, error: services.length === 0 ? 'No services' : undefined };
+            return { success: services.length > 0, services, error: services.length === 0 ? 'No services available' : undefined };
         } catch (error: any) {
-            return { success: false, services: [], error: error.message };
+            console.error('=== XPRESSBEES PRICING ERROR ===');
+            console.error('Error message:', error.message);
+            console.error('Error response:', JSON.stringify(error.response?.data, null, 2));
+            console.error('Error status:', error.response?.status);
+            return { success: false, services: [], error: error.response?.data?.message || error.message };
         }
     }
 
