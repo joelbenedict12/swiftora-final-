@@ -240,49 +240,73 @@ export class XpressbeesService implements ICourierService {
             const client = await this.getClient();
             const weightInGrams = Math.round(request.weight * 1000);
 
-            // Xpressbees order creation payload
-            // All values should be strings per Xpressbees API requirements
+            // Log incoming request for debugging
+            console.log('=== XPRESSBEES CREATE SHIPMENT - INPUT ===');
+            console.log('Request:', JSON.stringify(request, null, 2));
+
+            // Xpressbees order creation payload - EXACT format from API docs
             const payload = {
-                order_number: String(request.orderNumber),
-                shipping_method_id: (request as any).serviceId || '1', // Service ID from pricing selection
+                // Order Info
+                order_number: String(request.orderNumber || ''),
+                unique_order_number: 'yes',
 
-                // Consignee (Recipient) Details
-                consignee_name: String(request.customerName),
-                consignee_phone: String(request.customerPhone),
-                consignee_email: String(request.customerEmail || ''),
-                consignee_address: String(request.shippingAddress),
-                consignee_address_2: String(request.shippingAddress2 || ''),
-                consignee_city: String(request.shippingCity),
-                consignee_state: String(request.shippingState),
-                consignee_pincode: String(request.shippingPincode),
-
-                // Pickup (Sender) Details
-                pickup_name: String(request.pickupName || 'Swiftora'),
-                pickup_phone: String(request.pickupPhone || ''),
-                pickup_address: String(request.pickupAddress || ''),
-                pickup_address_2: String(request.pickupAddress2 || ''),
-                pickup_city: String(request.pickupCity || ''),
-                pickup_state: String(request.pickupState || ''),
-                pickup_pincode: String(request.pickupPincode || ''),
-
-                // Product Details
-                product_name: String(request.productName),
-                product_quantity: String(request.quantity || 1),
-                product_value: String(request.productValue),
-
-                // Dimensions & Weight (in grams)
-                weight: String(weightInGrams),
-                length: String(request.length || 10),
-                breadth: String(request.breadth || 10),
-                height: String(request.height || 10),
+                // Charges
+                shipping_charges: 0,
+                discount: 0,
+                cod_charges: 0,
 
                 // Payment
                 payment_type: request.paymentMode === 'COD' ? 'cod' : 'prepaid',
-                cod_amount: String(request.paymentMode === 'COD' ? (request.codAmount || request.totalAmount) : 0),
-                order_amount: String(request.totalAmount),
+                order_amount: Number(request.totalAmount || request.productValue || 0),
+                collectable_amount: String(request.paymentMode === 'COD'
+                    ? (request.codAmount || request.totalAmount || request.productValue || 0)
+                    : 0),
+
+                // Package dimensions
+                package_weight: weightInGrams || 500,
+                package_length: Number(request.length) || 10,
+                package_breadth: Number(request.breadth) || 10,
+                package_height: Number(request.height) || 10,
+
+                // Auto pickup
+                request_auto_pickup: 'yes',
+
+                // Consignee (Recipient) - NESTED OBJECT
+                consignee: {
+                    name: String(request.customerName || ''),
+                    address: String(request.shippingAddress || ''),
+                    address_2: String(request.shippingAddress2 || ''),
+                    city: String(request.shippingCity || ''),
+                    state: String(request.shippingState || ''),
+                    pincode: String(request.shippingPincode || ''),
+                    phone: String(request.customerPhone || ''),
+                },
+
+                // Pickup (Sender) - NESTED OBJECT
+                pickup: {
+                    warehouse_name: String(request.pickupName || 'Default Warehouse'),
+                    name: String(request.pickupName || 'Swiftora'),
+                    address: String(request.pickupAddress || ''),
+                    address_2: String(request.pickupAddress2 || ''),
+                    city: String(request.pickupCity || ''),
+                    state: String(request.pickupState || ''),
+                    pincode: String(request.pickupPincode || ''),
+                    phone: String(request.pickupPhone || ''),
+                },
+
+                // Order Items - ARRAY format
+                order_items: [{
+                    name: String(request.productName || 'Product'),
+                    qty: String(request.quantity || 1),
+                    price: String(request.productValue || 0),
+                    sku: String(request.orderNumber || 'SKU001'),
+                }],
+
+                // Courier ID (service selected from pricing)
+                courier_id: String((request as any).serviceId || ''),
             };
 
-            console.log('=== XPRESSBEES CREATE SHIPMENT ===');
+            console.log('=== XPRESSBEES CREATE SHIPMENT - PAYLOAD ===');
             console.log('Payload:', JSON.stringify(payload, null, 2));
 
             const response = await client.post('/api/shipments2', payload);
