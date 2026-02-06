@@ -71,23 +71,41 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/test-xpressbees', async (req, res) => {
   try {
-    const token = process.env.XPRESSBEES_TOKEN || '';
-    const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+    const email = process.env.XPRESSBEES_EMAIL || '';
+    const password = process.env.XPRESSBEES_PASSWORD || '';
 
-    console.log('=== XPRESSBEES DIRECT TEST ===');
-    console.log('Token exists:', !!cleanToken);
-    console.log('Token length:', cleanToken.length);
-    console.log('Token preview:', cleanToken ? cleanToken.substring(0, 30) + '...' : 'EMPTY');
+    console.log('=== XPRESSBEES TEST ===');
+    console.log('Email:', email);
+    console.log('Password:', password ? '***' + password.slice(-3) : 'NOT SET');
 
-    if (!cleanToken) {
+    if (!email || !password) {
       return res.status(400).json({
-        error: 'XPRESSBEES_TOKEN env not set',
+        error: 'XPRESSBEES_EMAIL and XPRESSBEES_PASSWORD must be set',
         envKeys: Object.keys(process.env).filter(k => k.toUpperCase().includes('XPRESS'))
       });
     }
 
-    // Make direct API call
-    const response = await axios.post(
+    // Step 1: Login
+    console.log('Step 1: Logging in...');
+    const loginRes = await axios.post(
+      'https://shipment.xpressbees.com/api/users/login',
+      { email, password },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (!loginRes.data.status || !loginRes.data.data) {
+      return res.status(401).json({
+        error: 'Login failed',
+        loginResponse: loginRes.data
+      });
+    }
+
+    const token = loginRes.data.data;
+    console.log('Login successful! Token length:', token.length);
+
+    // Step 2: Call serviceability API
+    console.log('Step 2: Calling serviceability API...');
+    const serviceRes = await axios.post(
       'https://shipment.xpressbees.com/api/courier/serviceability',
       {
         origin: '560001',
@@ -101,7 +119,7 @@ app.get('/api/test-xpressbees', async (req, res) => {
       },
       {
         headers: {
-          'Authorization': `Bearer ${cleanToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       }
@@ -110,13 +128,13 @@ app.get('/api/test-xpressbees', async (req, res) => {
     console.log('=== XPRESSBEES SUCCESS ===');
     res.json({
       success: true,
-      tokenLength: cleanToken.length,
-      xpressbeesResponse: response.data
+      tokenLength: token.length,
+      services: serviceRes.data
     });
   } catch (error: any) {
-    console.log('=== XPRESSBEES ERROR ===');
-    console.log('Status:', error.response?.status);
-    console.log('Data:', JSON.stringify(error.response?.data));
+    console.error('=== XPRESSBEES ERROR ===');
+    console.error('Status:', error.response?.status);
+    console.error('Data:', JSON.stringify(error.response?.data));
 
     res.status(error.response?.status || 500).json({
       error: 'Xpressbees API call failed',

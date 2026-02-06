@@ -89,117 +89,150 @@ export interface XpressbeesNdrCreateItem {
 export class XpressbeesService implements ICourierService {
     readonly name: CourierName = 'XPRESSBEES';
 
+    // Credentials from environment
+    private get email(): string {
+        return process.env.XPRESSBEES_EMAIL || '';
+    }
+
+    private get password(): string {
+        return process.env.XPRESSBEES_PASSWORD || '';
+    }
+
     constructor() {
-        // Token is read at runtime in getToken() to ensure env vars are loaded
+        console.log('XpressbeesService initialized');
     }
 
     /**
-     * Get token from environment at runtime (not at module load time)
+     * Login to Xpressbees and get JWT token
+     * POST https://shipment.xpressbees.com/api/users/login
      */
-    private getToken(): string {
-        const rawToken = process.env.XPRESSBEES_TOKEN || '';
-        // Remove 'Bearer ' prefix if user added it, and trim whitespace
-        const token = rawToken.replace(/^Bearer\s+/i, '').trim();
-        console.log(`XpressbeesService: Token at runtime: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
-        return token;
-    }
+    private async login(): Promise<string> {
+        console.log('=== XPRESSBEES LOGIN ===');
+        console.log(`Email: ${this.email}`);
+        console.log(`Password: ${this.password ? '***' + this.password.slice(-3) : 'NOT SET'}`);
 
-    private async authenticate(): Promise<string> {
-        // Read token fresh at request time (not from constructor)
-        const token = this.getToken();
-        if (token) return token;
-
-        if (tokenCache && tokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
-            return tokenCache.token;
+        if (!this.email || !this.password) {
+            throw new Error('XPRESSBEES_EMAIL and XPRESSBEES_PASSWORD must be set in environment');
         }
-
-        // No token set - try username/password auth
-        const username = process.env.XPRESSBEES_USERNAME || '';
-        const password = process.env.XPRESSBEES_PASSWORD || '';
 
         try {
-            console.log('XpressbeesService: Auto-authenticating with username/password...');
             const response = await axios.post(
-                `${XPRESSBEES_BASE_URL}/api/auth/token`,
-                { username, password },
-                { headers: { 'Content-Type': 'application/json' } }
+                `${XPRESSBEES_BASE_URL}/api/users/login`,
+                {
+                    email: this.email,
+                    password: this.password
+                },
+                {
+                    headers: { 'Content-Type': 'application/json' }
+                }
             );
 
-            // Handle different response formats (data as string or object)
-            let authToken = response.data.token;
-            if (!authToken && response.data.data) {
-                if (typeof response.data.data === 'string') {
-                    authToken = response.data.data;
-                } else {
-                    authToken = response.data.data.token;
-                }
+            console.log('Login response status:', response.data.status);
+
+            if (!response.data.status || !response.data.data) {
+                console.error('Login failed:', JSON.stringify(response.data));
+                throw new Error('Login failed: ' + (response.data.message || 'Unknown error'));
             }
 
-            if (!authToken) {
-                console.error('Xpressbees Auth Response:', JSON.stringify(response.data));
-                throw new Error('No token in response');
-            }
+            // Token is returned directly in data field as a string
+            const token = response.data.data;
+            console.log(`Token received: length=${token.length}, starts=${token.substring(0, 20)}...`);
 
+            // Cache the token (JWT tokens typically expire in 3 hours based on user's exp claim)
             tokenCache = {
-                token: authToken,
-                expiresAt: Date.now() + (response.data.expires_in || 86400) * 1000 - 3600000,
+                token: token,
+                expiresAt: Date.now() + (3 * 60 * 60 * 1000) - (5 * 60 * 1000) // 3 hours minus 5 min buffer
             };
-            return tokenCache.token;
+
+            return token;
         } catch (error: any) {
-            throw new Error(`Xpressbees auth failed: ${error.message}`);
+            console.error('=== XPRESSBEES LOGIN ERROR ===');
+            console.error('Status:', error.response?.status);
+            console.error('Data:', JSON.stringify(error.response?.data));
+            console.error('Message:', error.message);
+            throw new Error(`Xpressbees login failed: ${error.response?.data?.message || error.message}`);
         }
     }
 
-    private async getClient(): Promise<AxiosInstance> {
-        const token = await this.authenticate();
-        // Ensure token doesn't already have Bearer in case logic changes
-        const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+    /**
+     * Get valid token (from cache or fresh login)
+     */
+    private async getToken(): Promise<string> {
+        // Check if we have a valid cached token
+        if (tokenCache && tokenCache.expiresAt > Date.now()) {
+            console.log('Using cached Xpressbees token');
+            return tokenCache.token;
+        }
 
-        // Log for debugging
-        console.log(`=== XPRESSBEES CLIENT SETUP ===`);
-        console.log(`Token length: ${cleanToken.length}`);
-        console.log(`Token starts with: ${cleanToken.substring(0, 20)}...`);
-        console.log(`Token ends with: ...${cleanToken.substring(cleanToken.length - 20)}`);
+        // Otherwise login to get a fresh token
+        console.log('Token expired or not cached, logging in...');
+        return await this.login();
+    }
+
+    /**
+     * Clear token cache (for retry on 401)
+     */
+    private clearTokenCache(): void {
+        console.log('Clearing Xpressbees token cache');
+        tokenCache = null;
+    }
+
+    /**
+     * Create authenticated axios client
+     */
+    private async getClient(): Promise<AxiosInstance> {
+        const token = await this.getToken();
+
+        console.log('=== XPRESSBEES CLIENT ===');
+        console.log(`Token length: ${token.length}`);
         console.log(`Base URL: ${XPRESSBEES_BASE_URL}`);
 
-        const authHeader = `Bearer ${cleanToken}`;
-        console.log(`Authorization header: ${authHeader.substring(0, 30)}...`);
-
-        // Per Xpressbees docs: Authorization header with Bearer token
         const client = axios.create({
             baseURL: XPRESSBEES_BASE_URL,
             headers: {
-                'Authorization': authHeader,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
         });
 
-        // Add request interceptor to log exact request
-        client.interceptors.request.use((config) => {
-            console.log(`=== XPRESSBEES REQUEST ===`);
-            console.log(`URL: ${config.baseURL}${config.url}`);
-            console.log(`Method: ${config.method}`);
-            console.log(`Headers:`, JSON.stringify(config.headers, null, 2));
-            return config;
-        });
-
-        // Add response interceptor to log response
-        client.interceptors.response.use(
-            (response) => {
-                console.log(`=== XPRESSBEES RESPONSE SUCCESS ===`);
-                console.log(`Status: ${response.status}`);
-                console.log(`Data:`, JSON.stringify(response.data, null, 2));
-                return response;
-            },
-            (error) => {
-                console.log(`=== XPRESSBEES RESPONSE ERROR ===`);
-                console.log(`Status: ${error.response?.status}`);
-                console.log(`Data:`, JSON.stringify(error.response?.data, null, 2));
-                return Promise.reject(error);
-            }
-        );
-
         return client;
+    }
+
+    /**
+     * Make API request with automatic retry on 401
+     */
+    private async makeRequest<T>(
+        method: 'GET' | 'POST',
+        url: string,
+        data?: any,
+        retryOnAuth: boolean = true
+    ): Promise<T> {
+        try {
+            const client = await this.getClient();
+
+            console.log(`=== XPRESSBEES ${method} ${url} ===`);
+            if (data) console.log('Payload:', JSON.stringify(data));
+
+            const response = method === 'GET'
+                ? await client.get(url)
+                : await client.post(url, data);
+
+            console.log('Response:', JSON.stringify(response.data));
+            return response.data;
+        } catch (error: any) {
+            console.error(`=== XPRESSBEES ERROR ${method} ${url} ===`);
+            console.error('Status:', error.response?.status);
+            console.error('Data:', JSON.stringify(error.response?.data));
+
+            // If 401 and we haven't retried yet, clear cache and retry
+            if (error.response?.status === 401 && retryOnAuth) {
+                console.log('Got 401, clearing token and retrying...');
+                this.clearTokenCache();
+                return this.makeRequest<T>(method, url, data, false);
+            }
+
+            throw error;
+        }
     }
 
     async createShipment(request: CreateShipmentRequest): Promise<CreateShipmentResponse> {
