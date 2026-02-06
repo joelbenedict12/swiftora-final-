@@ -89,34 +89,39 @@ export interface XpressbeesNdrCreateItem {
 export class XpressbeesService implements ICourierService {
     readonly name: CourierName = 'XPRESSBEES';
 
-    private token: string;
-    private username: string;
-    private password: string;
-
     constructor() {
-        // XPRESSBEES_TOKEN is the bearer token set in Render environment
+        // Token is read at runtime in getToken() to ensure env vars are loaded
+    }
+
+    /**
+     * Get token from environment at runtime (not at module load time)
+     */
+    private getToken(): string {
         const rawToken = process.env.XPRESSBEES_TOKEN || '';
         // Remove 'Bearer ' prefix if user added it, and trim whitespace
-        this.token = rawToken.replace(/^Bearer\s+/i, '').trim();
-
-        this.username = process.env.XPRESSBEES_USERNAME || '';
-        this.password = process.env.XPRESSBEES_PASSWORD || '';
-
-        console.log('XpressbeesService: Token loaded:', this.token ? 'YES (length: ' + this.token.length + ')' : 'NO');
+        const token = rawToken.replace(/^Bearer\s+/i, '').trim();
+        console.log(`XpressbeesService: Token at runtime: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
+        return token;
     }
 
     private async authenticate(): Promise<string> {
-        if (this.token) return this.token;
+        // Read token fresh at request time (not from constructor)
+        const token = this.getToken();
+        if (token) return token;
 
         if (tokenCache && tokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
             return tokenCache.token;
         }
 
+        // No token set - try username/password auth
+        const username = process.env.XPRESSBEES_USERNAME || '';
+        const password = process.env.XPRESSBEES_PASSWORD || '';
+
         try {
             console.log('XpressbeesService: Auto-authenticating with username/password...');
             const response = await axios.post(
                 `${XPRESSBEES_BASE_URL}/api/auth/token`,
-                { username: this.username, password: this.password },
+                { username, password },
                 { headers: { 'Content-Type': 'application/json' } }
             );
 
