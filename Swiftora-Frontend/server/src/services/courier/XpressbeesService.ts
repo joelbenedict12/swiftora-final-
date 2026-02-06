@@ -95,7 +95,10 @@ export class XpressbeesService implements ICourierService {
 
     constructor() {
         // XPRESSBEES_TOKEN is the bearer token set in Render environment
-        this.token = process.env.XPRESSBEES_TOKEN || '';
+        const rawToken = process.env.XPRESSBEES_TOKEN || '';
+        // Remove 'Bearer ' prefix if user added it, and trim whitespace
+        this.token = rawToken.replace(/^Bearer\s+/i, '').trim();
+
         this.username = process.env.XPRESSBEES_USERNAME || '';
         this.password = process.env.XPRESSBEES_PASSWORD || '';
 
@@ -110,14 +113,27 @@ export class XpressbeesService implements ICourierService {
         }
 
         try {
+            console.log('XpressbeesService: Auto-authenticating with username/password...');
             const response = await axios.post(
                 `${XPRESSBEES_BASE_URL}/api/auth/token`,
                 { username: this.username, password: this.password },
                 { headers: { 'Content-Type': 'application/json' } }
             );
 
-            const authToken = response.data.token || response.data.data?.token;
-            if (!authToken) throw new Error('No token in response');
+            // Handle different response formats (data as string or object)
+            let authToken = response.data.token;
+            if (!authToken && response.data.data) {
+                if (typeof response.data.data === 'string') {
+                    authToken = response.data.data;
+                } else {
+                    authToken = response.data.data.token;
+                }
+            }
+
+            if (!authToken) {
+                console.error('Xpressbees Auth Response:', JSON.stringify(response.data));
+                throw new Error('No token in response');
+            }
 
             tokenCache = {
                 token: authToken,
@@ -131,9 +147,16 @@ export class XpressbeesService implements ICourierService {
 
     private async getClient(): Promise<AxiosInstance> {
         const token = await this.authenticate();
+        // Ensure token doesn't already have Bearer in case logic changes
+        const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+
+        // Log masked header for debugging
+        const maskedToken = cleanToken.substring(0, 10) + '...' + cleanToken.substring(cleanToken.length - 5);
+        console.log(`Xpressbees: Sending request with Authorization: Bearer ${maskedToken}`);
+
         return axios.create({
             baseURL: XPRESSBEES_BASE_URL,
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
         });
     }
 
