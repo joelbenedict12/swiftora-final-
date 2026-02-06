@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import { errorHandler } from './middleware/error.js';
 import { authRouter } from './routes/auth.js';
 import { ordersRouter } from './routes/orders.js';
@@ -67,7 +68,6 @@ app.get('/api/health', (req, res) => {
 // ============================================================
 // XPRESSBEES DEBUG TEST ENDPOINT (NO AUTH)
 // ============================================================
-import axios from 'axios';
 
 app.get('/api/test-xpressbees', async (req, res) => {
   try {
