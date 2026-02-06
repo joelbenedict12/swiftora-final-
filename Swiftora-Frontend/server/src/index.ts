@@ -64,6 +64,69 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ============================================================
+// XPRESSBEES DEBUG TEST ENDPOINT (NO AUTH)
+// ============================================================
+import axios from 'axios';
+
+app.get('/api/test-xpressbees', async (req, res) => {
+  try {
+    const token = process.env.XPRESSBEES_TOKEN || '';
+    const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+
+    console.log('=== XPRESSBEES DIRECT TEST ===');
+    console.log('Token exists:', !!cleanToken);
+    console.log('Token length:', cleanToken.length);
+    console.log('Token preview:', cleanToken ? cleanToken.substring(0, 30) + '...' : 'EMPTY');
+
+    if (!cleanToken) {
+      return res.status(400).json({
+        error: 'XPRESSBEES_TOKEN env not set',
+        envKeys: Object.keys(process.env).filter(k => k.toUpperCase().includes('XPRESS'))
+      });
+    }
+
+    // Make direct API call
+    const response = await axios.post(
+      'https://shipment.xpressbees.com/api/courier/serviceability',
+      {
+        origin: '560001',
+        destination: '560001',
+        payment_type: 'prepaid',
+        order_amount: '500',
+        weight: '500',
+        length: '10',
+        breadth: '10',
+        height: '10'
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('=== XPRESSBEES SUCCESS ===');
+    res.json({
+      success: true,
+      tokenLength: cleanToken.length,
+      xpressbeesResponse: response.data
+    });
+  } catch (error: any) {
+    console.log('=== XPRESSBEES ERROR ===');
+    console.log('Status:', error.response?.status);
+    console.log('Data:', JSON.stringify(error.response?.data));
+
+    res.status(error.response?.status || 500).json({
+      error: 'Xpressbees API call failed',
+      status: error.response?.status,
+      xpressbeesError: error.response?.data,
+      message: error.message
+    });
+  }
+});
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/orders', ordersRouter);
