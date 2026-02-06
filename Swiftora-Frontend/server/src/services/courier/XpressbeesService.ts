@@ -156,19 +156,50 @@ export class XpressbeesService implements ICourierService {
         const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
 
         // Log for debugging
-        const maskedToken = cleanToken.substring(0, 15) + '...' + cleanToken.substring(cleanToken.length - 10);
-        console.log(`Xpressbees: Token (masked): ${maskedToken}`);
-        console.log(`Xpressbees: Token length: ${cleanToken.length}`);
-        console.log(`Xpressbees: Base URL: ${XPRESSBEES_BASE_URL}`);
+        console.log(`=== XPRESSBEES CLIENT SETUP ===`);
+        console.log(`Token length: ${cleanToken.length}`);
+        console.log(`Token starts with: ${cleanToken.substring(0, 20)}...`);
+        console.log(`Token ends with: ...${cleanToken.substring(cleanToken.length - 20)}`);
+        console.log(`Base URL: ${XPRESSBEES_BASE_URL}`);
+
+        const authHeader = `Bearer ${cleanToken}`;
+        console.log(`Authorization header: ${authHeader.substring(0, 30)}...`);
 
         // Per Xpressbees docs: Authorization header with Bearer token
-        return axios.create({
+        const client = axios.create({
             baseURL: XPRESSBEES_BASE_URL,
             headers: {
-                'Authorization': `Bearer ${cleanToken}`,
+                'Authorization': authHeader,
                 'Content-Type': 'application/json'
             },
         });
+
+        // Add request interceptor to log exact request
+        client.interceptors.request.use((config) => {
+            console.log(`=== XPRESSBEES REQUEST ===`);
+            console.log(`URL: ${config.baseURL}${config.url}`);
+            console.log(`Method: ${config.method}`);
+            console.log(`Headers:`, JSON.stringify(config.headers, null, 2));
+            return config;
+        });
+
+        // Add response interceptor to log response
+        client.interceptors.response.use(
+            (response) => {
+                console.log(`=== XPRESSBEES RESPONSE SUCCESS ===`);
+                console.log(`Status: ${response.status}`);
+                console.log(`Data:`, JSON.stringify(response.data, null, 2));
+                return response;
+            },
+            (error) => {
+                console.log(`=== XPRESSBEES RESPONSE ERROR ===`);
+                console.log(`Status: ${error.response?.status}`);
+                console.log(`Data:`, JSON.stringify(error.response?.data, null, 2));
+                return Promise.reject(error);
+            }
+        );
+
+        return client;
     }
 
     async createShipment(request: CreateShipmentRequest): Promise<CreateShipmentResponse> {
