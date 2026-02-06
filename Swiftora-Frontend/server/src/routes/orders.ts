@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/error.js';
 import { delhivery } from '../services/delhivery.js';
+import axios from 'axios';
 import {
   getCourierService,
   getAvailableCouriers,
@@ -15,6 +16,70 @@ import {
 } from '../services/courier/index.js';
 
 const router = Router();
+
+// ============================================================
+// XPRESSBEES DEBUG TEST ENDPOINT (bypass auth middleware for testing)
+// ============================================================
+router.get('/test-xpressbees', async (req, res) => {
+  try {
+    const token = process.env.XPRESSBEES_TOKEN || '';
+    const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+
+    console.log('=== XPRESSBEES DIRECT TEST ===');
+    console.log('Token exists:', !!cleanToken);
+    console.log('Token length:', cleanToken.length);
+    console.log('Token preview:', cleanToken.substring(0, 30) + '...' + cleanToken.substring(cleanToken.length - 20));
+
+    if (!cleanToken) {
+      return res.status(400).json({
+        error: 'XPRESSBEES_TOKEN env not set',
+        envKeys: Object.keys(process.env).filter(k => k.includes('XPRESS'))
+      });
+    }
+
+    // Make direct API call
+    const response = await axios.post(
+      'https://shipment.xpressbees.com/api/courier/serviceability',
+      {
+        origin: '560001',
+        destination: '560001',
+        payment_type: 'prepaid',
+        order_amount: '500',
+        weight: '500',
+        length: '10',
+        breadth: '10',
+        height: '10'
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${cleanToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('=== XPRESSBEES SUCCESS ===');
+    console.log('Response:', JSON.stringify(response.data, null, 2));
+
+    res.json({
+      success: true,
+      tokenLength: cleanToken.length,
+      xpressbeesResponse: response.data
+    });
+  } catch (error: any) {
+    console.log('=== XPRESSBEES ERROR ===');
+    console.log('Status:', error.response?.status);
+    console.log('Data:', JSON.stringify(error.response?.data, null, 2));
+    console.log('Message:', error.message);
+
+    res.status(error.response?.status || 500).json({
+      error: 'Xpressbees API call failed',
+      status: error.response?.status,
+      xpressbeesError: error.response?.data,
+      message: error.message
+    });
+  }
+});
 
 router.use(authenticate);
 
