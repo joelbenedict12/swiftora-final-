@@ -94,10 +94,12 @@ export class XpressbeesService implements ICourierService {
     private password: string;
 
     constructor() {
-        // XPRESSBEES_API is the bearer token set in environment
-        this.token = process.env.XPRESSBEES_API || '';
+        // XPRESSBEES_TOKEN is the bearer token set in Render environment
+        this.token = process.env.XPRESSBEES_TOKEN || '';
         this.username = process.env.XPRESSBEES_USERNAME || '';
         this.password = process.env.XPRESSBEES_PASSWORD || '';
+
+        console.log('XpressbeesService: Token loaded:', this.token ? 'YES (length: ' + this.token.length + ')' : 'NO');
     }
 
     private async authenticate(): Promise<string> {
