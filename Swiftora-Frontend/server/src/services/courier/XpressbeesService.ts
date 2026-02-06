@@ -240,6 +240,27 @@ export class XpressbeesService implements ICourierService {
             const client = await this.getClient();
             const weightInGrams = Math.round(request.weight * 1000);
 
+            // Helper: Sanitize phone to exactly 10 digits (Indian format)
+            const sanitizePhone = (phone: string | undefined): string => {
+                if (!phone) return '9999999999'; // Default fallback
+                // Remove all non-digit characters
+                const digits = phone.replace(/\D/g, '');
+                // If starts with 91 and has 12 digits, remove 91
+                if (digits.startsWith('91') && digits.length === 12) {
+                    return digits.slice(2);
+                }
+                // If starts with 0 and has 11 digits, remove 0
+                if (digits.startsWith('0') && digits.length === 11) {
+                    return digits.slice(1);
+                }
+                // Take last 10 digits if longer
+                if (digits.length > 10) {
+                    return digits.slice(-10);
+                }
+                // If less than 10, pad with 9s (shouldn't happen with valid data)
+                return digits.padStart(10, '9');
+            };
+
             // Log incoming request for debugging
             console.log('=== XPRESSBEES CREATE SHIPMENT - INPUT ===');
             console.log('Request:', JSON.stringify(request, null, 2));
@@ -279,7 +300,7 @@ export class XpressbeesService implements ICourierService {
                     city: String(request.shippingCity || ''),
                     state: String(request.shippingState || ''),
                     pincode: String(request.shippingPincode || ''),
-                    phone: String(request.customerPhone || ''),
+                    phone: sanitizePhone(request.customerPhone), // Exactly 10 digits
                 },
 
                 // Pickup (Sender) - NESTED OBJECT
@@ -291,7 +312,7 @@ export class XpressbeesService implements ICourierService {
                     city: String(request.pickupCity || ''),
                     state: String(request.pickupState || ''),
                     pincode: String(request.pickupPincode || ''),
-                    phone: String(request.pickupPhone || ''),
+                    phone: sanitizePhone(request.pickupPhone), // Exactly 10 digits
                 },
 
                 // Order Items - ARRAY format
