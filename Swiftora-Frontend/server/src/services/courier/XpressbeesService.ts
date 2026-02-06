@@ -152,11 +152,18 @@ export class XpressbeesService implements ICourierService {
 
         // Log masked header for debugging
         const maskedToken = cleanToken.substring(0, 10) + '...' + cleanToken.substring(cleanToken.length - 5);
-        console.log(`Xpressbees: Sending request with Authorization: Bearer ${maskedToken}`);
+        console.log(`Xpressbees: Using token (masked): ${maskedToken}`);
+        console.log(`Xpressbees: Base URL: ${XPRESSBEES_BASE_URL}`);
 
+        // Try both header formats - some Xpressbees APIs use X-Bee-Token or just 'token'
         return axios.create({
             baseURL: XPRESSBEES_BASE_URL,
-            headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
+            headers: {
+                'Authorization': `Bearer ${cleanToken}`,
+                'X-Bee-Token': cleanToken,
+                'token': cleanToken,
+                'Content-Type': 'application/json'
+            },
         });
     }
 
