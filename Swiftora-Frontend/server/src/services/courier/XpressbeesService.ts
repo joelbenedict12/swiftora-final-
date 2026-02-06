@@ -240,36 +240,54 @@ export class XpressbeesService implements ICourierService {
             const client = await this.getClient();
             const weightInGrams = Math.round(request.weight * 1000);
 
+            // Xpressbees order creation payload
+            // All values should be strings per Xpressbees API requirements
             const payload = {
-                order_number: request.orderNumber,
-                consignee_name: request.customerName,
-                consignee_phone: request.customerPhone,
-                consignee_email: request.customerEmail || '',
-                consignee_address: request.shippingAddress,
-                consignee_address_2: request.shippingAddress2 || '',
-                consignee_city: request.shippingCity,
-                consignee_state: request.shippingState,
-                consignee_pincode: request.shippingPincode,
-                pickup_name: request.pickupName,
-                pickup_phone: request.pickupPhone,
-                pickup_address: request.pickupAddress,
-                pickup_address_2: request.pickupAddress2 || '',
-                pickup_city: request.pickupCity,
-                pickup_state: request.pickupState,
-                pickup_pincode: request.pickupPincode,
-                product_name: request.productName,
-                product_quantity: request.quantity,
-                product_value: request.productValue,
-                weight: weightInGrams.toString(),
-                length: (request.length || 10).toString(),
-                breadth: (request.breadth || 10).toString(),
-                height: (request.height || 10).toString(),
+                order_number: String(request.orderNumber),
+                shipping_method_id: (request as any).serviceId || '1', // Service ID from pricing selection
+
+                // Consignee (Recipient) Details
+                consignee_name: String(request.customerName),
+                consignee_phone: String(request.customerPhone),
+                consignee_email: String(request.customerEmail || ''),
+                consignee_address: String(request.shippingAddress),
+                consignee_address_2: String(request.shippingAddress2 || ''),
+                consignee_city: String(request.shippingCity),
+                consignee_state: String(request.shippingState),
+                consignee_pincode: String(request.shippingPincode),
+
+                // Pickup (Sender) Details
+                pickup_name: String(request.pickupName || 'Swiftora'),
+                pickup_phone: String(request.pickupPhone || ''),
+                pickup_address: String(request.pickupAddress || ''),
+                pickup_address_2: String(request.pickupAddress2 || ''),
+                pickup_city: String(request.pickupCity || ''),
+                pickup_state: String(request.pickupState || ''),
+                pickup_pincode: String(request.pickupPincode || ''),
+
+                // Product Details
+                product_name: String(request.productName),
+                product_quantity: String(request.quantity || 1),
+                product_value: String(request.productValue),
+
+                // Dimensions & Weight (in grams)
+                weight: String(weightInGrams),
+                length: String(request.length || 10),
+                breadth: String(request.breadth || 10),
+                height: String(request.height || 10),
+
+                // Payment
                 payment_type: request.paymentMode === 'COD' ? 'cod' : 'prepaid',
-                cod_amount: request.paymentMode === 'COD' ? (request.codAmount || request.totalAmount) : 0,
-                order_amount: request.totalAmount.toString(),
+                cod_amount: String(request.paymentMode === 'COD' ? (request.codAmount || request.totalAmount) : 0),
+                order_amount: String(request.totalAmount),
             };
 
-            const response = await client.post('/api/shipments/order', payload);
+            console.log('=== XPRESSBEES CREATE SHIPMENT ===');
+            console.log('Payload:', JSON.stringify(payload, null, 2));
+
+            const response = await client.post('/api/shipments2', payload);
+
+            console.log('Response:', JSON.stringify(response.data, null, 2));
 
             if (response.data?.status === true && response.data?.data?.awb_number) {
                 return {
@@ -281,9 +299,24 @@ export class XpressbeesService implements ICourierService {
                     rawResponse: response.data,
                 };
             }
-            return { success: false, courierName: 'XPRESSBEES', error: response.data?.message || 'Failed', rawResponse: response.data };
+            return {
+                success: false,
+                courierName: 'XPRESSBEES',
+                error: response.data?.message || 'Failed to create shipment',
+                rawResponse: response.data
+            };
         } catch (error: any) {
-            return { success: false, courierName: 'XPRESSBEES', error: error.response?.data?.message || error.message };
+            console.error('=== XPRESSBEES CREATE SHIPMENT ERROR ===');
+            console.error('Status:', error.response?.status);
+            console.error('Full Error Data:', JSON.stringify(error.response?.data, null, 2));
+            console.error('Error Message:', error.message);
+
+            return {
+                success: false,
+                courierName: 'XPRESSBEES',
+                error: error.response?.data?.message || error.response?.data?.error || error.message,
+                rawResponse: error.response?.data
+            };
         }
     }
 
