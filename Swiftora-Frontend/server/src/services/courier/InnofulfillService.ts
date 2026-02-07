@@ -263,9 +263,21 @@ export class InnofulfillService implements ICourierService {
 
             console.log('INNOFULFILL Payload:', JSON.stringify(payload, null, 2));
 
-            const response = await client.post('/booking/order/', payload, {
-                headers: { async: 'false' },
-            });
+            // Get fresh token and log it
+            const token = await this.getToken();
+            console.log('INNOFULFILL: Using token (first 20 chars):', token.substring(0, 20) + '...');
+
+            const response = await axios.post(
+                `${this.baseUrl}/booking/order/`,
+                payload,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'async': 'false',
+                    },
+                }
+            );
 
             console.log('INNOFULFILL Response:', JSON.stringify(response.data, null, 2));
 
