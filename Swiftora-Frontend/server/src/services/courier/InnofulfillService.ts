@@ -181,7 +181,7 @@ export class InnofulfillService implements ICourierService {
             console.log('=== INNOFULFILL CREATE SHIPMENT ===');
             console.log('Request:', JSON.stringify(request, null, 2));
 
-            // Build Innofulfill order payload
+            // Build Innofulfill order payload with seller identity
             const payload = [{
                 orderId: String(request.orderNumber),
                 orderDate: now,
@@ -190,6 +190,9 @@ export class InnofulfillService implements ICourierService {
                 returnable: true,
                 deliveryType: 'SURFACE',
                 deliveryPromise: 'STANDARD',
+                vendorCode: 'swif2',
+                vendorType: 'SELLER',
+                serviceType: 'ECOMM',
 
                 addresses: {
                     pickup: {
@@ -254,6 +257,7 @@ export class InnofulfillService implements ICourierService {
                 payment: {
                     finalAmount: Number(request.totalAmount || request.productValue || 0),
                     status: request.paymentMode === 'COD' ? 'COD' : 'PAID',
+                    paymentType: 'POSTPAID',
                     currency: 'INR',
                     breakdown: {
                         subtotal: Number(request.productValue || 0),
@@ -281,6 +285,7 @@ export class InnofulfillService implements ICourierService {
                         'Content-Type': 'application/json',
                         'Authorization': authHeader,
                         'async': 'false',
+                        'vendor-code': 'swif2',
                     },
                 }
             );
