@@ -64,6 +64,7 @@ export class InnofulfillService implements ICourierService {
                 {
                     email: this.email,
                     password: this.password,
+                    vendorType: 'SELLER',
                 },
                 {
                     headers: { 'Content-Type': 'application/json' },
