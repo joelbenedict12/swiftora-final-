@@ -58,6 +58,9 @@ export class InnofulfillService implements ICourierService {
     private async login(): Promise<string> {
         try {
             console.log('INNOFULFILL: Logging in...');
+            console.log('INNOFULFILL: Email:', this.email || '(empty)');
+            console.log('INNOFULFILL: Password length:', this.password?.length || 0);
+            console.log('INNOFULFILL: Base URL:', this.baseUrl);
 
             const response = await axios.post(
                 `${this.baseUrl}/auth/login`,
