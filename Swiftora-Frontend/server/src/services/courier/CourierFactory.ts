@@ -14,6 +14,7 @@ import { DelhiveryService, delhiveryService } from './DelhiveryService.js';
 import { BlitzService, blitzService } from './BlitzService.js';
 import { EkartService, ekartService } from './EkartService.js';
 import { XpressbeesService, xpressbeesService } from './XpressbeesService.js';
+import { InnofulfillService, innofulfillService } from './InnofulfillService.js';
 
 // Map of courier names to service instances
 const courierMap: Record<CourierName, ICourierService> = {
@@ -21,6 +22,7 @@ const courierMap: Record<CourierName, ICourierService> = {
   BLITZ: blitzService,
   EKART: ekartService,
   XPRESSBEES: xpressbeesService,
+  INNOFULFILL: innofulfillService,
 };
 
 /**
@@ -63,6 +65,8 @@ export function createCourierService(courierName: CourierName): ICourierService 
       return new EkartService();
     case 'XPRESSBEES':
       return new XpressbeesService();
+    case 'INNOFULFILL':
+      return new InnofulfillService();
     default:
       throw new Error(`Unknown courier: ${courierName}`);
   }
@@ -76,10 +80,12 @@ export {
   BlitzService,
   EkartService,
   XpressbeesService,
+  InnofulfillService,
   delhiveryService,
   blitzService,
   ekartService,
   xpressbeesService,
+  innofulfillService,
 };
 
 // Re-export types

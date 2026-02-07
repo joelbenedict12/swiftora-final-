@@ -6,7 +6,7 @@
  */
 
 // Supported courier names
-export type CourierName = 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES';
+export type CourierName = 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL';
 
 // Standardized shipment request (courier-agnostic)
 export interface CreateShipmentRequest {
