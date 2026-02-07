@@ -37,19 +37,22 @@ interface TokenCache {
 export class InnofulfillService implements ICourierService {
     readonly name: CourierName = 'INNOFULFILL';
 
-    private readonly baseUrl: string;
-    private readonly email: string;
-    private readonly password: string;
+    private get baseUrl(): string {
+        return process.env.INNOFULFILL_BASE_URL || 'https://apis.delcaper.com';
+    }
+
+    private get email(): string {
+        return process.env.INNOFULFILL_EMAIL || '';
+    }
+
+    private get password(): string {
+        return process.env.INNOFULFILL_PASSWORD || '';
+    }
+
     private tokenCache: TokenCache | null = null;
 
     constructor() {
-        this.baseUrl = process.env.INNOFULFILL_BASE_URL || 'https://apis.delcaper.com';
-        this.email = process.env.INNOFULFILL_EMAIL || '';
-        this.password = process.env.INNOFULFILL_PASSWORD || '';
-
-        if (!this.email || !this.password) {
-            console.warn('INNOFULFILL: Missing INNOFULFILL_EMAIL or INNOFULFILL_PASSWORD environment variables');
-        }
+        // Env vars are read dynamically via getters
     }
 
     /**
