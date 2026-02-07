@@ -121,7 +121,7 @@ export const ordersApi = {
   cancel: (id: string) => api.post(`/orders/${id}/cancel`),
 
   // Generic ship method - pass courier name
-  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES') =>
+  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL') =>
     api.post(`/orders/${id}/ship`, { courierName }),
 
   // Convenience methods for each courier
@@ -132,6 +132,8 @@ export const ordersApi = {
   shipToEkart: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'EKART' }),
 
   shipToXpressbees: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES' }),
+
+  shipToInnofulfill: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'INNOFULFILL' }),
 
   assignPickupLocation: (id: string, warehouseId: string) =>
     api.put(`/orders/${id}/pickup-location`, { warehouseId }),

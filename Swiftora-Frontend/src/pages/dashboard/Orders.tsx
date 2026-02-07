@@ -286,6 +286,25 @@ const Orders = () => {
     }
   };
 
+  const handleShipToInnofulfill = async (orderId: string) => {
+    try {
+      setShippingOrderId(orderId);
+      const response = await ordersApi.shipToInnofulfill(orderId);
+
+      if (response.data.success) {
+        toast.success(`Shipped via Innofulfill! AWB: ${response.data.awbNumber}`);
+        loadOrders();
+      } else {
+        toast.error(response.data.error || "Failed to ship order");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
+      toast.error(message);
+    } finally {
+      setShippingOrderId(null);
+    }
+  };
+
   // Open Xpressbees pricing modal
   const openXpressbeesModal = async (order: Order) => {
     setSelectedOrderForXpressbees(order);
@@ -686,6 +705,17 @@ const Orders = () => {
                             >
                               <Package className="h-4 w-4" />
                               Delhivery (Surface/Express)
+                            </DropdownMenuItem>
+                          )}
+                          {/* Innofulfill option */}
+                          {!order.awbNumber && order.warehouse && (
+                            <DropdownMenuItem
+                              onClick={() => handleShipToInnofulfill(order.id)}
+                              disabled={shippingOrderId === order.id}
+                              className="gap-2 text-teal-600"
+                            >
+                              <Truck className="h-4 w-4" />
+                              {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill"}
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem className="gap-2">
