@@ -181,11 +181,18 @@ export class InnofulfillService implements ICourierService {
             console.log('=== INNOFULFILL CREATE SHIPMENT ===');
             console.log('Request:', JSON.stringify(request, null, 2));
 
-            // Build Innofulfill order payload - seller identity from token only
+            // Build Innofulfill order payload - EXACT match to API docs
+            const pickupPhone = this.sanitizePhone(request.pickupPhone);
+            const customerPhone = this.sanitizePhone(request.customerPhone);
+            const weightInGrams = Math.round((request.weight || 0.5) * 1000);
+            const productValue = Number(request.productValue) || 100;
+            const finalAmount = Number(request.totalAmount || request.productValue || 100);
+
             const payload = [{
                 orderId: String(request.orderNumber),
                 orderDate: now,
                 orderType: 'FORWARD',
+                note: request.productDescription || 'Order from Swiftora',
                 autoManifest: true,
                 returnable: true,
                 deliveryType: 'SURFACE',
@@ -193,45 +200,53 @@ export class InnofulfillService implements ICourierService {
 
                 addresses: {
                     pickup: {
-                        zip: String(request.pickupPincode || ''),
-                        name: String(request.pickupName || 'Swiftora'),
-                        phone: this.sanitizePhone(request.pickupPhone),
-                        email: request.pickupEmail || '',
-                        street: String(request.pickupAddress || ''),
-                        city: String(request.pickupCity || ''),
-                        state: String(request.pickupState || ''),
-                        country: request.pickupCountry || 'India',
+                        zip: String(request.pickupPincode || '400001'),
+                        name: String(request.pickupName || 'Swiftora Warehouse'),
+                        company: 'Swiftora',
+                        phone: pickupPhone,
+                        email: request.pickupEmail || 'warehouse@swiftora.com',
+                        street: String(request.pickupAddress || '123 Warehouse Street'),
+                        subLocality: '',
+                        city: String(request.pickupCity || 'Mumbai'),
+                        state: String(request.pickupState || 'Maharashtra'),
+                        country: 'India',
                         type: 'WAREHOUSE',
                     },
                     delivery: {
                         zip: String(request.shippingPincode || ''),
-                        name: String(request.customerName || ''),
-                        phone: this.sanitizePhone(request.customerPhone),
+                        name: String(request.customerName || 'Customer'),
+                        company: '',
+                        phone: customerPhone,
                         email: request.customerEmail || '',
                         street: String(request.shippingAddress || ''),
+                        subLocality: '',
                         city: String(request.shippingCity || ''),
                         state: String(request.shippingState || ''),
-                        country: request.shippingCountry || 'India',
+                        country: 'India',
                     },
                     billing: {
                         zip: String(request.shippingPincode || ''),
-                        name: String(request.customerName || ''),
-                        phone: this.sanitizePhone(request.customerPhone),
+                        name: String(request.customerName || 'Customer'),
+                        company: '',
+                        phone: customerPhone,
                         email: request.customerEmail || '',
                         street: String(request.shippingAddress || ''),
+                        subLocality: '',
                         city: String(request.shippingCity || ''),
                         state: String(request.shippingState || ''),
-                        country: request.shippingCountry || 'India',
+                        country: 'India',
                     },
                     return: {
-                        zip: String(request.pickupPincode || ''),
-                        name: String(request.pickupName || 'Swiftora'),
-                        phone: this.sanitizePhone(request.pickupPhone),
-                        email: request.pickupEmail || '',
-                        street: String(request.pickupAddress || ''),
-                        city: String(request.pickupCity || ''),
-                        state: String(request.pickupState || ''),
-                        country: request.pickupCountry || 'India',
+                        zip: String(request.pickupPincode || '400001'),
+                        name: String(request.pickupName || 'Swiftora Warehouse'),
+                        company: 'Swiftora',
+                        phone: pickupPhone,
+                        email: request.pickupEmail || 'warehouse@swiftora.com',
+                        street: String(request.pickupAddress || '123 Warehouse Street'),
+                        subLocality: '',
+                        city: String(request.pickupCity || 'Mumbai'),
+                        state: String(request.pickupState || 'Maharashtra'),
+                        country: 'India',
                     },
                 },
 
@@ -241,22 +256,24 @@ export class InnofulfillService implements ICourierService {
                         width: Number(request.breadth) || 10,
                         height: Number(request.height) || 10,
                     },
-                    physicalWeight: Math.round((request.weight || 0.5) * 1000), // kg to grams
+                    physicalWeight: weightInGrams,
+                    volumetricWeight: Math.round((Number(request.length) || 10) * (Number(request.breadth) || 10) * (Number(request.height) || 10) / 5),
+                    note: 'Shipment from Swiftora',
                     items: [{
                         name: String(request.productName || 'Product'),
                         quantity: request.quantity || 1,
-                        weight: Math.round((request.weight || 0.5) * 1000 / (request.quantity || 1)),
-                        unitPrice: Number(request.productValue) || 0,
+                        weight: Math.round(weightInGrams / (request.quantity || 1)),
+                        unitPrice: productValue,
                         sku: String(request.orderNumber),
                     }],
                 }],
 
                 payment: {
-                    finalAmount: Number(request.totalAmount || request.productValue || 0),
+                    finalAmount: finalAmount,
                     status: request.paymentMode === 'COD' ? 'COD' : 'PAID',
                     currency: 'INR',
                     breakdown: {
-                        subtotal: Number(request.productValue || 0),
+                        subtotal: productValue,
                     },
                 },
             }];
