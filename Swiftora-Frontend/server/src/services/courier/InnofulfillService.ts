@@ -38,15 +38,15 @@ export class InnofulfillService implements ICourierService {
     readonly name: CourierName = 'INNOFULFILL';
 
     private get baseUrl(): string {
-        return process.env.INNOFULFILL_BASE_URL || 'https://qaapis.delcaper.com';
+        return process.env.INNOFULFILL_BASE_URL || 'https://apis.delcaper.com';
     }
 
     private get email(): string {
-        return process.env.INNOFULFILL_EMAIL || '';
+        return process.env.INNOFULFILL_EMAIL || 'swiftoralogistics@gmail.com';
     }
 
     private get password(): string {
-        return process.env.INNOFULFILL_PASSWORD || '';
+        return process.env.INNOFULFILL_PASSWORD || 'Cagh@78686';
     }
 
     private tokenCache: TokenCache | null = null;
