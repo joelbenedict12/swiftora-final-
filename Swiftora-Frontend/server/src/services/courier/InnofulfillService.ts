@@ -60,6 +60,13 @@ export class InnofulfillService implements ICourierService {
      */
     private async login(): Promise<string> {
         try {
+            // Debug: Log raw process.env values
+            console.log('INNOFULFILL: === DEBUG ENV VARS ===');
+            console.log('INNOFULFILL: Raw EMAIL from process.env:', process.env.INNOFULFILL_EMAIL);
+            console.log('INNOFULFILL: Raw PASSWORD exists:', !!process.env.INNOFULFILL_PASSWORD);
+            console.log('INNOFULFILL: Raw BASE_URL from process.env:', process.env.INNOFULFILL_BASE_URL);
+            console.log('INNOFULFILL: All env keys containing INNO:', Object.keys(process.env).filter(k => k.includes('INNO')));
+
             console.log('INNOFULFILL: Logging in...');
             console.log('INNOFULFILL: Email:', this.email || '(empty)');
             console.log('INNOFULFILL: Password length:', this.password?.length || 0);
