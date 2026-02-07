@@ -333,7 +333,17 @@ export class InnofulfillService implements ICourierService {
                 rawResponse: response.data,
             };
         } catch (error: any) {
-            console.error('INNOFULFILL: Create shipment error:', error.response?.data || error.message);
+            console.error('INNOFULFILL: ======= DETAILED ERROR DEBUG =======');
+            console.error('INNOFULFILL: Error message:', error.message);
+            console.error('INNOFULFILL: Error status:', error.response?.status);
+            console.error('INNOFULFILL: Error status text:', error.response?.statusText);
+            console.error('INNOFULFILL: Error response data:', JSON.stringify(error.response?.data, null, 2));
+            console.error('INNOFULFILL: Error response headers:', JSON.stringify(error.response?.headers, null, 2));
+            console.error('INNOFULFILL: Request URL:', error.config?.url);
+            console.error('INNOFULFILL: Request method:', error.config?.method);
+            console.error('INNOFULFILL: Request headers sent:', JSON.stringify(error.config?.headers, null, 2));
+            console.error('INNOFULFILL: ======= END ERROR DEBUG =======');
+
             return {
                 success: false,
                 courierName: this.name,
