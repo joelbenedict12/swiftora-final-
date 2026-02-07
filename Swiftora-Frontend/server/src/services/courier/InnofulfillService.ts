@@ -263,15 +263,15 @@ export class InnofulfillService implements ICourierService {
 
             console.log('INNOFULFILL Payload:', JSON.stringify(payload, null, 2));
 
-            // Get fresh token and log it
-            const token = await this.getToken();
+            // Force fresh login to ensure we have valid production token
+            console.log('INNOFULFILL: Forcing fresh login for booking...');
+            const token = await this.login();
             const bookingUrl = `${this.baseUrl}/booking/order/`;
             const authHeader = `Bearer ${token}`;
 
             console.log('INNOFULFILL: === REQUEST DEBUG ===');
             console.log('INNOFULFILL: Booking URL:', bookingUrl);
-            console.log('INNOFULFILL: Auth Header:', authHeader.substring(0, 40) + '...');
-            console.log('INNOFULFILL: Token first 50 chars:', token.substring(0, 50));
+            console.log('INNOFULFILL: Full Auth Header:', authHeader);
 
             const response = await axios.post(
                 bookingUrl,
