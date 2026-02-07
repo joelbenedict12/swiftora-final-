@@ -38,7 +38,7 @@ export class InnofulfillService implements ICourierService {
     readonly name: CourierName = 'INNOFULFILL';
 
     private get baseUrl(): string {
-        return process.env.INNOFULFILL_BASE_URL || 'https://apis.delcaper.com';
+        return process.env.INNOFULFILL_BASE_URL || 'https://qaapis.delcaper.com';
     }
 
     private get email(): string {
