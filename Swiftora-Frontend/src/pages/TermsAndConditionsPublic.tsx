@@ -72,8 +72,25 @@ const TermsAndConditionsPublic = () => {
                     </section>
 
                     <section>
-                      <h2 className="text-xl font-bold text-foreground mb-3">5. Company Information</h2>
-                      <p>Swiftora is operated by <strong>SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES</strong>. For contact details, please visit our <Link to="/contact" className="text-[hsl(210_100%_60%)] hover:underline">Contact</Link> page.</p>
+                      <h2 className="text-xl font-bold text-foreground mb-3">
+                        5. Company Information
+                      </h2>
+                      <p>
+                        Swiftora is operated by{" "}
+                        <strong>JS Enterprise</strong> (proprietor:{" "}
+                        <strong>Samsudinbasha Jagirusen</strong>), registered at
+                        1664, Ground Floor, 41st Cross, 18th Main Road, Opposite
+                        to GNR Kalyana Mantapa, Jayanagar 4th T Block,
+                        Bengaluru, Karnataka, 560041. For contact details,
+                        please visit our{" "}
+                        <Link
+                          to="/contact"
+                          className="text-[hsl(210_100%_60%)] hover:underline"
+                        >
+                          Contact
+                        </Link>{" "}
+                        page.
+                      </p>
                     </section>
                   </div>
                 </CardContent>

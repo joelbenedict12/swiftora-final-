@@ -13,15 +13,37 @@ const Footer = () => {
               </div>
               <span className="text-white">Swiftora</span>
             </div>
-            <p className="text-sm font-medium text-white/90 mb-2">
-              Legal name: SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES
+            <p className="text-sm font-medium text-white/90 mb-1">
+              Legal name: JS Enterprise
             </p>
-            <p className="text-sm text-gray-400 mb-4 max-w-md">
-              India's leading shipping and logistics platform. Automate shipping, reduce costs, and grow your e-commerce business.
+            <p className="text-xs text-gray-400 mb-2">
+              Swiftora is a product operated by JS Enterprise (proprietor:
+              Samsudinbasha Jagirusen).
             </p>
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              <MapPin className="w-4 h-4" />
-              <span>Mumbai, Maharashtra, India</span>
+            <p className="text-sm text-gray-400 mb-3 max-w-md">
+              Unified logistics aggregator helping Indian businesses ship faster
+              with multi-carrier integrations, automation, and real-time
+              insights.
+            </p>
+            <div className="flex items-start gap-2 text-sm text-gray-400 mb-2">
+              <MapPin className="w-4 h-4 mt-1" />
+              <span>
+                Registered address: 1664, Ground Floor, 41st Cross, 18th Main
+                Road, Opposite to GNR Kalyana Mantapa, Jayanagar 4th T Block,
+                Bengaluru, Karnataka, 560041.
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 text-sm text-gray-400">
+              <span>
+                Legal email:{" "}
+                <span className="font-medium">
+                  jsenterprises.4148@gmail.com
+                </span>
+              </span>
+              <span>
+                Legal phone:{" "}
+                <span className="font-medium">+91 93442 68276</span>
+              </span>
             </div>
           </div>
 
@@ -100,11 +122,16 @@ const Footer = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                <span>Privacy Policy</span>
+                <Link
+                  to="/privacy-policy"
+                  className="hover:text-white transition-colors"
+                >
+                  Privacy Policy
+                </Link>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                <span>+91 8043691691</span>
+                <span>+91 80436 91691</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
@@ -116,7 +143,8 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-400">
-            © 2025 Swiftora (SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES). All rights reserved.
+            © 2026 Swiftora. All rights reserved. Swiftora is a product
+            operated by JS Enterprise.
           </p>
           <p className="text-sm text-gray-400 flex items-center gap-1">
             Made with{" "}

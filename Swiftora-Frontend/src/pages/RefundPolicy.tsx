@@ -75,9 +75,31 @@ const RefundPolicy = () => {
                     </section>
 
                     <section>
-                      <h2 className="text-xl font-bold text-foreground mb-3">5. Contact</h2>
-                      <p>For refund or cancellation requests, contact us at <a href="mailto:support@swiftora.co" className="text-[hsl(210_100%_60%)] hover:underline">support@swiftora.co</a> or visit our <Link to="/contact" className="text-[hsl(210_100%_60%)] hover:underline">Contact</Link> page. We aim to resolve all requests within 7 business days.</p>
-                      <p className="mt-4 font-medium">Legal entity: SAMSUDINBASHA JAGIRUSEN / JS ENTERPRISES</p>
+                      <h2 className="text-xl font-bold text-foreground mb-3">
+                        5. Contact
+                      </h2>
+                      <p>
+                        For refund or cancellation requests, contact us at{" "}
+                        <a
+                          href="mailto:jsenterprises.4148@gmail.com"
+                          className="text-[hsl(210_100%_60%)] hover:underline"
+                        >
+                          jsenterprises.4148@gmail.com
+                        </a>{" "}
+                        or visit our{" "}
+                        <Link
+                          to="/contact"
+                          className="text-[hsl(210_100%_60%)] hover:underline"
+                        >
+                          Contact
+                        </Link>{" "}
+                        page. We aim to resolve all requests within 7 business
+                        days.
+                      </p>
+                      <p className="mt-4 font-medium">
+                        Legal entity: JS Enterprise (proprietor: Samsudinbasha
+                        Jagirusen)
+                      </p>
                     </section>
                   </div>
                 </CardContent>

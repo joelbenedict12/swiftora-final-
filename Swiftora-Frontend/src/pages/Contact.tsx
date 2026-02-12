@@ -27,23 +27,23 @@ const Contact: React.FC = () => {
                 {[
                   {
                     title: "Email Support",
-                    desc: "Reach us anytime via email",
-                    value: "support@swiftora.in",
+                    desc: "Operational and platform support",
+                    value: "support@swiftora.co",
                   },
                   {
                     title: "Call Us",
-                    desc: "Mon–Fri, 9AM–6PM",
-                    value: "+91 9XXXX XXXXX",
+                    desc: "Mon–Fri, 9AM–6PM IST",
+                    value: "+91 93442 68276",
                   },
                   {
                     title: "WhatsApp",
                     desc: "Fast responses on chat",
-                    value: "Chat on WhatsApp",
+                    value: "Coming soon",
                   },
                   {
-                    title: "Business Queries",
-                    desc: "Partnership & onboarding",
-                    value: "business@swiftora.in",
+                    title: "Business / Compliance",
+                    desc: "KYC, billing & partnerships",
+                    value: "jsenterprises.4148@gmail.com",
                   },
                 ].map((item, idx) => (
                   <div
@@ -52,7 +52,9 @@ const Contact: React.FC = () => {
                   >
                     <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
                     <p className="text-sm text-slate-500 mb-3">{item.desc}</p>
-                    <p className="text-indigo-600 font-medium">{item.value}</p>
+                    <p className="text-indigo-600 font-medium break-words">
+                      {item.value}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -135,39 +137,42 @@ const Contact: React.FC = () => {
             </div>
           </section>
 
-          {/* ================= FAQ SECTION ================= */}
-          {/* <section className="bg-white py-20">
-            <div className="mx-auto max-w-5xl px-6">
-              <h2 className="text-3xl font-bold text-center mb-10">
-                Frequently Asked Questions
-              </h2>
-
-              <div className="space-y-6">
-                {[
-                  {
-                    q: "How soon will I get a response?",
-                    a: "Our team usually responds within 24 hours on business days.",
-                  },
-                  {
-                    q: "Can I contact you for shipment issues?",
-                    a: "Yes, shipment and delivery-related queries are prioritized.",
-                  },
-                  {
-                    q: "Do you support bulk or business shipments?",
-                    a: "Absolutely. Our business team will guide you through onboarding.",
-                  },
-                ].map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-xl border border-slate-200 p-6"
-                  >
-                    <h4 className="font-semibold mb-2">{item.q}</h4>
-                    <p className="text-slate-600 text-sm">{item.a}</p>
-                  </div>
-                ))}
+          {/* ================= LEGAL BUSINESS DETAILS ================= */}
+          <section className="pb-20 px-6">
+            <div className="mx-auto max-w-7xl">
+              <div className="rounded-2xl bg-slate-900 text-slate-100 p-6 md:p-8 flex flex-col gap-2">
+                <h2 className="text-xl md:text-2xl font-semibold mb-1">
+                  Legal business information
+                </h2>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Legal Name:</span>{" "}
+                  JS Enterprise
+                </p>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Proprietor / Employer:</span>{" "}
+                  Samsudinbasha Jagirusen
+                </p>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Brand / Product:</span>{" "}
+                  Swiftora
+                </p>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Registered Address:</span>{" "}
+                  1664, Ground Floor, 41st Cross, 18th Main Road, Opposite to
+                  GNR Kalyana Mantapa, Jayanagar 4th T Block, Bengaluru,
+                  Karnataka, 560041.
+                </p>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Email:</span>{" "}
+                  jsenterprises.4148@gmail.com
+                </p>
+                <p className="text-sm md:text-base">
+                  <span className="font-semibold">Phone:</span>{" "}
+                  +91 93442 68276
+                </p>
               </div>
             </div>
-          </section> */}
+          </section>
 
           {/* ================= FINAL CTA ================= */}
           <section className="bg-slate-900 text-white py-16 text-center">
