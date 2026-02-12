@@ -333,6 +333,47 @@ router.put('/tickets/:id', authenticate, requireAdmin, async (req: AuthRequest, 
 // RATE CARD MANAGEMENT
 // ============================================================
 
+// Calculate live shipping rate from Delhivery API (must be before /rate-cards list route)
+router.get('/rate-cards/calculate', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { origin_pin, destination_pin, weight, payment_mode, cod_amount } = req.query;
+
+        if (!origin_pin || !destination_pin || !weight) {
+            return res.status(400).json({
+                success: false,
+                error: 'origin_pin, destination_pin, and weight are required',
+            });
+        }
+
+        // Dynamically import Delhivery service
+        const { calculateRate } = await import('../services/delhivery.js');
+
+        const result = await calculateRate({
+            origin_pin: origin_pin as string,
+            destination_pin: destination_pin as string,
+            weight: Number(weight),
+            payment_mode: (payment_mode as 'Prepaid' | 'COD') || 'Prepaid',
+            cod_amount: cod_amount ? Number(cod_amount) : undefined,
+        });
+
+        res.json({
+            success: true,
+            rate: result,
+        });
+    } catch (error: any) {
+        console.error('Rate calculation error:', error.response?.data || error.message);
+        const msg = error.response?.data?.message
+            || error.response?.data?.error
+            || (typeof error.response?.data === 'string' ? error.response.data : null)
+            || error.message
+            || 'Failed to calculate rate';
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: msg,
+        });
+    }
+});
+
 // List all rate cards
 router.get('/rate-cards', authenticate, requireAdmin, async (req, res, next) => {
     try {
@@ -570,45 +611,6 @@ router.get('/analytics/profit', authenticate, requireAdmin, async (req, res, nex
         next(error);
     }
 });
-// ============================================================
-// DELHIVERY RATE CALCULATION
-// ============================================================
 
-// Calculate live shipping rate from Delhivery API
-router.get('/rate-cards/calculate', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
-    try {
-        const { origin_pin, destination_pin, weight, payment_mode, cod_amount } = req.query;
-
-        if (!origin_pin || !destination_pin || !weight) {
-            throw new AppError(400, 'origin_pin, destination_pin, and weight are required');
-        }
-
-        // Dynamically import Delhivery service
-        const { calculateRate } = await import('../services/delhivery.js');
-
-        const result = await calculateRate({
-            origin_pin: origin_pin as string,
-            destination_pin: destination_pin as string,
-            weight: Number(weight),
-            payment_mode: (payment_mode as 'Prepaid' | 'COD') || 'Prepaid',
-            cod_amount: cod_amount ? Number(cod_amount) : undefined,
-        });
-
-        res.json({
-            success: true,
-            rate: result,
-        });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            next(error);
-        } else {
-            console.error('Rate calculation error:', error.response?.data || error.message);
-            res.status(500).json({
-                success: false,
-                error: error.response?.data?.message || error.message || 'Failed to calculate rate',
-            });
-        }
-    }
-});
 
 export const adminRouter = router;

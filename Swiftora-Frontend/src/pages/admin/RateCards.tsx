@@ -38,7 +38,7 @@ export default function RateCards() {
     const [rateCalc, setRateCalc] = useState({
         origin_pin: "",
         destination_pin: "",
-        weight: 0.5,
+        weight: 500,
         payment_mode: "Prepaid" as "Prepaid" | "COD",
         cod_amount: 0,
     });

@@ -41,7 +41,7 @@ export async function getTotalProfitByDateRange(
     endDate?: Date
 ): Promise<ProfitSummary> {
     const where: any = {
-        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
     };
 
     if (startDate || endDate) {
@@ -85,7 +85,7 @@ export async function getProfitByCourier(
 ): Promise<ProfitByCourier[]> {
     const where: any = {
         courierName: { not: null },
-        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
     };
 
     if (startDate || endDate) {
@@ -146,7 +146,7 @@ export async function getProfitByVendor(
     endDate?: Date
 ): Promise<ProfitByVendor[]> {
     const where: any = {
-        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
     };
 
     if (startDate || endDate) {
