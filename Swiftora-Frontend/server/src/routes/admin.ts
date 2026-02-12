@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
+import * as InvoiceService from '../services/InvoiceService.js';
+import * as ProfitService from '../services/ProfitService.js';
+import * as WalletService from '../services/WalletService.js';
 
 const router = Router();
 
@@ -254,11 +257,11 @@ router.get('/tickets', authenticate, requireAdmin, async (req, res, next) => {
 
             return {
                 ...ticket,
-                sla: isOverdue 
-                    ? 'Overdue' 
+                sla: isOverdue
+                    ? 'Overdue'
                     : ticket.status === 'RESOLVED' || ticket.status === 'CLOSED'
-                    ? 'Resolved'
-                    : `${hoursRemaining} hours remaining`,
+                        ? 'Resolved'
+                        : `${hoursRemaining} hours remaining`,
             };
         });
 
@@ -277,7 +280,7 @@ router.put('/tickets/:id', authenticate, requireAdmin, async (req: AuthRequest, 
 
         if (status) {
             updateData.status = status;
-            
+
             if (status === 'RESOLVED' || status === 'CLOSED') {
                 updateData.resolvedAt = new Date();
                 updateData.resolvedBy = req.user!.id;
@@ -320,6 +323,248 @@ router.put('/tickets/:id', authenticate, requireAdmin, async (req: AuthRequest, 
         res.json({
             success: true,
             ticket,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// RATE CARD MANAGEMENT
+// ============================================================
+
+// List all rate cards
+router.get('/rate-cards', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { accountType, courierName } = req.query;
+        const where: any = {};
+        if (accountType) where.accountType = accountType;
+        if (courierName) where.courierName = courierName;
+
+        const rateCards = await prisma.rateCard.findMany({
+            where,
+            orderBy: [{ accountType: 'asc' }, { courierName: 'asc' }, { minWeight: 'asc' }],
+        });
+
+        res.json({ rateCards });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Create rate card
+router.post('/rate-cards', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { accountType, courierName, marginType, marginValue, minWeight, maxWeight } = req.body;
+
+        if (!accountType || !courierName || !marginType || marginValue === undefined) {
+            throw new AppError(400, 'accountType, courierName, marginType, and marginValue are required');
+        }
+
+        if (!['B2B', 'B2C'].includes(accountType)) {
+            throw new AppError(400, 'accountType must be B2B or B2C');
+        }
+
+        if (!['flat', 'percentage'].includes(marginType)) {
+            throw new AppError(400, 'marginType must be flat or percentage');
+        }
+
+        const rateCard = await prisma.rateCard.create({
+            data: {
+                accountType,
+                courierName,
+                marginType,
+                marginValue: Number(marginValue),
+                minWeight: minWeight ? Number(minWeight) : null,
+                maxWeight: maxWeight ? Number(maxWeight) : null,
+            },
+        });
+
+        res.status(201).json({ success: true, rateCard });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Update rate card
+router.put('/rate-cards/:id', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { marginType, marginValue, minWeight, maxWeight, isActive } = req.body;
+
+        const data: any = {};
+        if (marginType) data.marginType = marginType;
+        if (marginValue !== undefined) data.marginValue = Number(marginValue);
+        if (minWeight !== undefined) data.minWeight = minWeight ? Number(minWeight) : null;
+        if (maxWeight !== undefined) data.maxWeight = maxWeight ? Number(maxWeight) : null;
+        if (isActive !== undefined) data.isActive = isActive;
+
+        const rateCard = await prisma.rateCard.update({
+            where: { id: req.params.id },
+            data,
+        });
+
+        res.json({ success: true, rateCard });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Delete rate card
+router.delete('/rate-cards/:id', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        await prisma.rateCard.delete({ where: { id: req.params.id } });
+        res.json({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// INVOICE MANAGEMENT
+// ============================================================
+
+// List invoices
+router.get('/invoices', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { merchantId, status, page, limit } = req.query;
+        const result = await InvoiceService.listInvoices({
+            merchantId: merchantId as string,
+            status: status as string,
+            page: page ? Number(page) : undefined,
+            limit: limit ? Number(limit) : undefined,
+        });
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Generate invoice for a vendor
+router.post('/invoices/generate', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { merchantId, month, year } = req.body;
+
+        if (!merchantId || !month || !year) {
+            throw new AppError(400, 'merchantId, month, and year are required');
+        }
+
+        const result = await InvoiceService.generateMonthlyInvoice(merchantId, Number(month), Number(year));
+
+        if (!result.success) {
+            throw new AppError(400, result.error || 'Failed to generate invoice');
+        }
+
+        res.status(201).json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Update invoice status
+router.patch('/invoices/:id', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { status } = req.body;
+        if (!status) {
+            throw new AppError(400, 'status is required');
+        }
+
+        const invoice = await InvoiceService.updateInvoiceStatus(req.params.id, status);
+        res.json({ success: true, invoice });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// WALLET MANAGEMENT
+// ============================================================
+
+// Get vendor wallet balance
+router.get('/wallet/:merchantId', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const balance = await WalletService.getBalance(req.params.merchantId);
+        res.json(balance);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Credit vendor wallet (admin adds funds)
+// TODO: Integrate PayU payment gateway here for actual payment processing
+// PayU webhook will call this endpoint after successful payment verification
+router.post('/wallet/credit', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { merchantId, amount, description, reference } = req.body;
+
+        if (!merchantId || !amount || amount <= 0) {
+            throw new AppError(400, 'merchantId and a positive amount are required');
+        }
+
+        // TODO: When PayU is integrated:
+        // 1. Verify payment with PayU transaction ID
+        // 2. Check PayU webhook signature
+        // 3. Only credit after verified payment
+        // For now, admin can manually credit wallets
+
+        const result = await WalletService.credit(
+            merchantId,
+            Number(amount),
+            description || 'Admin wallet credit',
+            reference
+        );
+
+        if (!result.success) {
+            throw new AppError(400, result.error || 'Failed to credit wallet');
+        }
+
+        res.json({
+            success: true,
+            transactionId: result.transactionId,
+            balanceBefore: result.balanceBefore,
+            balanceAfter: result.balanceAfter,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get wallet transactions for a vendor
+router.get('/wallet/:merchantId/transactions', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { page, limit, type } = req.query;
+        const result = await WalletService.getTransactions(req.params.merchantId, {
+            page: page ? Number(page) : undefined,
+            limit: limit ? Number(limit) : undefined,
+            type: type as string,
+        });
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// PROFIT & LOSS ANALYTICS
+// ============================================================
+
+// Get P&L analytics
+router.get('/analytics/profit', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        const start = startDate ? new Date(startDate as string) : undefined;
+        const end = endDate ? new Date(endDate as string) : undefined;
+
+        const [summary, byCourier, byVendor] = await Promise.all([
+            ProfitService.getTotalProfitByDateRange(start, end),
+            ProfitService.getProfitByCourier(start, end),
+            ProfitService.getProfitByVendor(start, end),
+        ]);
+
+        res.json({
+            summary,
+            byCourier,
+            byVendor,
         });
     } catch (error) {
         next(error);

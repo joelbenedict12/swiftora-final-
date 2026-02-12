@@ -14,6 +14,8 @@ import {
   xpressbeesService,
   delhiveryService,
 } from '../services/courier/index.js';
+import { calculateVendorPrice } from '../services/PricingEngine.js';
+import * as WalletService from '../services/WalletService.js';
 
 const router = Router();
 
@@ -698,7 +700,46 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
 
     // Check for success
     if (shipmentResponse.success && shipmentResponse.awbNumber) {
-      // Update order with AWB
+      // --- PRICING ENGINE: calculate vendor charge ---
+      // Get user account type for rate card lookup
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { accountType: true },
+      });
+      const accountType = user?.accountType || 'B2C';
+
+      // Calculate pricing (courierCost from courier response or use productValue as fallback)
+      const courierCost = shipmentResponse.rawResponse?.freight
+        || shipmentResponse.rawResponse?.total_charge
+        || shipmentResponse.rawResponse?.total
+        || 0;
+
+      const pricing = await calculateVendorPrice({
+        courierCost,
+        userAccountType: accountType,
+        courierName: selectedCourier,
+        weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
+      });
+
+      // --- WALLET: debit vendor wallet ---
+      // TODO: PayU payment gateway integration will be added here
+      // For now, deduct from internal wallet balance
+      let walletResult = null;
+      if (pricing.vendorCharge > 0) {
+        walletResult = await WalletService.debit(
+          req.user!.merchantId,
+          pricing.vendorCharge,
+          order.id,
+          `Shipment charge for ${order.orderNumber} via ${selectedCourier}`
+        );
+        if (!walletResult.success) {
+          console.warn(`Wallet debit failed for order ${order.orderNumber}: ${walletResult.error}`);
+          // Don't block shipment — wallet debit is best-effort for now
+          // When PayU is integrated, this will become a hard requirement
+        }
+      }
+
+      // Update order with AWB + pricing data
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -706,6 +747,9 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
           courierName: shipmentResponse.courierName,
           labelUrl: shipmentResponse.labelUrl,
           status: 'READY_TO_SHIP',
+          courierCost: pricing.courierCost,
+          vendorCharge: pricing.vendorCharge,
+          margin: pricing.margin,
         },
       });
 
@@ -714,6 +758,15 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         awbNumber: shipmentResponse.awbNumber,
         courierName: shipmentResponse.courierName,
         labelUrl: shipmentResponse.labelUrl,
+        pricing: {
+          courierCost: pricing.courierCost,
+          vendorCharge: pricing.vendorCharge,
+          margin: pricing.margin,
+        },
+        wallet: walletResult ? {
+          debited: walletResult.success,
+          balanceAfter: walletResult.balanceAfter,
+        } : null,
         order: updated,
       });
     } else {

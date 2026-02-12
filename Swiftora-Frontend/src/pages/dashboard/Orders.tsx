@@ -93,6 +93,8 @@ type Order = {
   shippingState?: string;
   shippingPincode?: string;
   awbNumber?: string | null;
+  courierName?: string | null;
+  channel?: string | null;
   status: string;
   createdAt: string;
   paymentMode?: string;
@@ -101,6 +103,23 @@ type Order = {
     id: string;
     name: string;
   } | null;
+};
+
+// Courier display config (colors and short labels)
+const COURIER_CONFIG: Record<string, { label: string; color: string }> = {
+  DELHIVERY: { label: 'Delhivery', color: 'bg-blue-100 text-blue-700' },
+  XPRESSBEES: { label: 'Xpressbees', color: 'bg-green-100 text-green-700' },
+  EKART: { label: 'Ekart', color: 'bg-purple-100 text-purple-700' },
+  BLITZ: { label: 'Blitz', color: 'bg-orange-100 text-orange-700' },
+  INNOFULFILL: { label: 'InnoFulfill', color: 'bg-teal-100 text-teal-700' },
+};
+
+// Sales channel display config
+const CHANNEL_CONFIG: Record<string, { label: string; color: string }> = {
+  SHOPIFY: { label: 'Shopify', color: 'bg-emerald-100 text-emerald-700' },
+  WOOCOMMERCE: { label: 'WooCommerce', color: 'bg-violet-100 text-violet-700' },
+  AMAZON: { label: 'Amazon', color: 'bg-amber-100 text-amber-700' },
+  MANUAL: { label: 'Manual', color: 'bg-gray-100 text-gray-700' },
 };
 
 type Warehouse = {
@@ -584,6 +603,7 @@ const Orders = () => {
                 <TableHead className="w-[140px]">Order #</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Destination</TableHead>
+                <TableHead>Courier</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>AWB</TableHead>
                 <TableHead>COD</TableHead>
@@ -594,14 +614,14 @@ const Orders = () => {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Loading orders...
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No orders found. Create your first order.
                   </TableCell>
                 </TableRow>
@@ -623,6 +643,15 @@ const Orders = () => {
                             .join(", ") || "-"}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {order.courierName ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
+                          {COURIER_CONFIG[order.courierName]?.label || order.courierName}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
