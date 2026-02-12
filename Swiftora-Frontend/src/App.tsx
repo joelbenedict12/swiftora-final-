@@ -48,6 +48,9 @@ import AdminServices from "./pages/admin/Services";
 import AdminPayments from "./pages/admin/Payments";
 import AdminSettings from "./pages/admin/Settings";
 import AdminIntegrations from "./pages/admin/Integrations";
+import AdminAnalytics from "./pages/admin/Analytics";
+import AdminRateCards from "./pages/admin/RateCards";
+import AdminInvoices from "./pages/admin/Invoices";
 
 const queryClient = new QueryClient();
 
@@ -121,6 +124,9 @@ const App = () => (
             <Route path="payments" element={<AdminPayments />} />
             <Route path="integrations" element={<AdminIntegrations />} />
             <Route path="settings" element={<AdminSettings />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="rate-cards" element={<AdminRateCards />} />
+            <Route path="invoices" element={<AdminInvoices />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

@@ -11,6 +11,9 @@ import {
   LogOut,
   Truck,
   Ticket,
+  BarChart3,
+  Wallet,
+  FileText,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -22,6 +25,9 @@ export default function Sidebar() {
     { to: "/admin/orders", icon: ShoppingCart, label: "Orders" },
     { to: "/admin/tickets", icon: Ticket, label: "Tickets" },
     { to: "/admin/payments", icon: CreditCard, label: "Payments" },
+    { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
+    { to: "/admin/rate-cards", icon: Wallet, label: "Rate Cards" },
+    { to: "/admin/invoices", icon: FileText, label: "Invoices" },
   ];
 
   const settingsItems = [
@@ -35,7 +41,7 @@ export default function Sidebar() {
         <Package size={28} />
         <span>Swiftora Admin</span>
       </div>
-      
+
       <nav>
         <div className="nav-label">Main Menu</div>
         <ul>

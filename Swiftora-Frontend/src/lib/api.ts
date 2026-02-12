@@ -361,4 +361,41 @@ export const adminApi = {
     resolution?: string;
     priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   }) => api.put(`/admin/tickets/${id}`, data),
+
+  // P&L Analytics
+  getAnalytics: (params?: { from?: string; to?: string }) =>
+    api.get('/admin/analytics/profit', {
+      params: params ? { startDate: params.from, endDate: params.to } : undefined,
+    }),
+
+  // Rate Cards
+  getRateCards: (params?: { accountType?: string; courierName?: string }) =>
+    api.get('/admin/rate-cards', { params }),
+  createRateCard: (data: {
+    accountType: string;
+    courierName: string;
+    marginType: string;
+    marginValue: number;
+    minWeight?: number;
+    maxWeight?: number;
+  }) => api.post('/admin/rate-cards', data),
+  updateRateCard: (id: string, data: Record<string, any>) =>
+    api.put(`/admin/rate-cards/${id}`, data),
+  deleteRateCard: (id: string) => api.delete(`/admin/rate-cards/${id}`),
+
+  // Wallet
+  getWalletBalance: (merchantId: string) =>
+    api.get(`/admin/wallet/${merchantId}`),
+  creditWallet: (data: { merchantId: string; amount: number; description?: string }) =>
+    api.post('/admin/wallet/credit', data),
+  getWalletTransactions: (merchantId: string) =>
+    api.get(`/admin/wallet/${merchantId}/transactions`),
+
+  // Invoices
+  getInvoices: (params?: { merchantId?: string; status?: string }) =>
+    api.get('/admin/invoices', { params }),
+  generateInvoice: (data: { merchantId: string; month: number; year: number }) =>
+    api.post('/admin/invoices/generate', data),
+  updateInvoiceStatus: (id: string, data: { status: string }) =>
+    api.patch(`/admin/invoices/${id}`, data),
 };

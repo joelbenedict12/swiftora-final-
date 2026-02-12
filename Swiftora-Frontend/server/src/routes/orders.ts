@@ -129,8 +129,8 @@ const CreateOrderSchema = z.object({
   channel: z.string().optional(),
   notes: z.string().optional(),
 
-  // Courier selection - user manually selects
-  courierName: CourierNameEnum.optional().default('DELHIVERY'),
+  // Courier selection - only used when shipping, not at creation
+  courierName: CourierNameEnum.optional(),
 });
 
 // Get available couriers
@@ -325,8 +325,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       });
     }
 
-    // Create order in DB (with selected courier)
-    const selectedCourier = data.courierName || 'DELHIVERY';
+    // Create order in DB (no courier assigned yet — user picks from Orders page)
 
     const order = await prisma.order.create({
       data: {
@@ -367,108 +366,10 @@ router.post('/', async (req: AuthRequest, res, next) => {
         channel: data.channel,
         notes: data.notes,
 
-        // Store selected courier (will be updated with actual courier after shipment creation)
-        courierName: selectedCourier,
-
         status: 'PENDING',
       },
     });
-    console.log('Order created:', order.id, 'Selected courier:', selectedCourier);
-
-    // Try to create shipment using the selected courier service
-    let awbNumber: string | null = null;
-    let labelUrl: string | null = null;
-
-    try {
-      console.log(`Creating shipment with ${selectedCourier} for order:`, orderNumber);
-
-      // Get the courier service
-      const courierService = getCourierService(selectedCourier as CourierName);
-
-      // Build standardized shipment request
-      const shipmentRequest: CreateShipmentRequest = {
-        orderNumber,
-
-        // Customer details
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerEmail: data.customerEmail,
-        shippingAddress: data.shippingAddress,
-        shippingCity: data.shippingCity,
-        shippingState: data.shippingState,
-        shippingPincode: data.shippingPincode,
-        shippingCountry: 'India',
-
-        // Pickup/Warehouse details
-        pickupName: warehouse.delhiveryName || warehouse.name,
-        pickupPhone: warehouse.phone,
-        pickupEmail: warehouse.email || undefined,
-        pickupAddress: warehouse.address,
-        pickupCity: warehouse.city,
-        pickupState: warehouse.state,
-        pickupPincode: warehouse.pincode,
-        pickupCountry: 'India',
-
-        // Product details
-        productName: data.productName,
-        productDescription: data.productName,
-        productValue: data.productValue,
-        quantity: data.quantity,
-
-        // Package dimensions
-        weight: chargeableWeight,
-        length: data.length,
-        breadth: data.breadth,
-        height: data.height,
-
-        // Payment
-        paymentMode: data.paymentMode,
-        codAmount: data.codAmount,
-        totalAmount: data.productValue,
-
-        // Optional metadata
-        channelId: data.channel,
-      };
-
-      // Create shipment using the courier service
-      const shipmentResponse = await courierService.createShipment(shipmentRequest);
-      console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
-
-      if (shipmentResponse.success && shipmentResponse.awbNumber) {
-        awbNumber = shipmentResponse.awbNumber;
-        labelUrl = shipmentResponse.labelUrl || null;
-
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            awbNumber: shipmentResponse.awbNumber,
-            courierName: shipmentResponse.courierName,
-            labelUrl: shipmentResponse.labelUrl,
-            status: 'READY_TO_SHIP',
-          },
-        });
-        console.log('Order updated with AWB:', shipmentResponse.awbNumber);
-      } else {
-        console.log(`No AWB from ${selectedCourier}:`, shipmentResponse.error);
-        // Store error in notes for debugging
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            notes: `${selectedCourier} Error: ${shipmentResponse.error || 'Unknown error'}`,
-          },
-        });
-      }
-    } catch (err: any) {
-      const courierErr = err.response?.data || err.message;
-      console.error(`${selectedCourier} shipment creation error:`, courierErr);
-      // Save error for debugging
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          notes: `${selectedCourier} Error: ${JSON.stringify(courierErr)}`,
-        },
-      });
-    }
+    console.log('Order created:', order.id);
 
     // Auto-create support ticket for the order
     try {
@@ -502,14 +403,9 @@ router.post('/', async (req: AuthRequest, res, next) => {
       // Don't fail the order creation if ticket creation fails
     }
 
-    // Return order with AWB and label if available
+    // Return order (no courier yet — user picks courier later from Orders page)
     return res.status(201).json({
-      order: {
-        ...order,
-        awbNumber: awbNumber || order.awbNumber,
-        labelUrl: labelUrl,
-        courierName: selectedCourier,
-      }
+      order,
     });
   } catch (error: any) {
     console.error('=== CREATE ORDER ERROR ===', error);
