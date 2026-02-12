@@ -257,21 +257,20 @@ const Index = () => {
     },
   ];
 
-  // Integration platforms
+  // Integration platforms — logo files in public/ (see public/LOGO_SOURCES.md)
   const integrations = {
     channels: [
       { name: "Shopify", logo: "/Shopify-Logo.png" },
       { name: "WooCommerce", logo: "/WooCommerce-Logo.png" },
-      { name: "Unicommerce", logo: "/placeholder.svg" },
-      { name: "EasyEcom", logo: "/placeholder.svg" },
-      { name: "Custom API", logo: "/placeholder.svg" },
+      { name: "Unicommerce", logo: "/unicommerce.png" },
+      { name: "EasyEcom", logo: "/easyecom.jpg" },
     ],
     couriers: [
       { name: "Delhivery", logo: "/delhivery-logo.webp" },
-      { name: "Ekart", logo: "/placeholder.svg" },
-      { name: "Xpressbees", logo: "/placeholder.svg" },
+      { name: "Ekart", logo: "/ekart-logo.svg" },
+      { name: "Xpressbees", logo: "/xpresssbees.png" },
       { name: "BlueDart", logo: "/BlueDart-logo.webp" },
-      { name: "Maruthi", logo: "/" },
+      { name: "Innofullfill", logo: "/innofullfil.png" },
     ],
   };
   // Testimonials
@@ -972,6 +971,9 @@ text-[#067ADF]
                                   src={platform.logo}
                                   alt={platform.name}
                                   className="h-12 object-contain mb-3"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
                                 />
                                 <p className="text-sm font-medium text-gray-700 text-center">
                                   {platform.name}
@@ -1012,6 +1014,9 @@ text-[#067ADF]
                                   src={courier.logo}
                                   alt={courier.name}
                                   className="h-12 object-contain mb-3"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
                                 />
                                 <p className="text-sm font-medium text-gray-700 text-center">
                                   {courier.name}
