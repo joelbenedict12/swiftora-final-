@@ -11,9 +11,9 @@ import {
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-12 relative overflow-hidden">
-      <div className="container mx-auto px-4 py-8 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-8 relative overflow-hidden">
+      <div className="container mx-auto px-4 py-4 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Brand + description (matches design) */}
           <div className="lg:col-span-2">
             <div className="mb-3 flex flex-col items-start max-w-sm">
@@ -101,8 +101,8 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* Resources / Company / Compliance / Information combined, preserving labels */}
-          <div className="space-y-4">
+          {/* Resources / Company / Compliance / Information combined in compact grid */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
             <div>
               <h3 className="font-semibold mb-3 text-white">Resources</h3>
               <div className="flex flex-col gap-2">
