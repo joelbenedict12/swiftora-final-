@@ -11,34 +11,34 @@ import {
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-20 relative overflow-hidden">
-      <div className="container mx-auto px-4 py-12 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+    <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-12 relative overflow-hidden">
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Brand + description (matches design) */}
           <div className="lg:col-span-2">
-            <div className="mb-4 flex flex-col items-start max-w-sm">
+            <div className="mb-3 flex flex-col items-start max-w-sm">
               <img
                 src="/footer-logo.jpg"
                 alt="Swiftora Logo"
                 className="w-32 object-contain"
               />
             </div>
-            <p className="text-sm text-gray-400 mb-2 max-w-md">
+            <p className="text-sm text-gray-400 mb-1.5 max-w-md">
               Swiftora is a unified logistics aggregator helping Indian
               businesses ship faster with multi-carrier integrations,
               automation, and real-time insights.
             </p>
-            <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+            <div className="flex items-center gap-2 text-sm text-gray-400 mb-1.5">
               <MapPin className="w-4 h-4" />
               <span>Bangalore, Karnataka, India</span>
             </div>
             {/* Legal transparency (PayU requirements) */}
-            <p className="text-xs text-gray-400 mb-1">
+            <p className="text-xs text-gray-400 mb-0.5">
               Swiftora is a product operated by{" "}
               <span className="font-semibold">JS Enterprise</span> (proprietor:{" "}
               <span className="font-semibold">Samsudinbasha Jagirusen</span>).
             </p>
-            <p className="text-xs text-gray-500 mb-1">
+            <p className="text-xs text-gray-500 mb-0.5">
               Registered address: 1664, Ground Floor, 41st Cross, 18th Main
               Road, Opposite to GNR Kalyana Mantapa, Jayanagar 4th T Block,
               Bengaluru, Karnataka, 560041.
@@ -102,7 +102,7 @@ const Footer = () => {
           </div>
 
           {/* Resources / Company / Compliance / Information combined, preserving labels */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
               <h3 className="font-semibold mb-3 text-white">Resources</h3>
               <div className="flex flex-col gap-2">
@@ -175,7 +175,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom row with Terms / Refund links */}
-        <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="border-t border-gray-800 mt-6 pt-4 flex flex-col md:flex-row items-center justify-between gap-3">
           <p className="text-sm text-gray-400">
             © 2026 Swiftora. All rights reserved. Swiftora is a product operated
             by JS Enterprise.

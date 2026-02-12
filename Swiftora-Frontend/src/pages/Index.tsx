@@ -136,7 +136,9 @@ const Index = () => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       category: "network",
-      img: "/multi-courier.png",
+      // Use an existing illustration asset so the image
+      // shows correctly in production as well.
+      img: "/Global_regions.jpg",
     },
     {
       icon: Zap,
@@ -147,7 +149,7 @@ const Index = () => {
       bgColor: "bg-orange-50",
       borderColor: "border-orange-200",
       category: "automation",
-      img: "/intelligence.png",
+      img: "/Enterprise-security.jpg",
     },
     {
       icon: MapPin,
@@ -158,7 +160,7 @@ const Index = () => {
       bgColor: "bg-green-50",
       borderColor: "border-green-200",
       category: "experience",
-      img: "/realtime.png",
+      img: "/Transactions.jpg",
     },
     {
       icon: RotateCcw,
@@ -169,7 +171,7 @@ const Index = () => {
       bgColor: "bg-purple-50",
       borderColor: "border-purple-200",
       category: "experience",
-      img: "/ndr.png",
+      img: "/Uptime.jpg",
     },
     {
       icon: BarChart3,
@@ -180,7 +182,7 @@ const Index = () => {
       bgColor: "bg-indigo-50",
       borderColor: "border-indigo-200",
       category: "automation",
-      img: "/analytics.png",
+      img: "/Precision-analysis.jpg",
     },
     {
       icon: IndianRupee,
@@ -191,7 +193,7 @@ const Index = () => {
       bgColor: "bg-red-50",
       borderColor: "border-red-200",
       category: "finance",
-      img: "/cod.png",
+      img: "/Active_users.jpg",
     },
   ];
 
