@@ -104,6 +104,7 @@ type Order = {
     id: string;
     name: string;
   } | null;
+  warehouseId?: string;
 };
 
 // Courier display config (colors and short labels)
@@ -191,43 +192,114 @@ const Orders = () => {
   const [loadingDelhiveryPricing, setLoadingDelhiveryPricing] = useState(false);
   const [selectingDelhiveryService, setSelectingDelhiveryService] = useState<string | null>(null);
 
-  // Pickup date confirmation dialog state
-  const [showPickupDateDialog, setShowPickupDateDialog] = useState(false);
-  const [pickupDate, setPickupDate] = useState("");
-  const [pendingShipAction, setPendingShipAction] = useState<{ orderId: string; courier: string } | null>(null);
+  // Post-ship "Add to Pickup" dialog state (Delhivery-style)
+  const [showAddToPickup, setShowAddToPickup] = useState(false);
+  const [pickupOrderData, setPickupOrderData] = useState<{
+    orderId: string;
+    warehouseId: string;
+    warehouseName: string;
+    courierName: string;
+    awbNumber: string;
+  } | null>(null);
+  const [selectedPickupDate, setSelectedPickupDate] = useState("");
+  const [selectedPickupSlot, setSelectedPickupSlot] = useState("Evening");
+  const [isSchedulingPickup, setIsSchedulingPickup] = useState(false);
 
-  // Open pickup date dialog before shipping
-  const requestShip = (orderId: string, courier: string) => {
-    // Default to tomorrow's date
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setPickupDate(tomorrow.toISOString().split('T')[0]);
-    setPendingShipAction({ orderId, courier });
-    setShowPickupDateDialog(true);
+  // Generate next 3 available weekdays from today
+  const getAvailablePickupDates = () => {
+    const dates: Date[] = [];
+    const d = new Date();
+    d.setDate(d.getDate() + 1); // Start from tomorrow
+    while (dates.length < 3) {
+      const day = d.getDay();
+      if (day !== 0) { // Skip Sundays
+        dates.push(new Date(d));
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
   };
 
-  // Confirm and ship after picking date
-  const confirmShipWithDate = async () => {
-    if (!pendingShipAction || !pickupDate) return;
-    setShowPickupDateDialog(false);
-    const { orderId, courier } = pendingShipAction;
-    setPendingShipAction(null);
+  const PICKUP_SLOTS: Record<string, string> = {
+    "Morning": "10:00:00 - 13:00:00",
+    "Afternoon": "13:00:00 - 16:00:00",
+    "Evening": "14:00:00 - 18:00:00",
+  };
 
-    switch (courier) {
-      case 'DELHIVERY': await handleShipToDelhivery(orderId); break;
-      case 'BLITZ': await handleShipToBlitz(orderId); break;
-      case 'EKART': await handleShipToEkart(orderId); break;
-      case 'INNOFULFILL': await handleShipToInnofulfill(orderId); break;
-      case 'XPRESSBEES': {
-        const order = orders.find(o => o.id === orderId);
-        if (order) openXpressbeesModal(order);
-        break;
+  // Show pickup dialog after successful ship
+  const showPickupDialog = (orderId: string, warehouseId: string, warehouseName: string, courierName: string, awbNumber: string) => {
+    const dates = getAvailablePickupDates();
+    setSelectedPickupDate(dates[0].toISOString().split('T')[0]);
+    setSelectedPickupSlot("Evening");
+    setPickupOrderData({ orderId, warehouseId, warehouseName, courierName, awbNumber });
+    setShowAddToPickup(true);
+  };
+
+  // Call Delhivery Pickup Request API
+  const handleAddToPickup = async () => {
+    if (!pickupOrderData || !selectedPickupDate) return;
+    try {
+      setIsSchedulingPickup(true);
+      const slotTime = PICKUP_SLOTS[selectedPickupSlot]?.split(" - ")[0] || "14:00:00";
+      const response = await ordersApi.createDelhiveryPickup({
+        warehouseId: pickupOrderData.warehouseId,
+        pickupDate: selectedPickupDate,
+        pickupTime: slotTime,
+        expectedPackageCount: 1,
+      });
+
+      if (response.data.success) {
+        toast.success(`Pickup scheduled for ${selectedPickupDate} (${selectedPickupSlot})`);
+      } else {
+        toast.error(response.data.error || "Failed to schedule pickup");
       }
-      case 'DELHIVERY_OPTIONS': {
-        const order = orders.find(o => o.id === orderId);
-        if (order) openDelhiveryModal(order);
-        break;
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to schedule pickup";
+      toast.error(message);
+    } finally {
+      setIsSchedulingPickup(false);
+      setShowAddToPickup(false);
+      setPickupOrderData(null);
+    }
+  };
+
+  // Ship handler that shows pickup dialog on success
+  const shipAndShowPickup = async (orderId: string, courierName: string) => {
+    try {
+      setShippingOrderId(orderId);
+      const order = orders.find(o => o.id === orderId);
+      const apiCall = {
+        'DELHIVERY': ordersApi.shipToDelhivery,
+        'BLITZ': ordersApi.shipToBlitz,
+        'EKART': ordersApi.shipToEkart,
+        'INNOFULFILL': ordersApi.shipToInnofulfill,
+      }[courierName];
+
+      if (!apiCall) return; // Xpressbees/Delhivery options handled separately
+
+      const response = await apiCall(orderId);
+      if (response.data.success) {
+        toast.success(`Shipped via ${courierName}! AWB: ${response.data.awbNumber}`);
+        loadOrders();
+
+        // Show "Add to Pickup" dialog
+        if (order?.warehouse) {
+          showPickupDialog(
+            orderId,
+            order.warehouse.id || order.warehouseId,
+            order.warehouse.name || 'Warehouse',
+            courierName,
+            response.data.awbNumber
+          );
+        }
+      } else {
+        toast.error(response.data.error || "Failed to ship order");
       }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
+      toast.error(message);
+    } finally {
+      setShippingOrderId(null);
     }
   };
 
@@ -289,81 +361,6 @@ const Orders = () => {
     }
   };
 
-  const handleShipToDelhivery = async (orderId: string) => {
-    try {
-      setShippingOrderId(orderId);
-      const response = await ordersApi.shipToDelhivery(orderId);
-
-      if (response.data.success) {
-        toast.success(`Shipped via Delhivery! AWB: ${response.data.awbNumber}`);
-        loadOrders();
-      } else {
-        toast.error(response.data.error || "Failed to ship order");
-      }
-    } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
-      toast.error(message);
-    } finally {
-      setShippingOrderId(null);
-    }
-  };
-
-  const handleShipToBlitz = async (orderId: string) => {
-    try {
-      setShippingOrderId(orderId);
-      const response = await ordersApi.shipToBlitz(orderId);
-
-      if (response.data.success) {
-        toast.success(`Shipped via Blitz! AWB: ${response.data.awbNumber}`);
-        loadOrders();
-      } else {
-        toast.error(response.data.error || "Failed to ship order");
-      }
-    } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
-      toast.error(message);
-    } finally {
-      setShippingOrderId(null);
-    }
-  };
-
-  const handleShipToEkart = async (orderId: string) => {
-    try {
-      setShippingOrderId(orderId);
-      const response = await ordersApi.shipToEkart(orderId);
-
-      if (response.data.success) {
-        toast.success(`Shipped via Ekart! AWB: ${response.data.awbNumber}`);
-        loadOrders();
-      } else {
-        toast.error(response.data.error || "Failed to ship order");
-      }
-    } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
-      toast.error(message);
-    } finally {
-      setShippingOrderId(null);
-    }
-  };
-
-  const handleShipToInnofulfill = async (orderId: string) => {
-    try {
-      setShippingOrderId(orderId);
-      const response = await ordersApi.shipToInnofulfill(orderId);
-
-      if (response.data.success) {
-        toast.success(`Shipped via Innofulfill! AWB: ${response.data.awbNumber}`);
-        loadOrders();
-      } else {
-        toast.error(response.data.error || "Failed to ship order");
-      }
-    } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || "Failed to ship order";
-      toast.error(message);
-    } finally {
-      setShippingOrderId(null);
-    }
-  };
 
   // Open Xpressbees pricing modal
   const openXpressbeesModal = async (order: Order) => {
@@ -729,7 +726,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'DELHIVERY')}
+                              onClick={() => shipAndShowPickup(order.id, 'DELHIVERY')}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-blue-600"
                             >
@@ -739,7 +736,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'BLITZ')}
+                              onClick={() => shipAndShowPickup(order.id, 'BLITZ')}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-orange-600"
                             >
@@ -749,7 +746,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'EKART')}
+                              onClick={() => shipAndShowPickup(order.id, 'EKART')}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-purple-600"
                             >
@@ -760,7 +757,7 @@ const Orders = () => {
                           {/* Xpressbees option */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'XPRESSBEES')}
+                              onClick={() => openXpressbeesModal(order)}
                               className="gap-2 text-green-600"
                             >
                               <Truck className="h-4 w-4" />
@@ -770,7 +767,7 @@ const Orders = () => {
                           {/* Delhivery with options */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'DELHIVERY_OPTIONS')}
+                              onClick={() => openDelhiveryModal(order)}
                               className="gap-2 text-indigo-600"
                             >
                               <Package className="h-4 w-4" />
@@ -780,7 +777,7 @@ const Orders = () => {
                           {/* Innofulfill option */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => requestShip(order.id, 'INNOFULFILL')}
+                              onClick={() => shipAndShowPickup(order.id, 'INNOFULFILL')}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-teal-600"
                             >
@@ -1090,53 +1087,106 @@ const Orders = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Pickup Date Confirmation Dialog */}
-      <Dialog open={showPickupDateDialog} onOpenChange={setShowPickupDateDialog}>
-        <DialogContent className="sm:max-w-[420px]">
+      {/* Add to Pickup Dialog (Delhivery-style) */}
+      <Dialog open={showAddToPickup} onOpenChange={setShowAddToPickup}>
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-indigo-600" />
-              Select Pickup Date
-            </DialogTitle>
+            <DialogTitle className="text-xl font-bold">Add to Pickup</DialogTitle>
             <DialogDescription>
-              Choose a pickup date for this shipment
-              {pendingShipAction && (
-                <span className="block mt-1 font-medium text-foreground">
-                  Courier: {pendingShipAction.courier.replace('_OPTIONS', '')}
-                </span>
-              )}
+              Select any existing pickup request or create new request
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-6 py-2">
+            {/* Selected pickup location */}
             <div>
-              <Label htmlFor="pickup-date">Pickup Date</Label>
-              <Input
-                id="pickup-date"
-                type="date"
-                value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="mt-1"
-              />
+              <p className="text-sm text-muted-foreground mb-2">Selected pickup location</p>
+              <span className="inline-block px-3 py-1.5 rounded bg-indigo-100 text-indigo-800 text-sm font-medium uppercase">
+                {pickupOrderData?.warehouseName || 'Warehouse'}
+              </span>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowPickupDateDialog(false);
-                  setPendingShipAction(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmShipWithDate}
-                disabled={!pickupDate}
-                className="bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Confirm & Ship
-              </Button>
+
+            {/* Pickup Date */}
+            <div>
+              <p className="font-medium mb-1">Pickup Date</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                Pickup will be attempted during the selected Pickup Slot
+              </p>
+              <div className="flex gap-3">
+                {getAvailablePickupDates().map((date) => {
+                  const dateStr = date.toISOString().split('T')[0];
+                  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                  const dayNum = date.getDate();
+                  const month = date.toLocaleDateString('en-US', { month: 'short' });
+                  const isSelected = selectedPickupDate === dateStr;
+                  return (
+                    <button
+                      key={dateStr}
+                      onClick={() => setSelectedPickupDate(dateStr)}
+                      className={`flex flex-col items-center px-5 py-3 rounded-full border-2 transition-all ${isSelected
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                    >
+                      <span className="text-xs font-medium">{dayName}</span>
+                      <span className="text-2xl font-bold leading-tight">{dayNum}</span>
+                      <span className="text-xs">{month}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pickup Slot */}
+            <div className="rounded-lg border p-4">
+              <p className="font-medium mb-2">Default Pickup Slot</p>
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <Select value={selectedPickupSlot} onValueChange={setSelectedPickupSlot}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PICKUP_SLOTS).map(([name, time]) => (
+                      <SelectItem key={name} value={name}>
+                        {name} &nbsp; {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <p className="text-sm text-orange-600">
+              For Next Day Delivery shipments, please ensure pickup is scheduled before 6:00 PM
+            </p>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <p className="text-sm text-muted-foreground">
+                Keep the shipment ready with the label pasted.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddToPickup(false);
+                    setPickupOrderData(null);
+                  }}
+                >
+                  Add Later
+                </Button>
+                <Button
+                  onClick={handleAddToPickup}
+                  disabled={isSchedulingPickup || !selectedPickupDate}
+                  className="bg-black hover:bg-gray-800 text-white"
+                >
+                  {isSchedulingPickup ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scheduling...</>
+                  ) : (
+                    'Add to Pickup'
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>

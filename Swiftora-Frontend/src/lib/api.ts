@@ -382,6 +382,13 @@ export const adminApi = {
   updateRateCard: (id: string, data: Record<string, any>) =>
     api.put(`/admin/rate-cards/${id}`, data),
   deleteRateCard: (id: string) => api.delete(`/admin/rate-cards/${id}`),
+  calculateRate: (params: {
+    origin_pin: string;
+    destination_pin: string;
+    weight: number;
+    payment_mode: 'Prepaid' | 'COD';
+    cod_amount?: number;
+  }) => api.get('/admin/rate-cards/calculate', { params }),
 
   // Wallet
   getWalletBalance: (merchantId: string) =>

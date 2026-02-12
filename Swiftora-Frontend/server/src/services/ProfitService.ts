@@ -41,9 +41,7 @@ export async function getTotalProfitByDateRange(
     endDate?: Date
 ): Promise<ProfitSummary> {
     const where: any = {
-        courierCost: { not: null },
-        vendorCharge: { not: null },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
     };
 
     if (startDate || endDate) {
@@ -58,14 +56,15 @@ export async function getTotalProfitByDateRange(
             courierCost: true,
             vendorCharge: true,
             margin: true,
+            productValue: true,
         },
     });
 
     const totalCourierCost = orders.reduce((sum, o) => sum + (Number(o.courierCost) || 0), 0);
-    const totalVendorRevenue = orders.reduce((sum, o) => sum + (Number(o.vendorCharge) || 0), 0);
+    const totalVendorRevenue = orders.reduce((sum, o) => sum + (Number(o.vendorCharge) || Number(o.productValue) || 0), 0);
     const totalProfit = orders.reduce((sum, o) => sum + (Number(o.margin) || 0), 0);
-    const averageMarginPercent = totalCourierCost > 0
-        ? Math.round((totalProfit / totalCourierCost) * 10000) / 100
+    const averageMarginPercent = totalVendorRevenue > 0
+        ? Math.round((totalProfit / totalVendorRevenue) * 10000) / 100
         : 0;
 
     return {
@@ -85,10 +84,8 @@ export async function getProfitByCourier(
     endDate?: Date
 ): Promise<ProfitByCourier[]> {
     const where: any = {
-        courierCost: { not: null },
-        vendorCharge: { not: null },
         courierName: { not: null },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
     };
 
     if (startDate || endDate) {
@@ -104,6 +101,7 @@ export async function getProfitByCourier(
             courierCost: true,
             vendorCharge: true,
             margin: true,
+            productValue: true,
         },
     });
 
@@ -124,7 +122,7 @@ export async function getProfitByCourier(
         }
         byCourier[name].totalOrders++;
         byCourier[name].totalCourierCost += Number(order.courierCost) || 0;
-        byCourier[name].totalVendorRevenue += Number(order.vendorCharge) || 0;
+        byCourier[name].totalVendorRevenue += Number(order.vendorCharge) || Number(order.productValue) || 0;
         byCourier[name].totalProfit += Number(order.margin) || 0;
     });
 
@@ -134,8 +132,8 @@ export async function getProfitByCourier(
         totalCourierCost: Math.round(c.totalCourierCost * 100) / 100,
         totalVendorRevenue: Math.round(c.totalVendorRevenue * 100) / 100,
         totalProfit: Math.round(c.totalProfit * 100) / 100,
-        marginPercent: c.totalCourierCost > 0
-            ? Math.round((c.totalProfit / c.totalCourierCost) * 10000) / 100
+        marginPercent: c.totalVendorRevenue > 0
+            ? Math.round((c.totalProfit / c.totalVendorRevenue) * 10000) / 100
             : 0,
     }));
 }
@@ -148,9 +146,7 @@ export async function getProfitByVendor(
     endDate?: Date
 ): Promise<ProfitByVendor[]> {
     const where: any = {
-        courierCost: { not: null },
-        vendorCharge: { not: null },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
     };
 
     if (startDate || endDate) {
@@ -166,6 +162,7 @@ export async function getProfitByVendor(
             courierCost: true,
             vendorCharge: true,
             margin: true,
+            productValue: true,
             merchant: {
                 select: { companyName: true },
             },
@@ -189,7 +186,7 @@ export async function getProfitByVendor(
         }
         byVendor[id].totalOrders++;
         byVendor[id].totalCourierCost += Number(order.courierCost) || 0;
-        byVendor[id].totalVendorRevenue += Number(order.vendorCharge) || 0;
+        byVendor[id].totalVendorRevenue += Number(order.vendorCharge) || Number(order.productValue) || 0;
         byVendor[id].totalProfit += Number(order.margin) || 0;
     });
 

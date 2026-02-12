@@ -34,6 +34,40 @@ export default function RateCards() {
     const [filterCourier, setFilterCourier] = useState("");
     const [filterAccount, setFilterAccount] = useState("");
 
+    // Live Rate Calculator
+    const [rateCalc, setRateCalc] = useState({
+        origin_pin: "",
+        destination_pin: "",
+        weight: 0.5,
+        payment_mode: "Prepaid" as "Prepaid" | "COD",
+        cod_amount: 0,
+    });
+    const [rateResult, setRateResult] = useState<any>(null);
+    const [isCalculating, setIsCalculating] = useState(false);
+    const [rateError, setRateError] = useState<string | null>(null);
+
+    const handleCalculateRate = async () => {
+        if (!rateCalc.origin_pin || !rateCalc.destination_pin || !rateCalc.weight) {
+            setRateError("Origin pin, destination pin, and weight are required");
+            return;
+        }
+        try {
+            setIsCalculating(true);
+            setRateError(null);
+            setRateResult(null);
+            const res = await adminApi.calculateRate(rateCalc);
+            if (res.data?.success) {
+                setRateResult(res.data.rate);
+            } else {
+                setRateError(res.data?.error || "Failed to calculate rate");
+            }
+        } catch (err: any) {
+            setRateError(err.response?.data?.error || "Failed to calculate rate");
+        } finally {
+            setIsCalculating(false);
+        }
+    };
+
     const loadRateCards = async () => {
         try {
             setIsLoading(true);
@@ -241,6 +275,132 @@ export default function RateCards() {
                     <option value="">All Types</option>
                     {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
+            </div>
+
+            {/* Calculate Live Rate */}
+            <div style={{ background: "linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%)", border: "1px solid #c7d2fe", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "#3730a3", marginBottom: 4 }}>
+                    🔍 Calculate Live Delhivery Rate
+                </h3>
+                <p style={{ color: "#64748b", margin: "0 0 16px", fontSize: 13 }}>
+                    Get real-time shipping cost from Delhivery API
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 12, alignItems: "end" }}>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: "#475569", display: "block", marginBottom: 4 }}>Origin Pincode</label>
+                        <input
+                            type="text"
+                            value={rateCalc.origin_pin}
+                            onChange={(e) => setRateCalc({ ...rateCalc, origin_pin: e.target.value })}
+                            placeholder="e.g. 110001"
+                            maxLength={6}
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: "#475569", display: "block", marginBottom: 4 }}>Destination Pincode</label>
+                        <input
+                            type="text"
+                            value={rateCalc.destination_pin}
+                            onChange={(e) => setRateCalc({ ...rateCalc, destination_pin: e.target.value })}
+                            placeholder="e.g. 400001"
+                            maxLength={6}
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: "#475569", display: "block", marginBottom: 4 }}>Weight (grams)</label>
+                        <input
+                            type="number"
+                            value={rateCalc.weight}
+                            onChange={(e) => setRateCalc({ ...rateCalc, weight: Number(e.target.value) })}
+                            min={1}
+                            step={1}
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: "#475569", display: "block", marginBottom: 4 }}>Payment Mode</label>
+                        <select
+                            value={rateCalc.payment_mode}
+                            onChange={(e) => setRateCalc({ ...rateCalc, payment_mode: e.target.value as "Prepaid" | "COD" })}
+                            style={selectStyle}
+                        >
+                            <option value="Prepaid">Prepaid</option>
+                            <option value="COD">COD</option>
+                        </select>
+                    </div>
+                    <button
+                        onClick={handleCalculateRate}
+                        disabled={isCalculating}
+                        style={{
+                            padding: "8px 20px",
+                            borderRadius: 6,
+                            border: "none",
+                            background: isCalculating ? "#94a3b8" : "#4f46e5",
+                            color: "#fff",
+                            fontWeight: 600,
+                            fontSize: 13,
+                            cursor: isCalculating ? "not-allowed" : "pointer",
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        {isCalculating ? "Calculating..." : "Calculate"}
+                    </button>
+                </div>
+                {rateCalc.payment_mode === "COD" && (
+                    <div style={{ marginTop: 12, maxWidth: 200 }}>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: "#475569", display: "block", marginBottom: 4 }}>COD Amount (₹)</label>
+                        <input
+                            type="number"
+                            value={rateCalc.cod_amount}
+                            onChange={(e) => setRateCalc({ ...rateCalc, cod_amount: Number(e.target.value) })}
+                            style={inputStyle}
+                        />
+                    </div>
+                )}
+                {rateError && (
+                    <div style={{ marginTop: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: 10, color: "#dc2626", fontSize: 13 }}>
+                        {rateError}
+                    </div>
+                )}
+                {rateResult && (
+                    <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+                        {(() => {
+                            // Delhivery returns nested data — extract the rate info
+                            const charges = rateResult?.[0] || rateResult;
+                            const totalAmount = charges?.total_amount || charges?.total || 0;
+                            const freight = charges?.freight_charge || charges?.charge_amount || 0;
+                            const codCharge = charges?.cod_charges || charges?.cod_amount || 0;
+                            const zone = charges?.zone || charges?.pickup_zone || "-";
+                            const chargedWeight = charges?.charged_weight || charges?.cgm || "-";
+                            return (
+                                <>
+                                    <div style={{ background: "#fff", borderRadius: 8, padding: 14, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Freight</div>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: "#059669" }}>₹{freight}</div>
+                                    </div>
+                                    <div style={{ background: "#fff", borderRadius: 8, padding: 14, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>COD Charge</div>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: "#d97706" }}>₹{codCharge}</div>
+                                    </div>
+                                    <div style={{ background: "#fff", borderRadius: 8, padding: 14, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Total</div>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: "#4f46e5" }}>₹{totalAmount}</div>
+                                    </div>
+                                    <div style={{ background: "#fff", borderRadius: 8, padding: 14, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Zone</div>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: "#0f172a" }}>{zone}</div>
+                                    </div>
+                                    <div style={{ background: "#fff", borderRadius: 8, padding: 14, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Charged Weight</div>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: "#0f172a" }}>{chargedWeight}g</div>
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+                )}
             </div>
 
             {/* Table */}
