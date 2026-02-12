@@ -23,28 +23,23 @@ const Footer = () => {
                 className="w-32 object-contain"
               />
             </div>
-            <p className="text-sm text-gray-400 mb-1.5 max-w-md">
+            <p className="text-sm text-gray-400 mb-1 max-w-md">
               Swiftora is a unified logistics aggregator helping Indian
               businesses ship faster with multi-carrier integrations,
               automation, and real-time insights.
             </p>
-            <div className="flex items-center gap-2 text-sm text-gray-400 mb-1.5">
+            <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
               <MapPin className="w-4 h-4" />
               <span>Bangalore, Karnataka, India</span>
             </div>
             {/* Legal transparency (PayU requirements) */}
-            <p className="text-xs text-gray-400 mb-0.5">
+            <p className="text-[11px] text-gray-500 max-w-xl leading-snug">
               Swiftora is a product operated by{" "}
               <span className="font-semibold">JS Enterprise</span> (proprietor:{" "}
-              <span className="font-semibold">Samsudinbasha Jagirusen</span>).
-            </p>
-            <p className="text-xs text-gray-500 mb-0.5">
-              Registered address: 1664, Ground Floor, 41st Cross, 18th Main
-              Road, Opposite to GNR Kalyana Mantapa, Jayanagar 4th T Block,
-              Bengaluru, Karnataka, 560041.
-            </p>
-            <p className="text-xs text-gray-500">
-              Legal email:{" "}
+              <span className="font-semibold">Samsudinbasha Jagirusen</span>),
+              registered at 1664, Ground Floor, 41st Cross, 18th Main Road,
+              Opposite to GNR Kalyana Mantapa, Jayanagar 4th T Block, Bengaluru,
+              Karnataka, 560041. Legal email:{" "}
               <span className="font-semibold">
                 jsenterprises.4148@gmail.com
               </span>{" "}
