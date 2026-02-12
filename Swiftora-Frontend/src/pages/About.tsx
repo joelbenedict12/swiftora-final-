@@ -1,116 +1,28 @@
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Target,
-  Users,
-  Lightbulb,
-  Award,
-  Send,
-  ArrowRight,
-  CheckCircle2,
-  Rocket,
-  Brain,
-  Zap,
-  Globe,
-  Shield,
-  Layers,
-  Cpu,
-  Network,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { url } from "inspector";
+
+const problems = [
+  "-- Managing multiple courier partners across dashboards --",
+  "-- Fragmented shipment tracking and delayed visibility --",
+  "-- Manual COD reconciliation and cash flow delays --",
+  "-- Inefficient shipping decisions increasing operational costs --",
+];
 
 const About = () => {
-  const timeline = [
-    {
-      step: "01",
-      title: "Platform Onboarding",
-      description:
-        "Seamless integration with your existing infrastructure through our intuitive setup process.",
-    },
-    {
-      step: "02",
-      title: "AI Configuration",
-      description:
-        "Customize intelligent algorithms to match your specific business requirements and workflows.",
-    },
-    {
-      step: "03",
-      title: "Real-Time Monitoring",
-      description:
-        "Access live dashboards with comprehensive analytics and performance insights.",
-    },
-    {
-      step: "04",
-      title: "Optimization & Scaling",
-      description:
-        "Leverage advanced features to optimize operations and scale your business efficiently.",
-    },
-  ];
+  const [index, setIndex] = useState(0);
 
-  const values = [
-    {
-      icon: Target,
-      title: "Our Vision",
-      description:
-        "To revolutionize enterprise technology by delivering innovative solutions that empower businesses worldwide.",
-      color: "text-[hsl(210_100%_60%)]",
-      bgColor: "bg-[hsl(210_100%_60%)]/10",
-      borderColor: "border-[hsl(210_100%_60%)]/30",
-    },
-    {
-      icon: Users,
-      title: "User-Centric",
-      description:
-        "Every decision and feature is crafted with our users' success and satisfaction as the primary focus.",
-      color: "text-[hsl(25_95%_55%)]",
-      bgColor: "bg-[hsl(25_95%_55%)]/10",
-      borderColor: "border-[hsl(25_95%_55%)]/30",
-    },
-    {
-      icon: Lightbulb,
-      title: "Innovation First",
-      description:
-        "We continuously explore cutting-edge technologies to deliver breakthrough solutions.",
-      color: "text-[hsl(210_100%_60%)]",
-      bgColor: "bg-[hsl(210_100%_60%)]/10",
-      borderColor: "border-[hsl(210_100%_60%)]/30",
-    },
-    {
-      icon: Award,
-      title: "Excellence",
-      description:
-        "Committed to maintaining the highest quality standards across all our products and services.",
-      color: "text-[hsl(25_95%_55%)]",
-      bgColor: "bg-[hsl(25_95%_55%)]/10",
-      borderColor: "border-[hsl(25_95%_55%)]/30",
-    },
-  ];
-
-  const technologies = [
-    {
-      icon: Brain,
-      title: "Machine Learning",
-      description: "Advanced neural networks power intelligent decision-making",
-      color: "text-[hsl(210_100%_60%)]",
-      bgColor: "bg-[hsl(210_100%_60%)]/10",
-    },
-    {
-      icon: Zap,
-      title: "Edge Computing",
-      description: "Ultra-low latency processing at the network edge",
-      color: "text-[hsl(25_95%_55%)]",
-      bgColor: "bg-[hsl(25_95%_55%)]/10",
-    },
-    {
-      icon: Shield,
-      title: "Zero-Trust Security",
-      description: "Enterprise-grade protection with end-to-end encryption",
-      color: "text-[hsl(210_100%_60%)]",
-      bgColor: "bg-[hsl(210_100%_60%)]/10",
-    },
-  ];
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % problems.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden bg-slate-100">
@@ -127,240 +39,232 @@ const About = () => {
         <Navigation />
 
         {/* Hero Section */}
-        <section className="pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden relative">
-          <div className="container mx-auto px-4 relative z-10">
+        <section className="pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden relative bg-[#f9faf4]">
+          <div className="container mx-auto px-4 relative z-10 ">
             <div className="max-w-4xl mx-auto text-center">
-              <div className="inline-block mb-6">
-                <span className="px-4 py-2 bg-[hsl(210_100%_60%)]/10 text-[hsl(210_100%_60%)] rounded-full text-sm font-semibold flex items-center gap-2 border border-[hsl(210_100%_60%)]/30">
-                  <Rocket className="w-4 h-4" />
-                  About Our Platform
-                </span>
-              </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight text-center">
-                <span className="text-foreground">Building the future of</span>
-                <br />
-                <span className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] bg-clip-text text-transparent">
-                  enterprise technology
+                {/* <span className="text-foreground">Building the future of</span>
+                <br /> */}
+                <span className="bg-gradient-to-r from-[hsl(273,77%,49%)] to-[hsl(283,79%,48%)] bg-clip-text text-transparent">
+                  About Swiftora
                 </span>
               </h1>
               <p className="text-lg md:text-xl text-foreground/70 max-w-3xl mx-auto leading-relaxed">
-                We're dedicated to transforming how businesses operate through
-                cutting-edge technology solutions and exceptional user
-                experiences.
+                Swiftora is a unified logistics aggregator built <b>B2B, B2C</b>{" "}
+                for Indian e-commerce businesses. We simplify multi-carrier
+                shipping, automate logistics workflows, and deliver real-time
+                visibility — all from a single, scalable platform.
               </p>
+            </div>
+            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+              {/* Card 1 */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-[#067ADF]/10 text-[#067ADF] mb-4">
+                  {/* icon */}
+                  <svg
+                    className="h-6 w-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M3 7h18M3 12h18M3 17h18" />
+                  </svg>
+                </div>
+
+                <h3 className="text-lg font-semibold text-[#0F172A]">
+                  Unified Courier Network
+                </h3>
+
+                <p className="mt-2 text-slate-600">
+                  Connect to multiple courier partners through a single
+                  integration and intelligently select the best option for every
+                  shipment.
+                </p>
+              </div>
+
+              {/* Card 2 */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-[#067ADF]/10 text-[#067ADF] mb-4">
+                  <svg
+                    className="h-6 w-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 8v4l3 3" />
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                </div>
+
+                <h3 className="text-lg font-semibold text-[#0F172A]">
+                  Intelligent Automation
+                </h3>
+
+                <p className="mt-2 text-slate-600">
+                  Automate courier allocation, label generation, pickup
+                  scheduling, and shipping workflows to reduce manual effort and
+                  errors.
+                </p>
+              </div>
+
+              {/* Card 3 */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-[#067ADF]/10 text-[#067ADF] mb-4">
+                  <svg
+                    className="h-6 w-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 20l9-16H3l9 16z" />
+                  </svg>
+                </div>
+
+                <h3 className="text-lg font-semibold text-[#0F172A]">
+                  Complete Visibility & Control
+                </h3>
+
+                <p className="mt-2 text-slate-600">
+                  Track shipments in real time, monitor performance, manage COD
+                  reconciliation, and gain insights from one unified dashboard.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Values Section */}
-        <section className="py-20 md:py-32 relative">
+        <section className="py-20 md:py-32 relative ">
           <div className="container mx-auto px-4">
             <div className="text-center mb-20">
-              <div className="inline-block mb-6">
-                <span className="px-6 py-3 bg-[hsl(210_100%_60%)]/10 text-[hsl(210_100%_60%)] rounded-full text-sm font-bold border border-[hsl(210_100%_60%)]/30">
-                  ⭐ CORE VALUES
-                </span>
-              </div>
               <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 leading-tight text-foreground">
-                The principles{" "}
-                <span className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] bg-clip-text text-transparent">
-                  that guide us
+                Logistics{" "}
+                <span className="bg-gradient-to-r from-[hsl(36,100%,60%)] to-[hsl(36,86%,44%)] bg-clip-text text-transparent">
+                  Shouldn't Be Complicated
                 </span>
               </h2>
               <p className="text-xl md:text-2xl text-foreground/70 leading-relaxed max-w-3xl mx-auto">
-                Our values shape every decision and drive our commitment to
-                excellence
+                Managing multiple courier partners, tracking shipments,
+                reconciling COD, and optimizing costs creates operational
+                friction for growing businesses.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10 max-w-7xl mx-auto">
-              {values.map((value, index) => (
-                <div
-                  key={index}
-                  className="group relative animate-fade-in-up"
-                  style={{ animationDelay: `${index * 150}ms` }}
-                >
-                  <Card className="bg-background/90 border-[hsl(210_100%_60%)]/30 hover:border-[hsl(25_95%_55%)]/50 hover:shadow-lg transition-all duration-500 hover:-translate-y-2 text-center">
-                    <CardContent className="p-8 lg:p-10">
-                      <div className="relative mb-8">
-                        <div
-                          className={`w-20 h-20 ${value.bgColor} rounded-2xl flex items-center justify-center mx-auto group-hover:scale-105 transition-all duration-500 shadow-lg border ${value.borderColor}`}
-                        >
-                          <value.icon className={`w-10 h-10 ${value.color}`} />
-                        </div>
-                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-[hsl(25_95%_55%)]/20 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-                      </div>
-
-                      <h3 className="text-2xl font-bold text-foreground mb-4 group-hover:text-[hsl(210_100%_60%)] transition-colors duration-300">
-                        {value.title}
-                      </h3>
-                      <p className="text-foreground/70 leading-relaxed text-lg">
-                        {value.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              ))}
+            {/* Carousel */}
+            <div className="mt-12 h-10 flex items-center justify-center overflow-hidden">
+              <p
+                key={index}
+                className="text-xl font-medium text-[#0F172A] transition-opacity duration-500"
+              >
+                {problems[index]}
+              </p>
             </div>
           </div>
         </section>
 
         {/* How It Works */}
-        <section className="py-20 md:py-32 relative border-t border-[hsl(210_100%_60%)]/20 bg-gradient-to-r from-[#E81CFF] to-[#40C9FF]">
+        <section
+          className="py-20 md:py-32 relative   overflow-hidden"
+          //add img background
+          style={{
+            backgroundImage:
+              "url('/oneplatform-img.webp') ",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
           <div className="container mx-auto px-4">
             <div className="text-center mb-20">
-              <div className="inline-block mb-6">
-                <span className="px-6 py-3 bg-[hsl(210_100%_60%)]/20 text-white rounded-full text-sm font-bold border border-[hsl(210_100%_60%)]/30">
-                  🔄 PROCESS
-                </span>
-              </div>
               <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 leading-tight text-foreground">
-                How our{" "}
-                {/* <span className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] bg-clip-text text-transparent"> */}
-                platform {/* </span>{" "} */}
-                works
+                One Platform. One Integration. Total Control
               </h2>
               <p className="text-xl md:text-2xl text-foreground/70 leading-relaxed max-w-3xl mx-auto">
-                Simple, streamlined process from setup to full deployment in
-                just 4 steps
+                Swiftora aggregates couriers, channels, and workflows into one
+                intelligent system so businesses can focus on growth, not
+                logistics complexity.
               </p>
             </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 max-w-6xl mx-auto">
-              {timeline.map((item, index) => (
-                <div
-                  key={index}
-                  className="text-center group animate-fade-in-up"
-                  style={{ animationDelay: `${index * 200}ms` }}
-                >
-                  <div className="relative mb-8">
-                    <div className="w-20 h-20 bg-gradient-to-br from-[hsl(180,7%,37%)] to-[hsl(183,54%,37%)] rounded-3xl shadow-lg flex items-center justify-center mx-auto group-hover:scale-105 transition-all duration-500 border border-[hsl(210_100%_60%)]/30">
-                      <span className="text-3xl font-bold text-white">
-                        {item.step}
-                      </span>
-                    </div>
-                  </div>
-
-                  <h3 className="text-2xl font-bold text-foreground mb-4 group-hover:scale-105 transition-transform duration-300">
-                    {item.title}
-                  </h3>
-                  <p className="text-foreground/70 leading-relaxed text-lg">
-                    {item.description}
-                  </p>
-
-                  <div className="w-0 group-hover:w-full h-1 bg-gradient-to-r from-[hsl(210,24%,89%)] to-[hsl(207,41%,84%)] mx-auto mt-4 transition-all duration-500 rounded-full"></div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-20 flex justify-center">
-              <div className="flex items-center gap-2">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-3 h-3 bg-[hsl(210_100%_60%)]/40 rounded-full animate-pulse"
-                    style={{ animationDelay: `${i * 0.3}s` }}
-                  ></div>
-                ))}
-              </div>
-            </div>
           </div>
+          {/* <img
+            src="/platform-img.png"
+            alt="Swiftora logistics platform illustration"
+            className="absolute bottom-0 left-0 w-full max-h-[200px]  object-contain hidden md:block"
+          /> */}
         </section>
 
         {/* Technology Section */}
-        <section className="py-20 md:py-28 relative">
-          <div className="container mx-auto px-4">
-            <div className="grid md:grid-cols-2 gap-12 lg:gap-20 items-center max-w-6xl mx-auto">
-              <div className="order-2 md:order-1">
-                <div className="mb-4">
-                  <span className="px-4 py-2 bg-[hsl(25_95%_55%)]/10 to-[hsl(207,97%,45%)] rounded-full text-sm font-semibold border border-[hsl(25_95%_55%)]/30">
-                    TECHNOLOGY
-                  </span>
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
-                  Built on next-generation infrastructure
-                </h2>
-                <p className="text-lg text-foreground/70 mb-8">
-                  Our platform leverages artificial intelligence, distributed
-                  computing, and real-time data processing to deliver
-                  unparalleled performance and reliability.
+
+        <section className="py-24 bg-[#F8FAFC]">
+          <div className="max-w-7xl mx-auto px-6 text-center">
+            <h2 className="text-4xl font-bold text-[#0F172A]">
+              Built as a Unified Logistics Platform
+            </h2>
+
+            <p className="mt-4 max-w-3xl mx-auto text-slate-600">
+              Swiftora combines courier aggregation, automation, tracking, and
+              financial workflows into a single logistics infrastructure.
+            </p>
+
+            <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-4 gap-8 text-left">
+              {/* Card */}
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <h3 className="text-lg font-semibold text-[#067ADF]">
+                  Multi-Carrier Aggregation
+                </h3>
+                <p className="mt-2 text-slate-600">
+                  Access multiple courier partners through a single integration
+                  and ship smarter with data-driven decisions.
                 </p>
-
-                <div className="space-y-5">
-                  {[
-                    "AI-driven automation reduces operational costs by up to 45%",
-                    "Predictive analytics enable proactive decision-making",
-                    "Real-time monitoring across all system components",
-                    "Automated scaling and intelligent resource allocation",
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-start gap-4">
-                      <div className="w-6 h-6 bg-gradient-to-br from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <CheckCircle2 className="w-4 h-4 text-white" />
-                      </div>
-                      <span className="text-foreground/80 font-medium">
-                        {feature}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-10">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(25_95%_55%)]/90 text-white shadow-lg"
-                  >
-                    <Link to="/contact">
-                      Learn More <ArrowRight className="ml-2 w-5 h-5" />
-                    </Link>
-                  </Button>
-                </div>
               </div>
-
-              <div className="order-1 md:order-2 relative">
-                <div className="absolute -inset-4 bg-[hsl(210_100%_60%)]/10 rounded-3xl blur-lg"></div>
-                <Card className="bg-background/90 border-[hsl(210_100%_60%)]/30 shadow-lg overflow-hidden relative z-10">
-                  <CardContent className="p-8">
-                    <div className="space-y-6">
-                      {technologies.map((tech, index) => (
-                        <div key={index} className="flex items-center gap-4">
-                          <div
-                            className={`w-16 h-16 ${tech.bgColor} rounded-xl flex items-center justify-center border border-[hsl(210_100%_60%)]/30`}
-                          >
-                            <tech.icon className={`w-8 h-8 ${tech.color}`} />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-lg text-foreground">
-                              {tech.title}
-                            </h3>
-                            <p className="text-sm text-foreground/70">
-                              {tech.description}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <h3 className="text-lg font-semibold text-[#067ADF]">
+                  Intelligent Shipping Automation
+                </h3>
+                <p className="mt-2 text-slate-600">
+                  Automate courier allocation, label generation, pickup
+                  scheduling, and rule-based shipping workflows to reduce manual
+                  effort and errors.
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <h3 className="text-lg font-semibold text-[#067ADF]">
+                  Unified Tracking & Insights
+                </h3>
+                <p className="mt-2 text-slate-600">
+                  Track shipments across all carriers in real time, provide
+                  branded tracking experiences, and gain visibility into
+                  delivery performance.
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <h3 className="text-lg font-semibold text-[#067ADF]">
+                  COD & Settlement Management
+                </h3>
+                <p className="mt-2 text-slate-600">
+                  Manage COD remittances, wallet balances, reconciliations, and
+                  reports with transparency and control across courier partners.
+                </p>
               </div>
             </div>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="py-20 md:py-32 relative border-t border-[hsl(210_100%_60%)]/20 bg-gradient-to-r from-[#40C9FF] to-[#E81CFF]">
+        <section className="py-20 md:py-32 relative border-t border-[hsl(210_100%_60%)]/20 bg-gradient-to-r from-[#cdf7dd] to-[#b4f7dd]
+        " //add img background
+          style={{
+            backgroundImage:
+              "url('/start-bg.webp') ",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}>
           <div className="container mx-auto px-4 text-center">
             <div className="max-w-4xl mx-auto">
-              <div className="inline-block mb-8">
-                <span className="px-8 py-4 bg-[hsl(210_100%_60%)]/20 text-white rounded-full text-sm font-bold border border-[hsl(210_100%_60%)]/30">
-                  🚀 GET STARTED
-                </span>
-              </div>
-
               <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tight text-foreground">
-                Ready to{" "}
-                {/* <span className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] bg-clip-text text-transparent"> */}
-                transform {/* </span>{" "} */}
+                Ready to transform {/* </span>{" "} */}
                 your business?
               </h2>
 
@@ -374,23 +278,11 @@ const About = () => {
                 <Button
                   asChild
                   size="lg"
-                  className="group bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(25_95%_55%)]/90 text-white shadow-lg text-lg font-bold h-16 px-12 rounded-2xl transition-all duration-300 hover:scale-105"
+                  className="group bg-gradient-to-r from-[hsl(210,56%,67%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(25_95%_55%)]/90 text-white shadow-lg text-lg font-bold h-16 px-12 rounded-2xl transition-all duration-300 hover:scale-105"
                 >
                   <Link to="/contact" className="flex items-center gap-3">
                     Get Started Today
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="bg-background/90 backdrop-blur-sm text-foreground border-2 border-[hsl(210_100%_60%)]/30 hover:bg-[hsl(210_100%_60%)]/10 hover:border-[hsl(210_100%_60%)]/50 text-lg font-bold h-16 px-12 rounded-2xl transition-all duration-300 hover:scale-105"
-                >
-                  <Link to="/tracking" className="flex items-center gap-3">
-                    <Send className="w-5 h-5" />
-                    Explore Platform
                   </Link>
                 </Button>
               </div>
@@ -398,17 +290,17 @@ const About = () => {
               <div className="flex flex-wrap justify-center items-center gap-8 text-foreground/70">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-[hsl(210_100%_60%)]" />
-                  <span className="font-semibold">Free setup</span>
+                  <span className="font-semibold">Free Setup</span>
                 </div>
                 <div className="w-px h-4 bg-foreground/30"></div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-[hsl(25_95%_55%)]" />
-                  <span className="font-semibold">No contracts</span>
+                  <span className="font-semibold">No Contracts</span>
                 </div>
                 <div className="w-px h-4 bg-foreground/30"></div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-[hsl(210_100%_60%)]" />
-                  <span className="font-semibold">24/7 support</span>
+                  <span className="font-semibold">24/7 Human Support</span>
                 </div>
               </div>
             </div>
@@ -421,3 +313,4 @@ const About = () => {
 };
 
 export default About;
+

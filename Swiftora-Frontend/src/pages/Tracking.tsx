@@ -23,6 +23,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { trackShipment, type TrackingResult } from "@/lib/delhivery";
 
 type UiTrackingStep = {
@@ -42,9 +48,9 @@ type UiTrackingData = Omit<TrackingResult, "steps"> & {
 
 const Tracking = () => {
   const [trackingValue, setTrackingValue] = useState("");
-  const [trackingMode, setTrackingMode] = useState<
-    "awb" | "order" | "mobile"
-  >("awb");
+  const [trackingMode, setTrackingMode] = useState<"awb" | "order" | "mobile">(
+    "awb",
+  );
   const [isTracking, setIsTracking] = useState(false);
   const [trackingData, setTrackingData] = useState<UiTrackingData | null>(null);
 
@@ -81,7 +87,9 @@ const Tracking = () => {
       case "IN TRANSIT":
       case "INTRANSIT":
       case "TRANSIT":
-        return remark ? remark.charAt(0).toUpperCase() + remark.slice(1) : "In transit";
+        return remark
+          ? remark.charAt(0).toUpperCase() + remark.slice(1)
+          : "In transit";
       default:
         return status || remarks || "Update";
     }
@@ -173,7 +181,10 @@ const Tracking = () => {
         })
         .sort((a, b) => {
           if (!a.rawTimestamp || !b.rawTimestamp) return 0;
-          return new Date(a.rawTimestamp).getTime() - new Date(b.rawTimestamp).getTime();
+          return (
+            new Date(a.rawTimestamp).getTime() -
+            new Date(b.rawTimestamp).getTime()
+          );
         })
         .map((step, idx, arr) => ({
           ...step,
@@ -196,13 +207,20 @@ const Tracking = () => {
         <Navigation />
 
         {/* Hero Section */}
-        <section className="pt-24 pb-10 md:pt-28 md:pb-12 overflow-hidden relative bg-slate-50 border-b border-slate-200">
+        <section
+          className="pt-24 pb-10 md:pt-28 md:pb-12 overflow-hidden relative bg-slate-50 border-b border-slate-200"
+          style={{
+            backgroundImage: "url('/track-bg-img.jpg') ",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
           <div className="container mx-auto px-4 relative z-10">
             <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3 leading-tight text-slate-900">
-                Track your shipment
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3 leading-tight text-slate-200">
+                <b>Track your</b> <i>shipment easily</i>
               </h1>
-              <p className="text-sm md:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-sm md:text-base text-slate-100 max-w-2xl mx-auto leading-relaxed ">
                 Enter your AWB number, order ID or customer mobile number to get
                 the latest status, location and estimated delivery date.
               </p>
@@ -211,11 +229,11 @@ const Tracking = () => {
         </section>
 
         {/* Tracking Form */}
-        <section className="py-10 md:py-14 relative">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto">
-              <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl">
-                <CardContent className="p-6 md:p-7">
+        <section className="py-10 md:py-14 relative bg-cover bg-slate-200">
+          <div className="container mx-auto px-4 ">
+            <div className="max-w-4xl mx-auto  ">
+              <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl  ">
+                <CardContent className="p-6 md:p-7 ">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -275,7 +293,7 @@ const Tracking = () => {
                       type="submit"
                       size="lg"
                       disabled={isTracking}
-                      className="h-14 px-8 bg-blue-600 hover:bg-blue-700 text-white shadow-sm rounded-xl"
+                      className="h-14 px-8 bg-blue-300 hover:bg-blue-500 text-white shadow-sm rounded-xl"
                     >
                       {isTracking ? (
                         "Tracking..."
@@ -374,8 +392,8 @@ const Tracking = () => {
                                   index === 0
                                     ? "bg-transparent"
                                     : step.completed
-                                    ? "bg-blue-600"
-                                    : "bg-slate-200"
+                                      ? "bg-blue-600"
+                                      : "bg-slate-200"
                                 }`}
                               />
                               <div
@@ -390,8 +408,8 @@ const Tracking = () => {
                                   index === arr.length - 1
                                     ? "bg-transparent"
                                     : step.completed
-                                    ? "bg-blue-600"
-                                    : "bg-slate-200"
+                                      ? "bg-blue-600"
+                                      : "bg-slate-200"
                                 }`}
                               />
                             </div>
@@ -399,7 +417,7 @@ const Tracking = () => {
                               {step.label}
                             </p>
                           </div>
-                        )
+                        ),
                       )}
                     </div>
                   </div>
@@ -458,8 +476,8 @@ const Tracking = () => {
 
                     <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
                       <p className="text-sm text-slate-600">
-                        Need help with this shipment? Our support team can assist
-                        with delays, address changes and more.
+                        Need help with this shipment? Our support team can
+                        assist with delays, address changes and more.
                       </p>
                       <Button className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-5">
                         <a
@@ -477,8 +495,15 @@ const Tracking = () => {
           </section>
         )}
 
+        {/* Image section */}
+
+        <section
+          className=" md:py-32 relative flex flex-row  justify-center bg-no-repeat w-full  overflow-hidden items-center  bg-center  bg-contain "
+          style={{ backgroundImage: "url(/Tracking-img.jpg)" }}
+        ></section>
+
         {/* Help Section */}
-        <section className="py-16 md:py-20 relative border-t border-slate-200 bg-slate-50">
+        {/* <section className="py-16 md:py-20 relative border-t border-slate-200 bg-slate-50">
           <div className="container mx-auto px-4">
             <div className="max-w-5xl mx-auto text-center">
               <div className="inline-block mb-6">
@@ -552,7 +577,7 @@ const Tracking = () => {
                 ))}
               </div>
 
-              {/* CTA Section */}
+              {/* CTA Section 
               <Card className="mt-12 bg-white border border-slate-200 shadow-sm rounded-2xl">
                 <CardContent className="p-8">
                   <h3 className="text-xl font-semibold text-slate-900 mb-2">
@@ -578,12 +603,181 @@ const Tracking = () => {
               </Card>
             </div>
           </div>
+        </section> */}
+
+        <section
+          className="py-16 md:py-20 relative border-t border-slate-200  bg-neutral-200"
+          //add img background
+          style={{
+            backgroundImage: "url('/assistance.jpg') ",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="container mx-auto px-4">
+            <div className="max-w-5xl mx-auto text-center">
+              {/* CTA Section */}
+              <Card className="mt-12 bg-white border border-slate-600 shadow-sm rounded-2xl bg-transparent">
+                <CardContent className="p-14">
+                  <h3 className="text-4xl font-semibold text-slate-200 mb-2">
+                    Still Need assistance?
+                  </h3>
+                  <p className="text-slate-300 mb-6 text-sl">
+                    Our expert support team is available 24/7 to help you
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button className="bg-blue-400 hover:bg-blue-700 text-white shadow-sm">
+                      <Phone className="w-4 h-4 mr-2" />
+                      Call Support
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border border-slate-500 hover:border-blue-500 hover:bg-blue-50 text-slate-400"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Email Us
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </section>
 
-        <Footer />
+        {/* FAQ Section */}
+        <section className="py-20 md:py-28 bg-slate-50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <h3 className="text-4xl md:text-5xl font-bold mb-4 text-gray-900">
+                FAQs Related to Logistics Tracking
+              </h3>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              <Accordion type="single" collapsible className="space-y-4">
+                <AccordionItem
+                  value="item-1"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      How can I check the real-time status of my order if
+                      tracking is not updating?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      If tracking hasn’t updated, please wait a few hours as
+                      systems refresh periodically. You can also contact our
+                      support team with your tracking ID for the latest status.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem
+                  value="item-2"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      Is it possible to contact the delivery executive directly
+                      for my order?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      Is it possible to contact the delivery executive directly
+                      for my order?
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem
+                  value="item-3"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      What happens if my delivery attempt is missed due to
+                      unavailability?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      If you’re unavailable, the delivery will be reattempted on
+                      the next working day. You may also receive an option to
+                      reschedule the delivery.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem
+                  value="item-4"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      How can I reschedule or change the delivery time or
+                      address?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      You can reschedule or update delivery details from your
+                      tracking page before the order is out for delivery, or
+                      reach out to customer support for assistance.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem
+                  value="item-5"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      What steps should I take if my order is marked as returned
+                      or failed?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      If your order is returned or delivery fails, contact our
+                      support team immediately. We’ll help you with a
+                      re-delivery, refund, or alternative solution based on your
+                      order status.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem
+                  value="item-6"
+                  className="border border-gray-200 rounded-lg bg-white shadow-sm"
+                >
+                  <AccordionTrigger className="px-6 py-4 text-left hover:no-underline">
+                    <span className="text-lg font-semibold text-gray-900">
+                      What are the common reasons a shipment may arrive later
+                      than expected?
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <p className="text-gray-600 leading-relaxed">
+                      Deliveries can be delayed due to weather conditions, high
+                      shipment volume, address issues, customs clearance, or
+                      unexpected operational delays. We always work to deliver
+                      your order as quickly as possible.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+          </div>
+        </section>
       </div>
+      <Footer />
     </div>
   );
 };
 
 export default Tracking;
+

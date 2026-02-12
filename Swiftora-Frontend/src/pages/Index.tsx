@@ -136,7 +136,7 @@ const Index = () => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       category: "network",
-      img: "/",
+      img: "/multi-courier.png",
     },
     {
       icon: Zap,
@@ -180,7 +180,7 @@ const Index = () => {
       bgColor: "bg-indigo-50",
       borderColor: "border-indigo-200",
       category: "automation",
-      img: "/",
+      img: "/analytics.png",
     },
     {
       icon: IndianRupee,
@@ -269,7 +269,7 @@ const Index = () => {
       { name: "Ekart", logo: "/placeholder.svg" },
       { name: "Xpressbees", logo: "/placeholder.svg" },
       { name: "BlueDart", logo: "/BlueDart-logo.webp" },
-      { name: "DTDC", logo: "/DTDC-logo.webp" },
+      { name: "Maruthi", logo: "/" },
     ],
   };
   // Testimonials
@@ -947,50 +947,80 @@ text-[#067ADF]
           <div className="max-w-5xl mx-auto min-h-[250px]">
             {activeIntegrationTab === "channels" && (
               <AnimatedSection key="channels">
-                <div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                    {integrations.channels.map((platform, index) => (
-                      <AnimatedCard key={index} delay={index * 0.1}>
-                        <Card className="border-2 hover:border-blue-500 transition-all bg-white hover:shadow-lg h-full">
-                          <CardContent className="p-6 flex flex-col items-center justify-center aspect-square">
-                            <img
-                              src={platform.logo}
-                              alt={platform.name}
-                              className="h-12 object-contain mb-3"
-                            />
-                            <p className="text-sm font-medium text-gray-700 text-center">
-                              {platform.name}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </AnimatedCard>
-                    ))}
-                  </div>
+                <div className="overflow-hidden w-full [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+                  <motion.div
+                    className="flex gap-6 w-max"
+                    animate={{ x: ["-50%", "0%"] }}
+                    transition={{
+                      duration: 10,
+                      ease: "linear",
+                      repeat: Infinity,
+                    }}
+                  >
+                    {[...integrations.channels, ...integrations.channels].map(
+                      (platform, index) => (
+                        <div
+                          key={index}
+                          className="w-[220px] md:w-[240px] flex-shrink-0"
+                        >
+                          <AnimatedCard delay={0}>
+                            <Card className="border-2 hover:border-blue-500 transition-all bg-white hover:shadow-lg h-full">
+                              <CardContent className="p-6 flex flex-col items-center justify-center aspect-square">
+                                <img
+                                  src={platform.logo}
+                                  alt={platform.name}
+                                  className="h-12 object-contain mb-3"
+                                />
+                                <p className="text-sm font-medium text-gray-700 text-center">
+                                  {platform.name}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </AnimatedCard>
+                        </div>
+                      ),
+                    )}
+                  </motion.div>
                 </div>
               </AnimatedSection>
             )}
 
             {activeIntegrationTab === "couriers" && (
               <AnimatedSection key="couriers">
-                <div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                    {integrations.couriers.map((courier, index) => (
-                      <AnimatedCard key={index} delay={index * 0.1}>
-                        <Card className="border-2 hover:border-orange-500 transition-all bg-white hover:shadow-lg h-full">
-                          <CardContent className="p-6 flex flex-col items-center justify-center aspect-square">
-                            <img
-                              src={courier.logo}
-                              alt={courier.name}
-                              className="h-12 object-contain mb-3"
-                            />
-                            <p className="text-sm font-medium text-gray-700 text-center">
-                              {courier.name}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </AnimatedCard>
-                    ))}
-                  </div>
+                <div className="overflow-hidden w-full [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+                  <motion.div
+                    className="flex gap-6 w-max"
+                    animate={{ x: ["0%", "-50%"] }}
+                    transition={{
+                      duration: 10,
+                      ease: "linear",
+                      repeat: Infinity,
+                    }}
+                  >
+                    {[...integrations.couriers, ...integrations.couriers].map(
+                      (courier, index) => (
+                        <div
+                          key={index}
+                          className="w-[220px] md:w-[240px] flex-shrink-0"
+                        >
+                          <AnimatedCard delay={0}>
+                            <Card className="border-2 hover:border-orange-500 transition-all bg-white hover:shadow-lg h-full">
+                              <CardContent className="p-6 flex flex-col items-center justify-center aspect-square">
+                                <img
+                                  src={courier.logo}
+                                  alt={courier.name}
+                                  className="h-12 object-contain mb-3"
+                                />
+                                <p className="text-sm font-medium text-gray-700 text-center">
+                                  {courier.name}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </AnimatedCard>
+                        </div>
+                      ),
+                    )}
+                  </motion.div>
                 </div>
               </AnimatedSection>
             )}
@@ -1271,3 +1301,4 @@ text-[#067ADF]
 };
 
 export default Index;
+
