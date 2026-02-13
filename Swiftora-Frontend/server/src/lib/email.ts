@@ -1,17 +1,22 @@
 import nodemailer from 'nodemailer';
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
+// Create transporter lazily so env vars are available at call time
+let transporter: nodemailer.Transporter | null = null;
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  }
+  return transporter;
+}
 
 interface SendEmailOptions {
   to: string;
@@ -21,30 +26,30 @@ interface SendEmailOptions {
 }
 
 export const sendEmail = async (options: SendEmailOptions): Promise<void> => {
-  // Only skip sending if SMTP credentials are not configured
+  // Skip if SMTP credentials not configured
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.log('📧 Email (No SMTP configured - logging only)');
     console.log('To:', options.to);
     console.log('Subject:', options.subject);
-    console.log('Body:', options.text || options.html);
-    console.log('---');
     console.log('💡 Set SMTP_USER and SMTP_PASS env vars to enable real email sending');
     return;
   }
 
-  // In production, send actual email
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@swiftora.com',
+    await getTransporter().sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: options.to,
       subject: options.subject,
       html: options.html,
       text: options.text,
     });
     console.log(`✅ Email sent to ${options.to}`);
-  } catch (error) {
-    console.error('❌ Email send failed:', error);
-    throw new Error('Failed to send email');
+  } catch (error: any) {
+    // Log the error but DON'T throw - the forgot-password route should still succeed
+    console.error('❌ Email send failed:', error?.message || error);
+    console.error('SMTP Config: host=' + (process.env.SMTP_HOST || 'smtp.gmail.com') +
+      ', port=' + (process.env.SMTP_PORT || '587') +
+      ', user=' + (process.env.SMTP_USER ? process.env.SMTP_USER.substring(0, 5) + '...' : 'NOT SET'));
   }
 };
 
