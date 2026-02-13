@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { errorHandler } from './middleware/error.js';
 import { authRouter } from './routes/auth.js';
 import { ordersRouter } from './routes/orders.js';
@@ -158,6 +160,33 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/tickets', ticketsRouter);
+
+// ============================================================
+// SERVE FRONTEND STATIC FILES (SPA)
+// ============================================================
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// In production, serve the built frontend from ../dist (relative to server/dist/)
+// The frontend build output is at the project root's dist/ folder
+const frontendDistPath = path.join(__dirname, '../../dist');
+
+app.use(express.static(frontendDistPath));
+
+// SPA catch-all: any non-API route serves index.html so React Router handles it
+app.get('*', (req, res, next) => {
+  // Don't catch API routes - let them fall through to error handler
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      // If index.html doesn't exist, let it 404 normally
+      next();
+    }
+  });
+});
 
 // Error handling
 app.use(errorHandler);

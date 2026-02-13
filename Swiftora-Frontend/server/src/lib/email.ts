@@ -21,13 +21,14 @@ interface SendEmailOptions {
 }
 
 export const sendEmail = async (options: SendEmailOptions): Promise<void> => {
-  // In development, just log to console
-  if (isDevelopment || !process.env.SMTP_USER) {
-    console.log('📧 Email (Development Mode)');
+  // Only skip sending if SMTP credentials are not configured
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.log('📧 Email (No SMTP configured - logging only)');
     console.log('To:', options.to);
     console.log('Subject:', options.subject);
     console.log('Body:', options.text || options.html);
     console.log('---');
+    console.log('💡 Set SMTP_USER and SMTP_PASS env vars to enable real email sending');
     return;
   }
 
