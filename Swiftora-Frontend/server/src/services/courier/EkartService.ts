@@ -50,12 +50,15 @@ export class EkartService implements ICourierService {
   private password: string;
 
   constructor() {
-    this.clientId = process.env.EKART_CLIENT_ID || '';
-    this.username = process.env.EKART_USERNAME || '';
-    this.password = process.env.EKART_PASSWORD || '';
+    // Trim and strip surrounding quotes from env vars (common Render copy-paste issue)
+    this.clientId = (process.env.EKART_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    this.username = (process.env.EKART_USERNAME || '').trim().replace(/^["']|["']$/g, '');
+    this.password = (process.env.EKART_PASSWORD || '').trim().replace(/^["']|["']$/g, '');
 
     if (!this.clientId || !this.username || !this.password) {
       console.warn('EKART credentials not fully configured. Required: EKART_CLIENT_ID, EKART_USERNAME, EKART_PASSWORD');
+    } else {
+      console.log(`EKART credentials loaded — clientId: ${this.clientId} (len=${this.clientId.length}), username: ${this.username}`);
     }
   }
 
@@ -70,21 +73,21 @@ export class EkartService implements ICourierService {
     }
 
     console.log('=== EKART AUTHENTICATION ===');
-    console.log('Authenticating with client_id:', this.clientId);
+    console.log('Auth URL:', `${EKART_BASE_URL}/integrations/v2/auth/token/${this.clientId}`);
+    console.log('Username:', this.username);
+    console.log('Password length:', this.password.length);
+    console.log('Client ID length:', this.clientId.length);
 
     try {
       const response = await axios.post(
         `${EKART_BASE_URL}/integrations/v2/auth/token/${this.clientId}`,
         {
-          grant_type: 'password',
-          client_id: this.clientId,
           username: this.username,
           password: this.password,
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
           },
         }
       );
