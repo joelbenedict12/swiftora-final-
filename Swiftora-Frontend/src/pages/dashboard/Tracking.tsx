@@ -150,12 +150,15 @@ const Tracking = () => {
     const origin = trackingResult?.Shipment?.Origin || "N/A";
     const destination = trackingResult?.Shipment?.Destination || "N/A";
 
-    // Detect courier from AWB pattern
-    const courier = awb.toUpperCase().startsWith("GS")
-      ? "Blitz"
-      : /^\d{14,}$/.test(awb)
-        ? "Xpressbees"
-        : "Delhivery";
+    // Read courier from the tracking response — Blitz/Xpressbees set _courier;
+    // Delhivery returns raw format without it, so default to Delhivery.
+    const rawCourier = (trackingResult?.Shipment as any)?._courier || "delhivery";
+    const courierMap: Record<string, string> = {
+      delhivery: "Delhivery",
+      blitz: "Blitz",
+      xpressbees: "Xpressbees",
+    };
+    const courier = courierMap[rawCourier.toLowerCase()] || rawCourier;
 
     const autoDescription = [
       `📦 Raised from Tracking Page`,
