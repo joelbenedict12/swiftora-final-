@@ -245,7 +245,7 @@ export class EkartService implements ICourierService {
 
         // Consignee details
         consignee_name: request.customerName,
-        consignee_alternate_phone: request.customerPhone.replace(/\D/g, '').slice(-10),
+        consignee_alternate_phone: request.pickupPhone ? request.pickupPhone.replace(/\D/g, '').slice(-10) : '0000000000',
         products_desc: request.productName,
 
         // Payment
