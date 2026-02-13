@@ -275,9 +275,6 @@ export class EkartService implements ICourierService {
         // Return reason (empty for forward shipments)
         return_reason: '',
 
-        // If user selected a preferred dispatch date, enable delayed dispatch
-        ...(request.preferredDispatchDate ? { delayed_dispatch: true } : {}),
-
         // Drop location (customer address)
         drop_location: {
           location_type: 'Home',
