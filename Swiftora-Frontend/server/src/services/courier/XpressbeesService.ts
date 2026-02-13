@@ -371,7 +371,7 @@ export class XpressbeesService implements ICourierService {
             const trackingId = request.awbNumber || request.orderNumber;
             if (!trackingId) throw new Error('Tracking ID required');
 
-            const response = await client.get(`/api/shipments/track/${trackingId}`);
+            const response = await client.get(`/api/shipments2/track/${trackingId}`);
             const events: TrackingEvent[] = [];
             const trackData = response.data?.data;
 

@@ -44,21 +44,21 @@ let tokenCache: TokenCache | null = null;
 
 export class BlitzService implements ICourierService {
   readonly name: CourierName = 'BLITZ';
-  
+
   private username: string;
   private password: string;
   private channelId: string;
-  
+
   constructor() {
     this.username = process.env.BLITZ_USERNAME || '';
     this.password = process.env.BLITZ_PASSWORD || '';
     this.channelId = process.env.BLITZ_CHANNEL_ID || 'SWIFTORA';
-    
+
     if (!this.username || !this.password) {
       console.warn('BLITZ_USERNAME or BLITZ_PASSWORD not set in environment variables');
     }
   }
-  
+
   /**
    * Authenticate with Blitz API and get JWT token
    * Tokens expire after 24 hours
@@ -68,10 +68,10 @@ export class BlitzService implements ICourierService {
     if (tokenCache && tokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
       return tokenCache.idToken;
     }
-    
+
     console.log('=== BLITZ AUTHENTICATION ===');
     console.log('Authenticating with username:', this.username);
-    
+
     try {
       const response = await axios.post(
         `${BLITZ_AUTH_URL}/v1/auth`,
@@ -88,11 +88,11 @@ export class BlitzService implements ICourierService {
           },
         }
       );
-      
+
       if (response.data.code !== 200) {
         throw new Error(`Blitz auth failed: ${response.data.message || 'Unknown error'}`);
       }
-      
+
       // Cache the token (24 hour expiry)
       tokenCache = {
         idToken: response.data.id_token,
@@ -100,7 +100,7 @@ export class BlitzService implements ICourierService {
         refreshToken: response.data.refresh_token,
         expiresAt: Date.now() + 23 * 60 * 60 * 1000, // 23 hours (1 hour buffer)
       };
-      
+
       console.log('Blitz authentication successful');
       return tokenCache.idToken;
     } catch (error: any) {
@@ -108,13 +108,13 @@ export class BlitzService implements ICourierService {
       throw new Error(`Blitz authentication failed: ${error.response?.data?.message || error.message}`);
     }
   }
-  
+
   /**
    * Get authenticated axios client
    */
   private async getClient(): Promise<AxiosInstance> {
     const token = await this.authenticate();
-    
+
     return axios.create({
       baseURL: BLITZ_SHIPMENT_URL,
       headers: {
@@ -123,31 +123,31 @@ export class BlitzService implements ICourierService {
       },
     });
   }
-  
+
   /**
    * Create shipment in Blitz
    */
   async createShipment(request: CreateShipmentRequest): Promise<CreateShipmentResponse> {
     console.log('=== BLITZ CREATE SHIPMENT ===');
     console.log('Order:', request.orderNumber);
-    
+
     try {
       const client = await this.getClient();
-      
+
       // Convert weight from kg to grams
       const weightInGrams = Math.round(request.weight * 1000);
-      
+
       // Convert dimensions from cm to mm
       const lengthInMm = request.length ? Math.round(request.length * 10) : 100;
       const breadthInMm = request.breadth ? Math.round(request.breadth * 10) : 100;
       const heightInMm = request.height ? Math.round(request.height * 10) : 100;
-      
+
       // Determine payment mode and collectable amount
       // Blitz: collectableAmount > 0 = COD, = 0 = PREPAID
-      const collectableAmount = request.paymentMode === 'COD' 
-        ? (request.codAmount || request.totalAmount) 
+      const collectableAmount = request.paymentMode === 'COD'
+        ? (request.codAmount || request.totalAmount)
         : 0;
-      
+
       const payload = {
         channelId: this.channelId,
         returnShipmentFlag: 'false',
@@ -196,13 +196,13 @@ export class BlitzService implements ICourierService {
         totalAmount: request.totalAmount.toString(),
         collectableAmount: collectableAmount.toString(),
       };
-      
+
       console.log('Blitz payload:', JSON.stringify(payload, null, 2));
-      
+
       const response = await client.post('/v1/waybill/', payload);
-      
+
       console.log('Blitz response:', JSON.stringify(response.data, null, 2));
-      
+
       if (response.data.status === 'SUCCESS' && response.data.waybill) {
         return {
           success: true,
@@ -229,21 +229,21 @@ export class BlitzService implements ICourierService {
       };
     }
   }
-  
+
   /**
-   * Track shipment in Blitz
-   */
+ * Track shipment in Blitz
+ * POST https://oyvm2iv4xj.execute-api.ap-south-1.amazonaws.com/v1/tracking
+ */
   async trackShipment(request: TrackShipmentRequest): Promise<TrackShipmentResponse> {
     console.log('=== BLITZ TRACK SHIPMENT ===');
-    
+
     try {
       const client = await this.getClient();
-      
-      // Blitz tracking API
+
       const payload: any = {};
-      
+
       if (request.awbNumber) {
-        payload.field = 'waybill';
+        payload.field = 'shipment';
         payload.value = request.awbNumber;
       } else if (request.orderNumber) {
         payload.field = 'channel_order_id';
@@ -251,32 +251,44 @@ export class BlitzService implements ICourierService {
       } else {
         throw new Error('Either awbNumber or orderNumber is required');
       }
-      
-      const response = await client.post('/v1/track', payload);
-      
-      console.log('Blitz tracking response:', JSON.stringify(response.data, null, 2));
-      
-      // Parse tracking events from response
-      const events: TrackingEvent[] = [];
-      
-      if (response.data.scans && Array.isArray(response.data.scans)) {
-        for (const scan of response.data.scans) {
-          events.push({
-            status: scan.status || scan.scan_type,
-            statusCode: scan.status_code,
-            location: scan.location || scan.city,
-            timestamp: new Date(scan.timestamp || scan.scan_datetime),
-            remarks: scan.remarks || scan.instructions,
-          });
+
+      // Blitz tracking endpoint
+      const response = await axios.post(
+        'https://oyvm2iv4xj.execute-api.ap-south-1.amazonaws.com/v1/tracking',
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': await this.authenticate(),
+          },
         }
+      );
+
+      console.log('Blitz tracking response:', JSON.stringify(response.data, null, 2));
+
+      const data = response.data;
+      if (!data?.isSuccess || !data?.result?.length) {
+        throw new Error(data?.message || 'Shipment not found on Blitz');
       }
-      
+
+      const shipmentResult = data.result[0];
+      const trackingEvents = shipmentResult.tracking || [];
+
+      // Parse tracking events from response
+      const events: TrackingEvent[] = trackingEvents.map((scan: any) => ({
+        status: scan.shipmentStatus || 'Update',
+        statusCode: scan.tab || '',
+        location: scan.location || '',
+        timestamp: new Date(scan.timestamp),
+        remarks: scan.remarks || scan.gsRemark || '',
+      }));
+
       return {
         success: true,
-        awbNumber: response.data.waybill || request.awbNumber,
-        currentStatus: response.data.current_status || response.data.status,
+        awbNumber: shipmentResult.awb || request.awbNumber,
+        currentStatus: trackingEvents[0]?.shipmentStatus || 'Unknown',
         events,
-        rawResponse: response.data,
+        rawResponse: data,
       };
     } catch (error: any) {
       console.error('Blitz trackShipment error:', error.response?.data || error.message);
@@ -288,18 +300,18 @@ export class BlitzService implements ICourierService {
       };
     }
   }
-  
+
   /**
    * Cancel shipment in Blitz
    */
   async cancelShipment(request: CancelShipmentRequest): Promise<CancelShipmentResponse> {
     console.log('=== BLITZ CANCEL SHIPMENT ===');
-    
+
     try {
       const client = await this.getClient();
-      
+
       const payload: any = {};
-      
+
       if (request.awbNumber) {
         payload.field = 'waybill';
         payload.value = request.awbNumber;
@@ -309,11 +321,11 @@ export class BlitzService implements ICourierService {
       } else {
         throw new Error('Either awbNumber or orderNumber is required');
       }
-      
+
       const response = await client.post('/v1/cancel', payload);
-      
+
       console.log('Blitz cancel response:', JSON.stringify(response.data, null, 2));
-      
+
       return {
         success: response.data.status === 'SUCCESS' || response.data.code === 200,
         message: response.data.message,

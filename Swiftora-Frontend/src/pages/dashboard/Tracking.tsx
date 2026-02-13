@@ -253,12 +253,18 @@ const Tracking = () => {
                     asChild
                   >
                     <a
-                      href={`https://www.delhivery.com/track/package/${trackingQuery}`}
+                      href={
+                        trackingQuery.trim().toUpperCase().startsWith('GS')
+                          ? `#`
+                          : /^\d{14,}$/.test(trackingQuery.trim())
+                            ? `https://www.xpressbees.com/track?awb=${trackingQuery}`
+                            : `https://www.delhivery.com/track/package/${trackingQuery}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      Delhivery
+                      {trackingQuery.trim().toUpperCase().startsWith('GS') ? 'Blitz' : /^\d{14,}$/.test(trackingQuery.trim()) ? 'Xpressbees' : 'Delhivery'}
                     </a>
                   </Button>
                 </div>
@@ -406,8 +412,8 @@ const Tracking = () => {
                         <div className="flex flex-col items-center">
                           <div
                             className={`w-4 h-4 rounded-full flex-shrink-0 ${isFirst
-                                ? "bg-blue-600 ring-4 ring-blue-100"
-                                : "bg-gray-300"
+                              ? "bg-blue-600 ring-4 ring-blue-100"
+                              : "bg-gray-300"
                               }`}
                           />
                           {!isLast && (
@@ -458,7 +464,7 @@ const Tracking = () => {
               Track Your Shipment
             </h3>
             <p className="text-gray-600 max-w-md mx-auto mb-6">
-              Enter your Delhivery AWB number to get real-time tracking updates,
+              Enter your AWB number to get real-time tracking updates,
               delivery status, and shipment timeline.
             </p>
             <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
