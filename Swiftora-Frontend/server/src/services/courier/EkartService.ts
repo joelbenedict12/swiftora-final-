@@ -31,7 +31,7 @@ import {
 } from './types.js';
 
 // Ekart API URL
-const EKART_BASE_URL = process.env.EKART_BASE_URL || 'https://app.goswift.in';
+const EKART_BASE_URL = process.env.EKART_BASE_URL || 'https://app.elite.ekartlogistics.in';
 
 // Token cache
 interface TokenCache {
