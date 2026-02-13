@@ -345,15 +345,22 @@ export class EkartService implements ICourierService {
    */
   private async setDispatchDate(client: AxiosInstance, awb: string, dispatchDate: string): Promise<void> {
     try {
-      console.log(`Setting dispatch date for ${awb}: ${dispatchDate}`);
-      const response = await client.post('/data/shipment/dispatch-date', {
+      console.log(`=== SETTING DISPATCH DATE ===`);
+      console.log(`AWB: ${awb}, Date: ${dispatchDate}`);
+      console.log(`POST URL: ${client.defaults.baseURL}/data/shipment/dispatch-date`);
+      const requestBody = {
         ids: [awb],
         dispatchDate: dispatchDate,
-      });
-      console.log('Dispatch date response:', JSON.stringify(response.data));
+      };
+      console.log('Request body:', JSON.stringify(requestBody));
+      const response = await client.post('/data/shipment/dispatch-date', requestBody);
+      console.log('Dispatch date response status:', response.status);
+      console.log('Dispatch date response data:', JSON.stringify(response.data));
     } catch (error: any) {
-      // Log but don't fail the shipment — dispatch date is optional
-      console.warn('Failed to set dispatch date (shipment still created):', error.response?.data || error.message);
+      console.error('=== DISPATCH DATE ERROR ===');
+      console.error('Status:', error.response?.status);
+      console.error('Response:', JSON.stringify(error.response?.data));
+      console.error('Message:', error.message);
     }
   }
 
