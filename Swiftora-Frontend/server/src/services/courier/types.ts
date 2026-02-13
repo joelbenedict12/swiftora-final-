@@ -56,6 +56,9 @@ export interface CreateShipmentRequest {
   channelId?: string;
   sellerName?: string;
   brandName?: string;
+
+  // Ekart-specific: preferred pickup date (YYYY-MM-DD)
+  preferredDispatchDate?: string;
 }
 
 // Standardized shipment response

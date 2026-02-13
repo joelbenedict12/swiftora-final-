@@ -487,7 +487,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     }
 
     // Get courier from request body (optional, defaults to order's courierName or DELHIVERY)
-    const { courierName: requestedCourier } = req.body;
+    const { courierName: requestedCourier, preferredDispatchDate } = req.body;
 
     const order = await prisma.order.findFirst({
       where: {
@@ -586,6 +586,9 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
 
       // Optional metadata
       channelId: order.channel || undefined,
+
+      // Ekart-specific: preferred pickup date
+      preferredDispatchDate: preferredDispatchDate || undefined,
     };
 
     console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));

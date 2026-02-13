@@ -192,6 +192,12 @@ const Orders = () => {
   const [loadingDelhiveryPricing, setLoadingDelhiveryPricing] = useState(false);
   const [selectingDelhiveryService, setSelectingDelhiveryService] = useState<string | null>(null);
 
+  // Ekart date picker modal state
+  const [showEkartDateModal, setShowEkartDateModal] = useState(false);
+  const [selectedOrderForEkart, setSelectedOrderForEkart] = useState<Order | null>(null);
+  const [ekartPickupDate, setEkartPickupDate] = useState('');
+  const [isShippingEkart, setIsShippingEkart] = useState(false);
+
   // Post-ship "Add to Pickup" dialog state (Delhivery-style)
   const [showAddToPickup, setShowAddToPickup] = useState(false);
   const [pickupOrderData, setPickupOrderData] = useState<{
@@ -260,6 +266,36 @@ const Orders = () => {
       setIsSchedulingPickup(false);
       setShowAddToPickup(false);
       setPickupOrderData(null);
+    }
+  };
+
+  // Open Ekart date picker modal
+  const openEkartDateModal = (order: Order) => {
+    setSelectedOrderForEkart(order);
+    const dates = getAvailablePickupDates();
+    setEkartPickupDate(dates[0].toISOString().split('T')[0]);
+    setShowEkartDateModal(true);
+  };
+
+  // Ship to Ekart with selected pickup date
+  const handleShipEkart = async () => {
+    if (!selectedOrderForEkart || !ekartPickupDate) return;
+    try {
+      setIsShippingEkart(true);
+      const response = await ordersApi.shipToEkart(selectedOrderForEkart.id, ekartPickupDate);
+      if (response.data.success) {
+        toast.success(`Shipped via Ekart! AWB: ${response.data.awbNumber}`);
+        setShowEkartDateModal(false);
+        setSelectedOrderForEkart(null);
+        loadOrders();
+      } else {
+        toast.error(response.data.error || 'Failed to ship order');
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || 'Failed to ship order';
+      toast.error(message);
+    } finally {
+      setIsShippingEkart(false);
     }
   };
 
@@ -746,12 +782,11 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => shipAndShowPickup(order.id, 'EKART')}
-                              disabled={shippingOrderId === order.id}
+                              onClick={() => openEkartDateModal(order)}
                               className="gap-2 text-purple-600"
                             >
                               <ShoppingCart className="h-4 w-4" />
-                              {shippingOrderId === order.id ? "Shipping..." : "Ship to Ekart"}
+                              Ship to Ekart
                             </DropdownMenuItem>
                           )}
                           {/* Xpressbees option */}
@@ -1087,6 +1122,81 @@ const Orders = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Ekart Pickup Date Picker Dialog */}
+      <Dialog open={showEkartDateModal} onOpenChange={setShowEkartDateModal}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-purple-600" />
+              Ship via Ekart
+            </DialogTitle>
+            <DialogDescription>
+              Select a preferred pickup date for order {selectedOrderForEkart?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-2">
+            {/* Pickup Date */}
+            <div>
+              <p className="font-medium mb-1">Pickup Date</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                When should Ekart pick up this shipment?
+              </p>
+              <div className="flex gap-3">
+                {getAvailablePickupDates().map((date) => {
+                  const dateStr = date.toISOString().split('T')[0];
+                  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                  const dayNum = date.getDate();
+                  const month = date.toLocaleDateString('en-US', { month: 'short' });
+                  const isSelected = ekartPickupDate === dateStr;
+                  return (
+                    <button
+                      key={dateStr}
+                      onClick={() => setEkartPickupDate(dateStr)}
+                      className={`flex flex-col items-center px-5 py-3 rounded-full border-2 transition-all ${isSelected
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                    >
+                      <span className="text-xs font-medium">{dayName}</span>
+                      <span className="text-2xl font-bold leading-tight">{dayNum}</span>
+                      <span className="text-xs">{month}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p className="text-sm text-orange-600">
+              Ensure the shipment is packed and label is pasted before the pickup date.
+            </p>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 pt-2 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowEkartDateModal(false);
+                  setSelectedOrderForEkart(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleShipEkart}
+                disabled={isShippingEkart || !ekartPickupDate}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {isShippingEkart ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Shipping...</>
+                ) : (
+                  'Ship & Schedule Pickup'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Add to Pickup Dialog (Delhivery-style) */}
       <Dialog open={showAddToPickup} onOpenChange={setShowAddToPickup}>
         <DialogContent className="sm:max-w-[520px]">
@@ -1123,8 +1233,8 @@ const Orders = () => {
                       key={dateStr}
                       onClick={() => setSelectedPickupDate(dateStr)}
                       className={`flex flex-col items-center px-5 py-3 rounded-full border-2 transition-all ${isSelected
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
                         }`}
                     >
                       <span className="text-xs font-medium">{dayName}</span>

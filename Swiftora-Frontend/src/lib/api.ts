@@ -129,7 +129,7 @@ export const ordersApi = {
 
   shipToBlitz: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'BLITZ' }),
 
-  shipToEkart: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'EKART' }),
+  shipToEkart: (id: string, preferredDispatchDate?: string) => api.post(`/orders/${id}/ship`, { courierName: 'EKART', preferredDispatchDate }),
 
   shipToXpressbees: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES' }),
 
