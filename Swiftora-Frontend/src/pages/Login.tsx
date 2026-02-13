@@ -22,6 +22,8 @@ import {
   Box,
   Building2,
   Mail,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -52,6 +54,8 @@ const Login = () => {
   const [signupStep, setSignupStep] = useState<1 | 2 | 3>(1);
   const [shippingType, setShippingType] = useState<"b2c" | "b2b" | "">("");
   const [monthlyVolume, setMonthlyVolume] = useState<string>("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -315,13 +319,21 @@ const Login = () => {
                         <Input
                           id="login-password"
                           name="password"
-                          type="password"
+                          type={showLoginPassword ? "text" : "password"}
                           value={loginData.password}
                           onChange={handleLoginChange}
                           placeholder="Enter your password"
-                          className="pl-12 h-14 text-base border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl transition-all"
+                          className="pl-12 pr-12 h-14 text-base border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl transition-all"
                           required
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword((v) => !v)}
+                          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-foreground/40 hover:text-foreground/70 transition-colors"
+                          tabIndex={-1}
+                        >
+                          {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
                       </div>
                     </div>
 
@@ -608,13 +620,21 @@ const Login = () => {
                                 <Input
                                   id="signup-password"
                                   name="password"
-                                  type="password"
+                                  type={showSignupPassword ? "text" : "password"}
                                   value={signupData.password}
                                   onChange={handleSignupChange}
                                   placeholder="Create a strong password"
-                                  className="pl-12 h-12 text-base border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl transition-all"
+                                  className="pl-12 pr-12 h-12 text-base border-2 border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl transition-all"
                                   required
                                 />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSignupPassword((v) => !v)}
+                                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-foreground/40 hover:text-foreground/70 transition-colors"
+                                  tabIndex={-1}
+                                >
+                                  {showSignupPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
                               </div>
                             </div>
                           </div>
