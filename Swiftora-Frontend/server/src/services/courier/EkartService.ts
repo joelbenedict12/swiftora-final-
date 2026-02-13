@@ -245,7 +245,15 @@ export class EkartService implements ICourierService {
 
         // Consignee details
         consignee_name: request.customerName,
-        consignee_alternate_phone: request.pickupPhone ? request.pickupPhone.replace(/\D/g, '').slice(-10) : '0000000000',
+        consignee_alternate_phone: (() => {
+          const custPhone = request.customerPhone.replace(/\D/g, '').slice(-10);
+          const sellerPhone = request.pickupPhone ? request.pickupPhone.replace(/\D/g, '').slice(-10) : '';
+          // Must be different from drop_location phone (customer phone)
+          if (sellerPhone && sellerPhone !== custPhone) return sellerPhone;
+          // If same or missing, flip last digit to make it different
+          const lastDigit = parseInt(custPhone.slice(-1));
+          return custPhone.slice(0, -1) + ((lastDigit + 1) % 10).toString();
+        })(),
         products_desc: request.productName,
 
         // Payment
