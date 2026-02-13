@@ -275,6 +275,9 @@ export class EkartService implements ICourierService {
         // Return reason (empty for forward shipments)
         return_reason: '',
 
+        // If user selected a preferred dispatch date, enable delayed dispatch
+        ...(request.preferredDispatchDate ? { delayed_dispatch: true } : {}),
+
         // Drop location (customer address)
         drop_location: {
           location_type: 'Home',
@@ -306,11 +309,18 @@ export class EkartService implements ICourierService {
       console.log('Ekart response:', JSON.stringify(response.data, null, 2));
 
       if (response.data.status === true && response.data.tracking_id) {
+        const awb = response.data.tracking_id;
+
+        // Step 2: If user picked a dispatch date, set it via the separate endpoint
+        if (request.preferredDispatchDate) {
+          await this.setDispatchDate(client, awb, request.preferredDispatchDate);
+        }
+
         return {
           success: true,
-          awbNumber: response.data.tracking_id,
+          awbNumber: awb,
           courierName: 'EKART',
-          trackingUrl: `https://app.elite.ekartlogistics.in/track/${response.data.tracking_id}`,
+          trackingUrl: `https://app.elite.ekartlogistics.in/track/${awb}`,
           rawResponse: response.data,
         };
       } else {
@@ -329,6 +339,24 @@ export class EkartService implements ICourierService {
         error: error.response?.data?.remark || error.response?.data?.message || error.message,
         rawResponse: error.response?.data,
       };
+    }
+  }
+
+  /**
+   * Set preferred dispatch date for a delayed-dispatch shipment
+   * POST /data/shipment/dispatch-date
+   */
+  private async setDispatchDate(client: AxiosInstance, awb: string, dispatchDate: string): Promise<void> {
+    try {
+      console.log(`Setting dispatch date for ${awb}: ${dispatchDate}`);
+      const response = await client.post('/data/shipment/dispatch-date', {
+        ids: [awb],
+        dispatchDate: dispatchDate,
+      });
+      console.log('Dispatch date response:', JSON.stringify(response.data));
+    } catch (error: any) {
+      // Log but don't fail the shipment — dispatch date is optional
+      console.warn('Failed to set dispatch date (shipment still created):', error.response?.data || error.message);
     }
   }
 
