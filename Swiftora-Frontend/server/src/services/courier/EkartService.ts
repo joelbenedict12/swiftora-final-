@@ -128,6 +128,60 @@ export class EkartService implements ICourierService {
     });
   }
 
+  // Cache of registered address aliases (to avoid duplicate registration calls)
+  private registeredAliases: Set<string> = new Set();
+
+  /**
+   * Register a pickup/return address with Ekart via Address API
+   * POST /api/v2/address
+   */
+  private async ensureAddressRegistered(client: AxiosInstance, address: {
+    alias: string;
+    phone: number;
+    address_line1: string;
+    address_line2?: string | null;
+    pincode: number;
+    city: string;
+    state: string;
+    country: string;
+  }): Promise<void> {
+    if (this.registeredAliases.has(address.alias)) {
+      console.log(`Address alias "${address.alias}" already registered (cached), skipping`);
+      return;
+    }
+
+    console.log(`Registering address with Ekart: alias="${address.alias}"`);
+
+    try {
+      const response = await client.post('/api/v2/address', {
+        alias: address.alias,
+        phone: address.phone,
+        address_line1: address.address_line1,
+        address_line2: address.address_line2 || undefined,
+        pincode: address.pincode,
+        city: address.city,
+        state: address.state,
+        country: address.country,
+      });
+
+      console.log('Ekart address registration response:', JSON.stringify(response.data));
+
+      if (response.data.status === true) {
+        this.registeredAliases.add(address.alias);
+        console.log(`Address "${address.alias}" registered successfully`);
+      } else {
+        console.warn(`Address registration returned status false: ${response.data.remark}`);
+        // Still continue — the address might already exist
+        this.registeredAliases.add(address.alias);
+      }
+    } catch (error: any) {
+      // If address already exists, that's fine — cache it and continue
+      const errMsg = error.response?.data?.message || error.response?.data?.remark || error.message;
+      console.warn(`Address registration warning (will continue): ${errMsg}`);
+      this.registeredAliases.add(address.alias);
+    }
+  }
+
   /**
    * Create shipment in Ekart
    * Endpoint: PUT /api/v1/package/create
@@ -147,6 +201,19 @@ export class EkartService implements ICourierService {
 
     try {
       const client = await this.getClient();
+
+      // Register pickup address with Ekart if not already registered
+      const pickupAlias = request.pickupName || 'Default Warehouse';
+      await this.ensureAddressRegistered(client, {
+        alias: pickupAlias,
+        phone: parseInt(request.pickupPhone.replace(/\D/g, '').slice(-10)),
+        address_line1: request.pickupAddress,
+        address_line2: request.pickupAddress2 || null,
+        pincode: parseInt(request.pickupPincode),
+        city: request.pickupCity,
+        state: request.pickupState,
+        country: 'India',
+      });
 
       // Convert weight from kg to grams
       const weightInGrams = Math.round(request.weight * 1000);
@@ -178,6 +245,7 @@ export class EkartService implements ICourierService {
 
         // Consignee details
         consignee_name: request.customerName,
+        consignee_alternate_phone: request.customerPhone.replace(/\D/g, '').slice(-10),
         products_desc: request.productName,
 
         // Payment
@@ -211,28 +279,14 @@ export class EkartService implements ICourierService {
           pin: parseInt(request.shippingPincode),
         },
 
-        // Pickup location (warehouse/seller)
+        // Pickup location — use alias (address registered above)
         pickup_location: {
-          location_type: 'Office',
-          address: request.pickupAddress + (request.pickupAddress2 ? ', ' + request.pickupAddress2 : ''),
-          city: request.pickupCity,
-          state: request.pickupState,
-          country: request.pickupCountry || 'India',
-          name: request.pickupName,
-          phone: parseInt(request.pickupPhone.replace(/\D/g, '').slice(-10)),
-          pin: parseInt(request.pickupPincode),
+          name: pickupAlias,
         },
 
-        // Return location (same as pickup for now)
+        // Return location — same alias as pickup
         return_location: {
-          location_type: 'Office',
-          address: request.pickupAddress + (request.pickupAddress2 ? ', ' + request.pickupAddress2 : ''),
-          city: request.pickupCity,
-          state: request.pickupState,
-          country: request.pickupCountry || 'India',
-          name: request.pickupName,
-          phone: parseInt(request.pickupPhone.replace(/\D/g, '').slice(-10)),
-          pin: parseInt(request.pickupPincode),
+          name: pickupAlias,
         },
       };
 
