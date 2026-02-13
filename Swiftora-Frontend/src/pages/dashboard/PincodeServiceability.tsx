@@ -198,7 +198,7 @@ const PincodeServiceability = () => {
                         )}
                       </div>
                       {courier.serviceable && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3">
                           <div>
                             <div className="text-xs text-foreground/60">
                               COD Available
@@ -228,14 +228,6 @@ const PincodeServiceability = () => {
                             >
                               {courier.prepaid ? "Yes" : "No"}
                             </Badge>
-                          </div>
-                          <div>
-                            <div className="text-xs text-foreground/60">
-                              Estimated Delivery
-                            </div>
-                            <div className="font-semibold text-foreground">
-                              {courier.estimatedDays} days
-                            </div>
                           </div>
                           <div>
                             <div className="text-xs text-foreground/60">

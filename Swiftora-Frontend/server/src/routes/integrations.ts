@@ -222,48 +222,7 @@ router.get('/orders/all', async (req: AuthRequest, res, next) => {
   }
 });
 
-// Helper: calculate estimated delivery days based on zone/distance
-function calculateEstimatedDays(
-  originCity: string | null,
-  destCity: string | null,
-  originState: string | null,
-  destState: string | null,
-  courierSpeedFactor: number = 1 // 1 = normal, 0.7 = faster, 1.3 = slower
-): number {
-  let baseDays: number;
-
-  // Same city
-  if (originCity && destCity && originCity.toLowerCase() === destCity.toLowerCase()) {
-    baseDays = 1;
-  }
-  // Same state
-  else if (originState && destState && originState.toLowerCase() === destState.toLowerCase()) {
-    baseDays = 3;
-  }
-  // Adjacent/nearby states (metros)
-  else {
-    // Check if both are metro cities for faster delivery
-    const metroCities = ['delhi', 'mumbai', 'bangalore', 'bengaluru', 'chennai', 'hyderabad', 'kolkata', 'pune', 'ahmedabad', 'jaipur', 'lucknow', 'chandigarh', 'gurgaon', 'gurugram', 'noida', 'ghaziabad', 'faridabad', 'thane', 'navi mumbai'];
-    const isOriginMetro = originCity && metroCities.some(m => originCity.toLowerCase().includes(m));
-    const isDestMetro = destCity && metroCities.some(m => destCity.toLowerCase().includes(m));
-
-    if (isOriginMetro && isDestMetro) {
-      baseDays = 4;
-    }
-    // NE states, J&K, etc. take longer
-    else {
-      const remoteStates = ['AR', 'MN', 'MZ', 'NL', 'ML', 'TR', 'SK', 'AN', 'JK', 'LA', 'AP'];
-      const isRemote = (originState && remoteStates.includes(originState.toUpperCase())) ||
-        (destState && remoteStates.includes(destState.toUpperCase()));
-      baseDays = isRemote ? 7 : 5;
-    }
-  }
-
-  // Apply courier speed factor and round
-  return Math.max(1, Math.round(baseDays * courierSpeedFactor));
-}
-
-// Check pincode serviceability (All couriers: Delhivery, Blitz, Ekart)
+// Check pincode serviceability (All couriers with real API data only)
 router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, next) => {
   try {
     const { origin, destination } = req.query;
@@ -298,7 +257,6 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
     let destData: any = null;
 
     // === DELHIVERY SERVICEABILITY ===
-    let delhiveryEtd: number | null = null;
     if (apiKey) {
       try {
         const delhiveryClient = axios.create({
@@ -320,27 +278,32 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
         originData = originResult.data?.delivery_codes?.[0]?.postal_code || null;
         destData = destinationResult.data?.delivery_codes?.[0]?.postal_code || null;
 
-        // Extract real ETD from rate API response
+        // Log the raw rate API response to see exactly what Delhivery returns
+        if (rateResult?.data) {
+          console.log('DELHIVERY RATE API RAW RESPONSE:', JSON.stringify(rateResult.data, null, 2));
+        } else {
+          console.log('DELHIVERY RATE API: No response or call failed');
+        }
+
+        // Extract real ETD from rate API response — only use actual API data
+        let delhiveryEtd: number | null = null;
         if (rateResult?.data) {
           const rateData = Array.isArray(rateResult.data) ? rateResult.data[0] : rateResult.data;
-          delhiveryEtd = rateData?.etd || rateData?.edd || null;
-          if (typeof delhiveryEtd === 'string') {
-            delhiveryEtd = parseInt(delhiveryEtd, 10) || null;
+          // Try all possible field names the Delhivery API might use
+          const rawEtd = rateData?.etd ?? rateData?.edd ?? rateData?.estimated_delivery_days ?? rateData?.transit_days ?? null;
+          if (rawEtd !== null && rawEtd !== undefined) {
+            delhiveryEtd = typeof rawEtd === 'string' ? parseInt(rawEtd, 10) || null : rawEtd;
           }
         }
 
         if (originData && destData) {
-          // Use real ETD from rate API, or calculate based on zone
-          const estimatedDays = delhiveryEtd ||
-            calculateEstimatedDays(originData.city, destData.city, originData.state_code, destData.state_code, 1);
-
           couriers.push({
             name: 'Delhivery',
             serviceable: true,
             cod: destData.cod === 'Y',
             prepaid: destData.pre_paid === 'Y',
             pickup: destData.pickup === 'Y' || originData.pickup === 'Y',
-            estimatedDays,
+            estimatedDays: delhiveryEtd, // null if API doesn't provide it
             originCity: originData.city,
             destinationCity: destData.city,
             originState: originData.state_code,
@@ -351,26 +314,6 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
       } catch (delhiveryError: any) {
         console.warn('Delhivery serviceability check failed:', delhiveryError.message);
       }
-    }
-
-    // === BLITZ SERVICEABILITY ===
-    // Blitz is a quick commerce / express logistics partner — faster than standard couriers
-    if (originData && destData) {
-      const blitzDays = calculateEstimatedDays(
-        originData.city, destData.city, originData.state_code, destData.state_code,
-        0.6 // Blitz is ~40% faster
-      );
-      couriers.push({
-        name: 'Blitz',
-        serviceable: true,
-        cod: true,
-        prepaid: true,
-        pickup: true,
-        estimatedDays: blitzDays,
-        originCity: originData.city,
-        destinationCity: destData.city,
-        remarks: 'Quick commerce & same-day delivery available',
-      });
     }
 
     // === EKART SERVICEABILITY ===
@@ -400,15 +343,16 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
             ekartClient.get(`/api/v2/serviceability/${destination}`).catch(() => null),
           ]);
 
+          console.log('EKART ORIGIN RAW RESPONSE:', JSON.stringify(ekartOrigin?.data, null, 2));
+          console.log('EKART DEST RAW RESPONSE:', JSON.stringify(ekartDest?.data, null, 2));
+
           const originServiceable = ekartOrigin?.data?.status === true;
           const destServiceable = ekartDest?.data?.status === true;
 
           if (originServiceable && destServiceable) {
             const destDetails = ekartDest?.data?.details || {};
-            const ekartCity = destDetails.city || destData?.city;
-            const originCity = ekartOrigin?.data?.details?.city || originData?.city;
-            const ekartDays = destDetails.estimated_days || destDetails.etd ||
-              calculateEstimatedDays(originCity, ekartCity, originData?.state_code, destData?.state_code, 1.1);
+            // Only use real ETD from Ekart API — no fabrication
+            const ekartEtd = destDetails.estimated_days ?? destDetails.etd ?? destDetails.edd ?? destDetails.transit_days ?? null;
 
             couriers.push({
               name: 'Ekart',
@@ -416,42 +360,18 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
               cod: destDetails.cod === true,
               prepaid: true,
               pickup: destDetails.forward_pickup === true,
-              estimatedDays: ekartDays,
-              originCity: originCity,
-              destinationCity: ekartCity,
-              maxCodAmount: destDetails.max_cod_amount || 25000,
-              remarks: 'Flipkart logistics - reliable nationwide delivery',
+              estimatedDays: ekartEtd, // null if API doesn't provide it
+              originCity: ekartOrigin?.data?.details?.city || originData?.city,
+              destinationCity: destDetails.city || destData?.city,
+              maxCodAmount: destDetails.max_cod_amount || null,
+              remarks: '',
             });
           }
         }
       } catch (ekartError: any) {
         console.warn('Ekart serviceability check failed:', ekartError.message);
-        if (originData && destData) {
-          couriers.push({
-            name: 'Ekart',
-            serviceable: true,
-            cod: true,
-            prepaid: true,
-            pickup: true,
-            estimatedDays: calculateEstimatedDays(originData.city, destData.city, originData.state_code, destData.state_code, 1.1),
-            originCity: originData.city,
-            destinationCity: destData.city,
-            remarks: 'Flipkart logistics - reliable nationwide delivery',
-          });
-        }
+        // Don't add Ekart if API failed — no fabricated data
       }
-    } else if (originData && destData) {
-      couriers.push({
-        name: 'Ekart',
-        serviceable: true,
-        cod: true,
-        prepaid: true,
-        pickup: true,
-        estimatedDays: calculateEstimatedDays(originData.city, destData.city, originData.state_code, destData.state_code, 1.1),
-        originCity: originData.city,
-        destinationCity: destData.city,
-        remarks: 'Flipkart logistics - reliable nationwide delivery',
-      });
     }
 
     res.json({
