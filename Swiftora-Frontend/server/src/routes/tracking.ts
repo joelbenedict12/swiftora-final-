@@ -3,6 +3,8 @@ import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { delhivery } from '../services/delhivery.js';
 import { blitzService } from '../services/courier/BlitzService.js';
 import { xpressbeesService } from '../services/courier/XpressbeesService.js';
+import { ekartService } from '../services/courier/EkartService.js';
+import { innofulfillService } from '../services/courier/InnofulfillService.js';
 
 const router = Router();
 
@@ -43,6 +45,22 @@ function normalizeToShipmentData(courierResult: any, courier: string) {
     origin = d.origin || d.pickup_city || '';
     destination = d.destination || d.delivery_city || '';
     expectedDeliveryDate = d.expected_delivery_date || '';
+  } else if (courier === 'ekart') {
+    // Ekart response is keyed by shipment ID
+    const shipmentData = raw ? Object.values(raw)[0] as any : null;
+    if (shipmentData) {
+      origin = shipmentData.sender?.city || '';
+      destination = shipmentData.receiver?.city || shipmentData.customer?.city || '';
+      expectedDeliveryDate = shipmentData.expected_delivery_date || '';
+      codAmount = parseFloat(shipmentData.cod_amount) || 0;
+      referenceNo = shipmentData.order_id || '';
+    }
+  } else if (courier === 'innofulfill' && raw?.data) {
+    const d = raw.data;
+    origin = d.pickupAddress?.city || '';
+    destination = d.shippingAddress?.city || '';
+    codAmount = d.paymentType === 'COD' ? (d.amount || 0) : 0;
+    referenceNo = d.originalOrderId || d.orderId || '';
   }
 
   return {
@@ -85,7 +103,7 @@ router.get('/track', async (req, res, next) => {
     console.log(`Tracking shipment: ${trackingId}`);
 
     // Try all couriers in parallel
-    const [delhiveryResult, blitzResult, xpressbeesResult] = await Promise.allSettled([
+    const [delhiveryResult, blitzResult, xpressbeesResult, ekartResult, innofulfillResult] = await Promise.allSettled([
       // Delhivery
       (async () => {
         const params: any = {};
@@ -111,6 +129,24 @@ router.get('/track', async (req, res, next) => {
         });
         if (!result.success) throw new Error(result.error || 'Not found');
         return { courier: 'xpressbees', data: result };
+      })(),
+      // Ekart
+      (async () => {
+        const result = await ekartService.trackShipment({
+          awbNumber: awb as string | undefined,
+          orderNumber: orderId as string | undefined,
+        });
+        if (!result.success) throw new Error(result.error || 'Not found');
+        return { courier: 'ekart', data: result };
+      })(),
+      // Innofulfill
+      (async () => {
+        const result = await innofulfillService.trackShipment({
+          awbNumber: awb as string | undefined,
+          orderNumber: orderId as string | undefined,
+        });
+        if (!result.success) throw new Error(result.error || 'Not found');
+        return { courier: 'innofulfill', data: result };
       })(),
     ]);
 
@@ -142,11 +178,29 @@ router.get('/track', async (req, res, next) => {
       }
     }
 
+    // Check Ekart
+    if (ekartResult.status === 'fulfilled') {
+      const normalized = normalizeToShipmentData(ekartResult.value.data, 'ekart');
+      if (normalized) {
+        console.log('Found on Ekart');
+        return res.json(normalized);
+      }
+    }
+
+    // Check Innofulfill
+    if (innofulfillResult.status === 'fulfilled') {
+      const normalized = normalizeToShipmentData(innofulfillResult.value.data, 'innofulfill');
+      if (normalized) {
+        console.log('Found on Innofulfill');
+        return res.json(normalized);
+      }
+    }
+
     // None found
     console.log('Shipment not found on any courier');
     return res.status(404).json({
       error: 'Shipment not found',
-      message: `No tracking information found for ${trackingId} on any courier (Delhivery, Blitz, Xpressbees)`,
+      message: `No tracking information found for ${trackingId} on any courier (Delhivery, Blitz, Xpressbees, Ekart, Innofulfill)`,
     });
   } catch (error) {
     next(error);

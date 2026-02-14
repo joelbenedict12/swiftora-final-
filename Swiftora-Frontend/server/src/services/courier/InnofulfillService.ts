@@ -356,7 +356,8 @@ export class InnofulfillService implements ICourierService {
      */
     async trackShipment(request: TrackShipmentRequest): Promise<TrackShipmentResponse> {
         try {
-            const client = await this.getClient();
+            // Fresh login for tracking
+            const token = await this.login();
             const trackingId = request.awbNumber || request.orderNumber;
 
             if (!trackingId) {
@@ -367,21 +368,37 @@ export class InnofulfillService implements ICourierService {
                 };
             }
 
-            const response = await client.get(`/tracking/${trackingId}/statuses?type=customer`);
+            // Correct Ecom Order Tracking endpoint
+            const response = await axios.get(
+                `${this.baseUrl}/fulfillment/public/seller/order/order-tracking/${trackingId}`,
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                }
+            );
 
-            if (Array.isArray(response.data) && response.data.length > 0) {
-                const events: TrackingEvent[] = response.data.map((event: any) => ({
-                    status: event.category || event.status,
-                    statusCode: event.event,
-                    location: event.location,
-                    timestamp: new Date(),
-                    remarks: event.subcategory || event.status,
-                }));
+            const orderData = response.data?.data;
+
+            if (orderData) {
+                // Parse orderStateInfo into tracking events
+                const events: TrackingEvent[] = [];
+                if (Array.isArray(orderData.orderStateInfo)) {
+                    for (const state of orderData.orderStateInfo) {
+                        events.push({
+                            status: state.state || 'Unknown',
+                            location: state.location || '',
+                            timestamp: new Date(state.createdAt),
+                            remarks: state.remarks || state.state || '',
+                        });
+                    }
+                }
 
                 return {
                     success: true,
-                    awbNumber: trackingId,
-                    currentStatus: events[0]?.status || 'Unknown',
+                    awbNumber: orderData.awbNumber || orderData.cAwbNumber || trackingId,
+                    currentStatus: orderData.orderStatus || 'Unknown',
                     events,
                     rawResponse: response.data,
                 };

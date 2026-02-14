@@ -366,7 +366,7 @@ export class EkartService implements ICourierService {
 
   /**
    * Track shipment in Ekart
-   * Endpoint: GET /api/v1/track/{id}
+   * Endpoint: GET /data/v1/elite/track/{wbn}
    */
   async trackShipment(request: TrackShipmentRequest): Promise<TrackShipmentResponse> {
     console.log('=== EKART TRACK SHIPMENT ===');
@@ -387,16 +387,48 @@ export class EkartService implements ICourierService {
         throw new Error('Either awbNumber or orderNumber is required');
       }
 
-      const response = await client.get(`/api/v1/track/${trackingId}`);
+      // Use the correct elite tracking endpoint
+      const response = await client.get(`/data/v1/elite/track/${trackingId}`);
 
       console.log('Ekart tracking response:', JSON.stringify(response.data, null, 2));
 
       // Parse tracking events from response
       const events: TrackingEvent[] = [];
 
-      // Main track object
-      if (response.data.track) {
-        const track = response.data.track;
+      // Response is keyed by shipment ID (e.g. { "CLTC0000000001": {...} })
+      const shipmentData = response.data?.[trackingId] || Object.values(response.data || {})[0] as any;
+
+      if (shipmentData) {
+        // Parse history array
+        if (Array.isArray(shipmentData.history)) {
+          for (const entry of shipmentData.history) {
+            events.push({
+              status: entry.status || entry.activity || 'Update',
+              statusCode: entry.status_code,
+              location: entry.location || entry.city || '',
+              timestamp: new Date(entry.ctime || entry.timestamp || entry.date),
+              remarks: entry.desc || entry.description || '',
+            });
+          }
+        }
+
+        const isDelivered = shipmentData.delivered === true;
+        const currentStatus = isDelivered ? 'Delivered' : (events[0]?.status || 'In Transit');
+
+        return {
+          success: true,
+          awbNumber: shipmentData.shipment_id || shipmentData.external_tracking_id || trackingId,
+          currentStatus,
+          events,
+          expectedDelivery: shipmentData.expected_delivery_date ? new Date(shipmentData.expected_delivery_date) : undefined,
+          rawResponse: response.data,
+        };
+      }
+
+      // Fallback: try old /api/v1/track endpoint
+      const fallbackResponse = await client.get(`/api/v1/track/${trackingId}`);
+      if (fallbackResponse.data?.track) {
+        const track = fallbackResponse.data.track;
         events.push({
           status: track.status,
           location: track.location || '',
@@ -404,7 +436,6 @@ export class EkartService implements ICourierService {
           remarks: track.desc,
         });
 
-        // Additional details array
         if (track.details && Array.isArray(track.details)) {
           for (const detail of track.details) {
             events.push({
@@ -416,14 +447,22 @@ export class EkartService implements ICourierService {
             });
           }
         }
+
+        return {
+          success: true,
+          awbNumber: fallbackResponse.data._id || trackingId,
+          currentStatus: track.status,
+          events,
+          expectedDelivery: fallbackResponse.data.edd ? new Date(fallbackResponse.data.edd) : undefined,
+          rawResponse: fallbackResponse.data,
+        };
       }
 
       return {
         success: true,
-        awbNumber: response.data._id || trackingId,
-        currentStatus: response.data.track?.status,
-        events,
-        expectedDelivery: response.data.edd ? new Date(response.data.edd) : undefined,
+        awbNumber: trackingId,
+        currentStatus: 'Unknown',
+        events: [],
         rawResponse: response.data,
       };
     } catch (error: any) {
