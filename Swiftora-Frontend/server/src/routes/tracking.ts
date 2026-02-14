@@ -8,103 +8,9 @@ import { innofulfillService } from '../services/courier/InnofulfillService.js';
 
 const router = Router();
 
-/**
- * Normalize Blitz/Xpressbees/Ekart/Innofulfill tracking response to Delhivery ShipmentData format
- * so the frontend can display it without any changes
- */
-function normalizeToShipmentData(courierResult: any, courier: string) {
-  if (!courierResult?.success) return null;
-
-  const events = courierResult.events || [];
-  const raw = courierResult.rawResponse;
-
-  // Build Scans array matching Delhivery format
-  const scans = events.map((event: any) => ({
-    ScanDetail: {
-      Scan: event.status || 'Update',
-      ScanDateTime: event.timestamp ? new Date(event.timestamp).toISOString() : '',
-      ScannedLocation: event.location || '',
-      Instructions: event.remarks || '',
-    },
-  }));
-
-  let origin = '';
-  let destination = '';
-  let expectedDeliveryDate = '';
-  let referenceNo = '';
-  let codAmount = 0;
-
-  if (courier === 'blitz' && raw?.result?.[0]) {
-    const r = raw.result[0];
-    origin = r.shippingPartner || '';
-    expectedDeliveryDate = r.estimatedDeliveryDate || '';
-    referenceNo = r.shopOrderNumber || '';
-    codAmount = parseFloat(r.codAmount) || 0;
-  } else if (courier === 'xpressbees' && raw?.data) {
-    const d = raw.data;
-    origin = d.origin || d.pickup_city || '';
-    destination = d.destination || d.delivery_city || '';
-    expectedDeliveryDate = d.expected_delivery_date || '';
-  } else if (courier === 'ekart') {
-    // Ekart response is keyed by shipment ID
-    const shipmentData = raw ? Object.values(raw)[0] as any : null;
-    if (shipmentData) {
-      origin = shipmentData.sender?.city || shipmentData.sender?.address || '';
-      destination = shipmentData.receiver?.city || shipmentData.customer?.city || shipmentData.assigned_hub?.city || '';
-      expectedDeliveryDate = shipmentData.expected_delivery_date || '';
-      codAmount = parseFloat(shipmentData.cod_amount) || 0;
-      referenceNo = shipmentData.order_id || '';
-    }
-  } else if (courier === 'innofulfill') {
-    // Innofulfill tracking response — extract from data or orderStateInfo
-    const d = raw?.data || raw;
-    if (d) {
-      // Try address fields first, then fall back to state info locations
-      origin = d.pickupAddress?.city || d.pickupCity || d.pickupHub || '';
-      destination = d.shippingAddress?.city || d.deliveryCity || d.deliveryHub || '';
-
-      // If no origin/destination, try to extract from latest tracking event locations
-      if (!origin && events.length > 0) {
-        const lastEvent = events[events.length - 1];
-        origin = lastEvent?.location || '';
-      }
-      if (!destination && events.length > 0) {
-        destination = events[0]?.location || '';
-      }
-
-      codAmount = d.paymentType === 'COD' ? (d.amount || 0) : 0;
-      referenceNo = d.originalOrderId || d.originalOrderNumber || d.shipperOrderId || d.orderId || '';
-    }
-  }
-
-  return {
-    ShipmentData: [
-      {
-        Shipment: {
-          Status: {
-            Status: courierResult.currentStatus || 'Unknown',
-            StatusLocation: events[0]?.location || '',
-            StatusDateTime: events[0]?.timestamp ? new Date(events[0].timestamp).toISOString() : '',
-            StatusType: '',
-            Instructions: events[0]?.remarks || '',
-          },
-          Origin: origin,
-          Destination: destination,
-          ExpectedDeliveryDate: expectedDeliveryDate,
-          Scans: scans,
-          PickUpDate: '',
-          OrderType: '',
-          CODAmount: codAmount,
-          ReferenceNo: referenceNo,
-          _courier: courier,
-        },
-      },
-    ],
-  };
-}
-
 // Public tracking endpoint (no auth required)
 // Tries ALL courier APIs in parallel — returns whichever finds the AWB
+// Returns RAW courier data + courier tag so frontend renders courier-specific UI
 router.get('/track', async (req, res, next) => {
   try {
     const { awb, orderId, phone } = req.query;
@@ -164,50 +70,37 @@ router.get('/track', async (req, res, next) => {
       })(),
     ]);
 
-    // Check Delhivery first (it returns in native format)
+    // Check Delhivery first (returns native ShipmentData format)
     if (delhiveryResult.status === 'fulfilled') {
       const dData = delhiveryResult.value.data;
-      // Delhivery returns raw ShipmentData — check if it has valid data
       if (dData?.ShipmentData?.[0]?.Shipment) {
         console.log('Found on Delhivery');
-        return res.json(dData);
+        return res.json({ courier: 'delhivery', data: dData });
       }
     }
 
     // Check Blitz
     if (blitzResult.status === 'fulfilled') {
-      const normalized = normalizeToShipmentData(blitzResult.value.data, 'blitz');
-      if (normalized) {
-        console.log('Found on Blitz');
-        return res.json(normalized);
-      }
+      console.log('Found on Blitz');
+      return res.json({ courier: 'blitz', data: blitzResult.value.data });
     }
 
     // Check Xpressbees
     if (xpressbeesResult.status === 'fulfilled') {
-      const normalized = normalizeToShipmentData(xpressbeesResult.value.data, 'xpressbees');
-      if (normalized) {
-        console.log('Found on Xpressbees');
-        return res.json(normalized);
-      }
+      console.log('Found on Xpressbees');
+      return res.json({ courier: 'xpressbees', data: xpressbeesResult.value.data });
     }
 
     // Check Ekart
     if (ekartResult.status === 'fulfilled') {
-      const normalized = normalizeToShipmentData(ekartResult.value.data, 'ekart');
-      if (normalized) {
-        console.log('Found on Ekart');
-        return res.json(normalized);
-      }
+      console.log('Found on Ekart');
+      return res.json({ courier: 'ekart', data: ekartResult.value.data });
     }
 
     // Check Innofulfill
     if (innofulfillResult.status === 'fulfilled') {
-      const normalized = normalizeToShipmentData(innofulfillResult.value.data, 'innofulfill');
-      if (normalized) {
-        console.log('Found on Innofulfill');
-        return res.json(normalized);
-      }
+      console.log('Found on Innofulfill');
+      return res.json({ courier: 'innofulfill', data: innofulfillResult.value.data });
     }
 
     // None found

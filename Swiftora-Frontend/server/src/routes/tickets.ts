@@ -30,9 +30,11 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     const data = CreateTicketSchema.parse(req.body);
 
-    // Generate ticket number (globally unique)
-    const count = await prisma.ticket.count();
-    const ticketNumber = `TKT-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`;
+    // Generate ticket number (globally unique using timestamp + random)
+    const now = new Date();
+    const yr = now.getFullYear();
+    const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const ticketNumber = `TKT-${yr}-${Date.now().toString(36).toUpperCase()}-${rand}`;
 
     // Verify order belongs to merchant if orderId provided
     // orderId can be either the actual ID (cuid) or the orderNumber (e.g., ORD123456)
@@ -143,11 +145,11 @@ router.get('/', async (req: AuthRequest, res, next) => {
 
       return {
         ...ticket,
-        sla: isOverdue 
-          ? 'Overdue' 
+        sla: isOverdue
+          ? 'Overdue'
           : ticket.status === 'RESOLVED' || ticket.status === 'CLOSED'
-          ? 'Resolved'
-          : `${hoursRemaining} hours remaining`,
+            ? 'Resolved'
+            : `${hoursRemaining} hours remaining`,
       };
     });
 
@@ -208,7 +210,7 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
 
     if (data.status) {
       updateData.status = data.status;
-      
+
       if (data.status === 'RESOLVED' || data.status === 'CLOSED') {
         updateData.resolvedAt = new Date();
         updateData.resolvedBy = req.user?.id;

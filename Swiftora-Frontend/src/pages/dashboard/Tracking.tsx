@@ -48,43 +48,22 @@ import {
 import { toast } from "sonner";
 import { trackingApi, ticketsApi } from "@/lib/api";
 
-interface ShipmentData {
-  Shipment: {
-    Status: {
-      Status: string;
-      StatusLocation: string;
-      StatusDateTime: string;
-      StatusType: string;
-      Instructions?: string;
-    };
-    Origin: string;
-    Destination: string;
-    ExpectedDeliveryDate?: string;
-    Scans?: Array<{
-      ScanDetail: {
-        Scan: string;
-        ScanDateTime: string;
-        ScannedLocation: string;
-        Instructions?: string;
-      };
-    }>;
-    Consignee?: {
-      Name: string;
-      City: string;
-      Address1: string[];
-      PinCode: string;
-    };
-    PickUpDate?: string;
-    OrderType?: string;
-    CODAmount?: number;
-    ReferenceNo?: string;
-  };
+// Courier-specific tracker components
+import DelhiveryTracker from "@/components/tracking/DelhiveryTracker";
+import BlitzTracker from "@/components/tracking/BlitzTracker";
+import XpressbeesTracker from "@/components/tracking/XpressbeesTracker";
+import EkartTracker from "@/components/tracking/EkartTracker";
+import InnofulfillTracker from "@/components/tracking/InnofulfillTracker";
+
+interface TrackingResponse {
+  courier: string;
+  data: any;
 }
 
 const Tracking = () => {
   const [trackingQuery, setTrackingQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [trackingResult, setTrackingResult] = useState<ShipmentData | null>(null);
+  const [trackingResult, setTrackingResult] = useState<TrackingResponse | null>(null);
   const [noResults, setNoResults] = useState(false);
 
   // Raise Ticket state
@@ -116,8 +95,14 @@ const Tracking = () => {
 
       console.log("Tracking response:", data);
 
-      if (data?.ShipmentData && data.ShipmentData.length > 0) {
-        setTrackingResult(data.ShipmentData[0]);
+      // New format: { courier: string, data: any }
+      if (data?.courier && data?.data) {
+        setTrackingResult(data);
+        toast.success(`Tracking info found on ${data.courier.charAt(0).toUpperCase() + data.courier.slice(1)}!`);
+      }
+      // Legacy support: Delhivery's old ShipmentData format (in case backend returns it directly)
+      else if (data?.ShipmentData && data.ShipmentData.length > 0) {
+        setTrackingResult({ courier: 'delhivery', data: data });
         toast.success("Tracking information found!");
       } else {
         setNoResults(true);
@@ -133,49 +118,21 @@ const Tracking = () => {
   };
 
   const handleCopyAWB = () => {
-    navigator.clipboard.writeText(trackingQuery);
-    toast.success("AWB copied to clipboard");
+    navigator.clipboard.writeText(trackingQuery.trim());
+    toast.success("AWB number copied!");
   };
 
   const handleShareLink = () => {
-    const link = `${window.location.origin}/tracking?awb=${trackingQuery}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Tracking link copied!");
+    const url = `${window.location.origin}/tracking?awb=${trackingQuery.trim()}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Tracking link copied to clipboard!");
   };
 
   const openRaiseTicketDialog = () => {
-    const awb = trackingQuery.trim();
-    const status = trackingResult?.Shipment?.Status?.Status || "Unknown";
-    const location = trackingResult?.Shipment?.Status?.StatusLocation || "Unknown";
-    const origin = trackingResult?.Shipment?.Origin || "N/A";
-    const destination = trackingResult?.Shipment?.Destination || "N/A";
-
-    // Read courier from the tracking response — Blitz/Xpressbees set _courier;
-    // Delhivery returns raw format without it, so default to Delhivery.
-    const rawCourier = (trackingResult?.Shipment as any)?._courier || "delhivery";
-    const courierMap: Record<string, string> = {
-      delhivery: "Delhivery",
-      blitz: "Blitz",
-      xpressbees: "Xpressbees",
-    };
-    const courier = courierMap[rawCourier.toLowerCase()] || rawCourier;
-
-    const autoDescription = [
-      `📦 Raised from Tracking Page`,
-      `AWB Number: ${awb}`,
-      `Courier: ${courier}`,
-      `Current Status: ${status}`,
-      `Last Location: ${location}`,
-      `Route: ${origin} → ${destination}`,
-      ``,
-      `Issue details:`,
-      ``,
-    ].join("\n");
-
     setTicketForm({
-      type: "DELIVERY_ISSUE",
-      subject: `[TRACKING] Issue with AWB ${awb} — ${status}`,
-      description: autoDescription,
+      type: "",
+      subject: `Issue with shipment ${trackingQuery.trim()}`,
+      description: "",
       priority: "MEDIUM",
     });
     setShowTicketDialog(true);
@@ -208,65 +165,37 @@ const Tracking = () => {
     }
   };
 
-  const getStatusConfig = (status: string) => {
-    const statusLower = status?.toLowerCase()?.replace(/_/g, ' ') || "";
+  // Render courier-specific tracker
+  const renderTracker = () => {
+    if (!trackingResult) return null;
 
-    if (statusLower.includes("delivered") && !statusLower.includes("undelivered") && !statusLower.includes("rto")) {
-      return { bg: "bg-emerald-500", text: "text-white", icon: CheckCircle2, label: "Delivered", glow: "shadow-emerald-200" };
-    } else if (statusLower.includes("rto delivered") || statusLower.includes("rto_delivered")) {
-      return { bg: "bg-orange-600", text: "text-white", icon: Home, label: "RTO Delivered", glow: "shadow-orange-200" };
-    } else if (statusLower.includes("rto out for delivery") || statusLower.includes("rto_out_for_delivery")) {
-      return { bg: "bg-orange-500", text: "text-white", icon: Truck, label: "RTO Out for Delivery", glow: "shadow-orange-200" };
-    } else if (statusLower.includes("rto in transit") || statusLower.includes("rto_in_transit")) {
-      return { bg: "bg-orange-400", text: "text-white", icon: Truck, label: "RTO In Transit", glow: "shadow-orange-200" };
-    } else if (statusLower.includes("rto") || statusLower.includes("return")) {
-      return { bg: "bg-red-500", text: "text-white", icon: AlertCircle, label: "RTO", glow: "shadow-red-200" };
-    } else if (statusLower.includes("out for delivery")) {
-      return { bg: "bg-purple-500", text: "text-white", icon: Truck, label: "Out for Delivery", glow: "shadow-purple-200" };
-    } else if (statusLower.includes("undelivered")) {
-      return { bg: "bg-red-400", text: "text-white", icon: AlertTriangle, label: "Undelivered", glow: "shadow-red-200" };
-    } else if (statusLower.includes("transit") || statusLower.includes("dispatched")) {
-      return { bg: "bg-blue-500", text: "text-white", icon: Truck, label: "In Transit", glow: "shadow-blue-200" };
-    } else if (statusLower.includes("out for pickup")) {
-      return { bg: "bg-violet-500", text: "text-white", icon: Truck, label: "Out for Pickup", glow: "shadow-violet-200" };
-    } else if (statusLower.includes("not picked up")) {
-      return { bg: "bg-red-400", text: "text-white", icon: AlertTriangle, label: "Not Picked Up", glow: "shadow-red-200" };
-    } else if (statusLower.includes("picked")) {
-      return { bg: "bg-indigo-500", text: "text-white", icon: Package, label: "Picked Up", glow: "shadow-indigo-200" };
-    } else if (statusLower.includes("ready for dispatch") || statusLower.includes("manifest")) {
-      return { bg: "bg-amber-500", text: "text-white", icon: Package, label: "Ready to Ship", glow: "shadow-amber-200" };
-    } else if (statusLower.includes("in process") || statusLower.includes("processing")) {
-      return { bg: "bg-cyan-500", text: "text-white", icon: Package, label: "Processing", glow: "shadow-cyan-200" };
-    } else if (statusLower.includes("on hold") || statusLower.includes("hold")) {
-      return { bg: "bg-yellow-600", text: "text-white", icon: Clock, label: "On Hold", glow: "shadow-yellow-200" };
-    } else if (statusLower.includes("cancel")) {
-      return { bg: "bg-red-600", text: "text-white", icon: AlertCircle, label: "Cancelled", glow: "shadow-red-200" };
-    } else if (statusLower === "new" || statusLower.includes("order placed")) {
-      return { bg: "bg-sky-500", text: "text-white", icon: Package, label: "New Order", glow: "shadow-sky-200" };
-    } else if (statusLower.includes("pending")) {
-      return { bg: "bg-yellow-500", text: "text-white", icon: Clock, label: "Pending", glow: "shadow-yellow-200" };
-    }
-    return { bg: "bg-gray-500", text: "text-white", icon: Package, label: status, glow: "shadow-gray-200" };
-  };
+    const { courier, data } = trackingResult;
+    const awb = trackingQuery.trim();
 
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return "N/A";
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return dateString;
+    switch (courier) {
+      case "delhivery":
+        return <DelhiveryTracker data={data} awb={awb} onCopyAWB={handleCopyAWB} />;
+      case "blitz":
+        return <BlitzTracker data={data} awb={awb} onCopyAWB={handleCopyAWB} />;
+      case "xpressbees":
+        return <XpressbeesTracker data={data} awb={awb} onCopyAWB={handleCopyAWB} />;
+      case "ekart":
+        return <EkartTracker data={data} awb={awb} onCopyAWB={handleCopyAWB} />;
+      case "innofulfill":
+        return <InnofulfillTracker data={data} awb={awb} onCopyAWB={handleCopyAWB} />;
+      default:
+        return (
+          <Card className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
+            <CardContent>
+              <p className="text-gray-500">Unknown courier: {courier}</p>
+              <pre className="text-xs text-left mt-4 bg-gray-50 p-4 rounded-xl overflow-auto max-h-64">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        );
     }
   };
-
-  const statusConfig = trackingResult ? getStatusConfig(trackingResult.Shipment?.Status?.Status) : null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -330,226 +259,33 @@ const Tracking = () => {
         </Card>
       )}
 
-      {/* Tracking Result */}
-      {trackingResult && statusConfig && (
+      {/* Tracking Result — Courier-Specific */}
+      {trackingResult && (
         <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Status Header Card */}
-          <Card className={`bg-white border-0 shadow-xl ${statusConfig.glow} overflow-hidden rounded-2xl`}>
-            <div className={`${statusConfig.bg} px-6 py-5`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-black/5">
-                    <statusConfig.icon className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-white/80 text-sm font-medium">Current Status</div>
-                    <div className="text-white text-xl font-bold">
-                      {trackingResult.Shipment?.Status?.Status}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur-sm rounded-lg transition-all duration-200 hover:-translate-y-0.5"
-                    onClick={handleShareLink}
-                  >
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur-sm rounded-lg transition-all duration-200 hover:-translate-y-0.5"
-                    onClick={openRaiseTicketDialog}
-                  >
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    Raise Ticket
-                  </Button>
-                </div>
-              </div>
-            </div>
+          {/* Action Bar */}
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg"
+              onClick={handleShareLink}
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg"
+              onClick={openRaiseTicketDialog}
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              Raise Ticket
+            </Button>
+          </div>
 
-            <CardContent className="p-6">
-              {/* AWB and Order Info */}
-              <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-100">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center shadow-sm">
-                    <Package className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 font-medium">AWB Number</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl font-bold font-mono text-gray-900">
-                        {trackingQuery}
-                      </span>
-                      <button
-                        onClick={handleCopyAWB}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
-                      >
-                        <Copy className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                {trackingResult.Shipment?.ReferenceNo && (
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500 font-medium">Order ID</div>
-                    <div className="text-lg font-semibold text-gray-900">
-                      {trackingResult.Shipment.ReferenceNo}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Route Info */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-xl p-4 border border-blue-100/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shadow-sm shadow-blue-200">
-                      <MapPin className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-blue-700">Origin</span>
-                  </div>
-                  <div className="font-semibold text-gray-900 text-sm">
-                    {trackingResult.Shipment?.Origin || "N/A"}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100/60 rounded-xl p-4 border border-purple-100/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center shadow-sm shadow-purple-200">
-                      <Truck className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-purple-700">Current</span>
-                  </div>
-                  <div className="font-semibold text-gray-900 text-sm">
-                    {trackingResult.Shipment?.Status?.StatusLocation || "N/A"}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/60 rounded-xl p-4 border border-emerald-100/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm shadow-emerald-200">
-                      <Home className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-emerald-700">Destination</span>
-                  </div>
-                  <div className="font-semibold text-gray-900 text-sm">
-                    {trackingResult.Shipment?.Destination || "N/A"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Update */}
-              {trackingResult.Shipment?.Status?.Instructions && (
-                <div className="bg-amber-50 border border-amber-200/70 rounded-xl p-4 mb-6 transition-all duration-200 hover:shadow-md">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                      <AlertCircle className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-amber-800 mb-1">Status Update</div>
-                      <p className="text-amber-700 text-sm">
-                        {trackingResult.Shipment.Status.Instructions}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Delivery Address */}
-          {trackingResult.Shipment?.Consignee && (
-            <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg rounded-2xl transition-all duration-200 hover:shadow-xl">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Home className="w-5 h-5 text-gray-500" />
-                  Delivery Address
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center shadow-inner">
-                    <User className="w-6 h-6 text-gray-500" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-lg">
-                      {trackingResult.Shipment.Consignee.Name}
-                    </div>
-                    <div className="text-gray-600 mt-1">
-                      {trackingResult.Shipment.Consignee.Address1?.join(", ")}
-                    </div>
-                    <div className="text-gray-600">
-                      {trackingResult.Shipment.Consignee.City} - {trackingResult.Shipment.Consignee.PinCode}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Timeline */}
-          {trackingResult.Shipment?.Scans && trackingResult.Shipment.Scans.length > 0 && (
-            <Card className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg rounded-2xl transition-all duration-200 hover:shadow-xl">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-gray-500" />
-                  Shipment Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-0">
-                  {trackingResult.Shipment.Scans.map((scan, index) => {
-                    const isFirst = index === 0;
-                    const isLast = index === trackingResult.Shipment!.Scans!.length - 1;
-
-                    return (
-                      <div key={index} className="flex gap-4 group">
-                        {/* Timeline Line */}
-                        <div className="flex flex-col items-center">
-                          <div
-                            className={`w-4 h-4 rounded-full flex-shrink-0 transition-all duration-300 ${isFirst
-                              ? "bg-blue-600 ring-4 ring-blue-100 shadow-md shadow-blue-200"
-                              : "bg-gray-300 group-hover:bg-gray-400"
-                              }`}
-                          />
-                          {!isLast && (
-                            <div className="w-0.5 h-full min-h-[60px] bg-gray-200" />
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className={`flex-1 pb-6 transition-all duration-200 rounded-lg -ml-1 pl-1 ${!isFirst ? "group-hover:bg-gray-50/50" : ""}`}>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <div className={`font-semibold ${isFirst ? "text-blue-600" : "text-gray-700"}`}>
-                                {scan.ScanDetail.Scan}
-                              </div>
-                              <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                                <MapPin className="w-3 h-3" />
-                                {scan.ScanDetail.ScannedLocation}
-                              </div>
-                              {scan.ScanDetail.Instructions && (
-                                <div className="text-sm text-blue-600 mt-2 bg-blue-50 px-3 py-1.5 rounded-lg inline-block border border-blue-100/50">
-                                  {scan.ScanDetail.Instructions}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-500 text-right flex-shrink-0 ml-4">
-                              {formatDateTime(scan.ScanDetail.ScanDateTime)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Courier-Specific Tracker */}
+          {renderTracker()}
         </div>
       )}
 

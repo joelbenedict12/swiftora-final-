@@ -373,10 +373,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
     // Auto-create support ticket for the order
     try {
-      const ticketCount = await prisma.ticket.count({
-        where: { merchantId: req.user!.merchantId },
-      });
-      const ticketNumber = `TKT-${new Date().getFullYear()}-${String(ticketCount + 1).padStart(3, '0')}`;
+      const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const ticketNumber = `TKT-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${rand}`;
 
       // Calculate SLA due date (48 hours default)
       const dueAt = new Date();
