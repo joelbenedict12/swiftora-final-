@@ -57,6 +57,7 @@ import {
   ShoppingCart,
   Loader2,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import { ordersApi, warehousesApi, ticketsApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
@@ -210,6 +211,11 @@ const Orders = () => {
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
   const [selectedPickupSlot, setSelectedPickupSlot] = useState("Evening");
   const [isSchedulingPickup, setIsSchedulingPickup] = useState(false);
+
+  // Cancel order state
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<Order | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Generate next 3 available weekdays from today
   const getAvailablePickupDates = () => {
@@ -543,6 +549,32 @@ const Orders = () => {
     }
   };
 
+  // Cancel order handler
+  const openCancelDialog = (order: Order) => {
+    setSelectedOrderForCancel(order);
+    setShowCancelDialog(true);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrderForCancel) return;
+    try {
+      setIsCancelling(true);
+      const response = await ordersApi.cancel(selectedOrderForCancel.id);
+      if (response.data?.success) {
+        toast.success(response.data.message || 'Order cancelled successfully');
+        setShowCancelDialog(false);
+        setSelectedOrderForCancel(null);
+        loadOrders(); // refresh the list
+      } else {
+        toast.error(response.data?.message || 'Failed to cancel order');
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.response?.data?.error || 'Failed to cancel order');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     loadWarehouses();
@@ -830,8 +862,11 @@ const Orders = () => {
                               Track Shipment
                             </DropdownMenuItem>
                           )}
-                          {!order.awbNumber && order.status === "PENDING" && (
-                            <DropdownMenuItem className="gap-2 text-red-600">
+                          {order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
+                            <DropdownMenuItem
+                              onClick={() => openCancelDialog(order)}
+                              className="gap-2 text-red-600"
+                            >
                               <XCircle className="h-4 w-4" />
                               Cancel Order
                             </DropdownMenuItem>
@@ -1153,8 +1188,8 @@ const Orders = () => {
                       key={dateStr}
                       onClick={() => setEkartPickupDate(dateStr)}
                       className={`flex flex-col items-center px-5 py-3 rounded-full border-2 transition-all ${isSelected
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
                         }`}
                     >
                       <span className="text-xs font-medium">{dayName}</span>
@@ -1299,6 +1334,79 @@ const Orders = () => {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Cancel Order
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this order? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrderForCancel && (
+            <div className="space-y-3 py-2">
+              <div className="bg-gray-50 border rounded-xl px-4 py-3 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Order</span>
+                  <span className="text-sm font-medium">{selectedOrderForCancel.orderNumber}</span>
+                </div>
+                {selectedOrderForCancel.awbNumber && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">AWB</span>
+                    <span className="text-sm font-mono font-medium">{selectedOrderForCancel.awbNumber}</span>
+                  </div>
+                )}
+                {selectedOrderForCancel.courierName && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Courier</span>
+                    <span className="text-sm font-medium">{selectedOrderForCancel.courierName}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <span className="text-sm font-medium">{selectedOrderForCancel.status?.replace(/_/g, ' ')}</span>
+                </div>
+              </div>
+
+              {selectedOrderForCancel.awbNumber && selectedOrderForCancel.courierName && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                  <strong>Note:</strong> This will also cancel the shipment on {selectedOrderForCancel.courierName}. The courier may reject cancellation if the shipment is already out for delivery.
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowCancelDialog(false);
+                    setSelectedOrderForCancel(null);
+                  }}
+                >
+                  Keep Order
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleCancelOrder}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...</>
+                  ) : (
+                    <><XCircle className="h-4 w-4 mr-2" /> Cancel Order</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

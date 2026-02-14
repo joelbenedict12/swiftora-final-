@@ -423,15 +423,35 @@ export class InnofulfillService implements ICourierService {
     }
 
     /**
-     * Cancel a shipment (if supported)
+     * Cancel a shipment via Innofulfill API
+     * PUT /fulfillment/public/seller/order/cancel-order
      */
     async cancelShipment(request: CancelShipmentRequest): Promise<CancelShipmentResponse> {
-        // Innofulfill may not have a direct cancel endpoint
-        console.warn('INNOFULFILL: Cancel shipment not implemented');
-        return {
-            success: false,
-            error: 'Cancel shipment not supported by Innofulfill API',
-        };
+        try {
+            const client = await this.getClient();
+            const response = await client.put('/fulfillment/public/seller/order/cancel-order', {
+                orderId: request.orderNumber || request.awbNumber,
+                cancelReason: 'Cancelled by merchant',
+            });
+
+            if (response.data?.status === 200 || response.data?.data?.includes('cancelled')) {
+                return {
+                    success: true,
+                    message: response.data?.data || 'Order has been cancelled',
+                };
+            }
+
+            return {
+                success: false,
+                error: response.data?.data || response.data?.message || 'Cancel request failed',
+            };
+        } catch (error: any) {
+            console.error('INNOFULFILL: Cancel shipment error:', error.response?.data || error.message);
+            return {
+                success: false,
+                error: error.response?.data?.message || error.message || 'Failed to cancel shipment',
+            };
+        }
     }
 
     /**

@@ -424,7 +424,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
   }
 });
 
-// Cancel order
+// Cancel order (unified — detects courier and calls the right cancellation API)
 router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
   try {
     const order = await prisma.order.findFirst({
@@ -438,6 +438,49 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       throw new AppError(404, 'Order not found');
     }
 
+    // Already cancelled
+    if (order.status === 'CANCELLED') {
+      throw new AppError(400, 'Order is already cancelled');
+    }
+
+    // If order has been shipped (has AWB), call courier cancellation API
+    if (order.awbNumber && order.courierName) {
+      const courierName = order.courierName as CourierName;
+
+      if (!isCourierSupported(courierName)) {
+        throw new AppError(400, `Unsupported courier: ${courierName}`);
+      }
+
+      const courierService = getCourierService(courierName);
+      console.log(`Cancelling shipment via ${courierName} for AWB: ${order.awbNumber}`);
+
+      const cancelResult = await courierService.cancelShipment({
+        awbNumber: order.awbNumber,
+        orderNumber: order.orderNumber,
+      });
+
+      if (!cancelResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: `Courier cancellation failed: ${cancelResult.error || 'Unknown error'}`,
+          courierResponse: cancelResult,
+        });
+      }
+
+      // Courier cancel succeeded — update DB
+      const updated = await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED' },
+      });
+
+      return res.json({
+        success: true,
+        message: cancelResult.message || `Shipment cancelled on ${courierName}`,
+        order: updated,
+      });
+    }
+
+    // No AWB — just a local/pending order cancel (only PENDING/READY_TO_SHIP)
     if (!['PENDING', 'READY_TO_SHIP'].includes(order.status)) {
       throw new AppError(400, 'Cannot cancel order in current status');
     }
@@ -447,7 +490,7 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       data: { status: 'CANCELLED' },
     });
 
-    res.json(updated);
+    res.json({ success: true, message: 'Order cancelled', order: updated });
   } catch (error) {
     next(error);
   }
