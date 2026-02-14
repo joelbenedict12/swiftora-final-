@@ -178,110 +178,114 @@ export class InnofulfillService implements ICourierService {
             // Force fresh login for booking requests
             console.log('INNOFULFILL: Forcing fresh login for booking...');
             const token = await this.login();
-            const now = this.formatDate();
 
             console.log('=== INNOFULFILL CREATE SHIPMENT ===');
 
-            // Build Innofulfill order payload
+            // Build Innofulfill Ecom Booking payload per official API spec
             const pickupPhone = this.sanitizePhone(request.pickupPhone);
             const customerPhone = this.sanitizePhone(request.customerPhone);
             const weightInGrams = Math.round((request.weight || 0.5) * 1000);
             const productValue = Number(request.productValue) || 100;
             const finalAmount = Number(request.totalAmount || request.productValue || 100);
+            const quantity = request.quantity || 1;
+            const itemPrice = productValue * quantity;
 
-            const payload = [{
+            // Determine payment type and status per API rules:
+            // COD -> paymentStatus must be PENDING
+            // ONLINE -> paymentStatus must be PAID
+            const isCOD = request.paymentMode === 'COD';
+            const paymentType = isCOD ? 'COD' : 'ONLINE';
+            const paymentStatus = isCOD ? 'PENDING' : 'PAID';
+
+            const payload = {
+                // --- Order-level mandatory fields ---
                 orderId: String(request.orderNumber),
-                orderDate: now,
-                orderType: 'FORWARD',
-                note: request.productDescription || 'Order from Swiftora',
-                autoManifest: true,
-                returnable: true,
-                deliveryType: 'SURFACE',
-                deliveryPromise: 'STANDARD',
+                currency: 'INR',
+                amount: finalAmount,
+                weight: weightInGrams,
+                paymentType: paymentType,
+                paymentStatus: paymentStatus,
 
-                addresses: {
-                    pickup: {
-                        zip: String(request.pickupPincode || '400001'),
-                        name: String(request.pickupName || 'Swiftora Warehouse'),
-                        company: 'Swiftora',
-                        phone: pickupPhone,
-                        email: request.pickupEmail || 'warehouse@swiftora.com',
-                        street: String(request.pickupAddress || '123 Warehouse Street'),
-                        subLocality: '',
-                        city: String(request.pickupCity || 'Mumbai'),
-                        state: String(request.pickupState || 'Maharashtra'),
-                        country: 'India',
-                        type: 'WAREHOUSE',
-                    },
-                    delivery: {
-                        zip: String(request.shippingPincode || ''),
-                        name: String(request.customerName || 'Customer'),
-                        company: '',
-                        phone: customerPhone,
-                        email: request.customerEmail || '',
-                        street: String(request.shippingAddress || ''),
-                        subLocality: '',
-                        city: String(request.shippingCity || ''),
-                        state: String(request.shippingState || ''),
-                        country: 'India',
-                    },
-                    billing: {
-                        zip: String(request.shippingPincode || ''),
-                        name: String(request.customerName || 'Customer'),
-                        company: '',
-                        phone: customerPhone,
-                        email: request.customerEmail || '',
-                        street: String(request.shippingAddress || ''),
-                        subLocality: '',
-                        city: String(request.shippingCity || ''),
-                        state: String(request.shippingState || ''),
-                        country: 'India',
-                    },
-                    return: {
-                        zip: String(request.pickupPincode || '400001'),
-                        name: String(request.pickupName || 'Swiftora Warehouse'),
-                        company: 'Swiftora',
-                        phone: pickupPhone,
-                        email: request.pickupEmail || 'warehouse@swiftora.com',
-                        street: String(request.pickupAddress || '123 Warehouse Street'),
-                        subLocality: '',
-                        city: String(request.pickupCity || 'Mumbai'),
-                        state: String(request.pickupState || 'Maharashtra'),
-                        country: 'India',
-                    },
-                },
+                // --- Dimensions (mandatory) ---
+                length: Number(request.length) || 10,
+                width: Number(request.breadth) || 10,
+                height: Number(request.height) || 10,
 
-                shipments: [{
-                    dimensions: {
-                        length: Number(request.length) || 10,
-                        width: Number(request.breadth) || 10,
-                        height: Number(request.height) || 10,
-                    },
-                    physicalWeight: weightInGrams,
-                    volumetricWeight: Math.round((Number(request.length) || 10) * (Number(request.breadth) || 10) * (Number(request.height) || 10) / 5),
-                    note: 'Shipment from Swiftora',
-                    items: [{
-                        name: String(request.productName || 'Product'),
-                        quantity: request.quantity || 1,
-                        weight: Math.round(weightInGrams / (request.quantity || 1)),
-                        unitPrice: productValue,
-                        sku: String(request.orderNumber),
-                    }],
+                // --- Optional order-level fields ---
+                orderSubtype: 'FORWARD',
+                deliveryPromise: 'SURFACE',
+                remarks: request.productDescription || 'Order from Swiftora',
+                orderCreatedAt: new Date().toISOString(),
+                subTotal: productValue * quantity,
+                readyToPick: true,
+
+                // --- Line Items (mandatory) ---
+                lineItems: [{
+                    name: String(request.productName || 'Product'),
+                    weight: Math.round(weightInGrams / quantity),
+                    unitPrice: productValue,
+                    price: itemPrice,
+                    quantity: quantity,
+                    sku: String(request.orderNumber),
                 }],
 
-                payment: {
-                    finalAmount: finalAmount,
-                    status: request.paymentMode === 'COD' ? 'COD' : 'PAID',
-                    currency: 'INR',
-                    breakdown: {
-                        subtotal: productValue,
-                    },
+                // --- Shipping Address ---
+                shippingAddress: {
+                    name: String(request.customerName || 'Customer'),
+                    phone: customerPhone,
+                    email: request.customerEmail || '',
+                    address1: String(request.shippingAddress || ''),
+                    address2: '',
+                    city: String(request.shippingCity || ''),
+                    state: String(request.shippingState || ''),
+                    country: 'India',
+                    zip: String(request.shippingPincode || ''),
                 },
-            }];
+
+                // --- Billing Address ---
+                billingAddress: {
+                    name: String(request.customerName || 'Customer'),
+                    phone: customerPhone,
+                    email: request.customerEmail || '',
+                    address1: String(request.shippingAddress || ''),
+                    address2: '',
+                    city: String(request.shippingCity || ''),
+                    state: String(request.shippingState || ''),
+                    country: 'India',
+                    zip: String(request.shippingPincode || ''),
+                },
+
+                // --- Pickup Address (enables auto-processing) ---
+                pickupAddress: {
+                    name: String(request.pickupName || 'Swiftora Warehouse'),
+                    phone: pickupPhone,
+                    email: request.pickupEmail || 'warehouse@swiftora.com',
+                    address1: String(request.pickupAddress || '123 Warehouse Street'),
+                    address2: '',
+                    city: String(request.pickupCity || 'Mumbai'),
+                    state: String(request.pickupState || 'Maharashtra'),
+                    country: 'India',
+                    zip: String(request.pickupPincode || '400001'),
+                },
+
+                // --- Return Address ---
+                returnAddress: {
+                    name: String(request.pickupName || 'Swiftora Warehouse'),
+                    phone: pickupPhone,
+                    email: request.pickupEmail || 'warehouse@swiftora.com',
+                    address1: String(request.pickupAddress || '123 Warehouse Street'),
+                    address2: '',
+                    city: String(request.pickupCity || 'Mumbai'),
+                    state: String(request.pickupState || 'Maharashtra'),
+                    country: 'India',
+                    zip: String(request.pickupPincode || '400001'),
+                },
+            };
 
             console.log('INNOFULFILL Payload:', JSON.stringify(payload, null, 2));
 
-            const bookingUrl = `${this.baseUrl}/booking/order/`;
+            // Correct Ecom Booking API endpoint
+            const bookingUrl = `${this.baseUrl}/fulfillment/public/seller/order/ecomm/push-order`;
             console.log('INNOFULFILL: Booking URL:', bookingUrl);
 
             const response = await axios.post(
@@ -297,32 +301,36 @@ export class InnofulfillService implements ICourierService {
 
             console.log('INNOFULFILL Response:', JSON.stringify(response.data, null, 2));
 
-            // Handle response
-            if (response.data?.data && response.data.data.length > 0) {
-                const orderResult = response.data.data[0];
+            // Handle successful response
+            const resData = response.data?.data || response.data;
+
+            // Extract AWB from various possible fields
+            const awb = resData?.trackingId
+                || resData?.awb
+                || resData?.labelBarcodeNumber
+                || resData?.orderId
+                || (Array.isArray(resData) && resData[0]?.trackingId)
+                || (Array.isArray(resData) && resData[0]?.awb);
+
+            if (response.data?.status === 200 || response.data?.success || awb) {
                 return {
                     success: true,
-                    awbNumber: orderResult.trackingId || orderResult.labelBarcodeNumber,
+                    awbNumber: awb || '',
                     courierName: this.name,
                     rawResponse: response.data,
                 };
             }
 
-            // Check for errors
-            if (response.data?.errors && response.data.errors.length > 0) {
-                const error = response.data.errors[0];
-                return {
-                    success: false,
-                    courierName: this.name,
-                    error: error.errorMessage || 'Order creation failed',
-                    rawResponse: response.data,
-                };
-            }
+            // Check for errors in response
+            const errMsg = response.data?.message
+                || response.data?.errors?.[0]?.errorMessage
+                || response.data?.error
+                || 'Order creation failed';
 
             return {
                 success: false,
                 courierName: this.name,
-                error: 'Unknown response format',
+                error: errMsg,
                 rawResponse: response.data,
             };
         } catch (error: any) {
