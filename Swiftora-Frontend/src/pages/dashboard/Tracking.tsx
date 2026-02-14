@@ -209,20 +209,40 @@ const Tracking = () => {
   };
 
   const getStatusConfig = (status: string) => {
-    const statusLower = status?.toLowerCase() || "";
+    const statusLower = status?.toLowerCase()?.replace(/_/g, ' ') || "";
 
-    if (statusLower.includes("delivered")) {
+    if (statusLower.includes("delivered") && !statusLower.includes("undelivered") && !statusLower.includes("rto")) {
       return { bg: "bg-emerald-500", text: "text-white", icon: CheckCircle2, label: "Delivered", glow: "shadow-emerald-200" };
-    } else if (statusLower.includes("out for delivery")) {
-      return { bg: "bg-purple-500", text: "text-white", icon: Truck, label: "Out for Delivery", glow: "shadow-purple-200" };
-    } else if (statusLower.includes("transit") || statusLower.includes("dispatched")) {
-      return { bg: "bg-blue-500", text: "text-white", icon: Truck, label: "In Transit", glow: "shadow-blue-200" };
-    } else if (statusLower.includes("picked")) {
-      return { bg: "bg-indigo-500", text: "text-white", icon: Package, label: "Picked Up", glow: "shadow-indigo-200" };
-    } else if (statusLower.includes("manifest")) {
-      return { bg: "bg-amber-500", text: "text-white", icon: Package, label: "Manifested", glow: "shadow-amber-200" };
+    } else if (statusLower.includes("rto delivered") || statusLower.includes("rto_delivered")) {
+      return { bg: "bg-orange-600", text: "text-white", icon: Home, label: "RTO Delivered", glow: "shadow-orange-200" };
+    } else if (statusLower.includes("rto out for delivery") || statusLower.includes("rto_out_for_delivery")) {
+      return { bg: "bg-orange-500", text: "text-white", icon: Truck, label: "RTO Out for Delivery", glow: "shadow-orange-200" };
+    } else if (statusLower.includes("rto in transit") || statusLower.includes("rto_in_transit")) {
+      return { bg: "bg-orange-400", text: "text-white", icon: Truck, label: "RTO In Transit", glow: "shadow-orange-200" };
     } else if (statusLower.includes("rto") || statusLower.includes("return")) {
       return { bg: "bg-red-500", text: "text-white", icon: AlertCircle, label: "RTO", glow: "shadow-red-200" };
+    } else if (statusLower.includes("out for delivery")) {
+      return { bg: "bg-purple-500", text: "text-white", icon: Truck, label: "Out for Delivery", glow: "shadow-purple-200" };
+    } else if (statusLower.includes("undelivered")) {
+      return { bg: "bg-red-400", text: "text-white", icon: AlertTriangle, label: "Undelivered", glow: "shadow-red-200" };
+    } else if (statusLower.includes("transit") || statusLower.includes("dispatched")) {
+      return { bg: "bg-blue-500", text: "text-white", icon: Truck, label: "In Transit", glow: "shadow-blue-200" };
+    } else if (statusLower.includes("out for pickup")) {
+      return { bg: "bg-violet-500", text: "text-white", icon: Truck, label: "Out for Pickup", glow: "shadow-violet-200" };
+    } else if (statusLower.includes("not picked up")) {
+      return { bg: "bg-red-400", text: "text-white", icon: AlertTriangle, label: "Not Picked Up", glow: "shadow-red-200" };
+    } else if (statusLower.includes("picked")) {
+      return { bg: "bg-indigo-500", text: "text-white", icon: Package, label: "Picked Up", glow: "shadow-indigo-200" };
+    } else if (statusLower.includes("ready for dispatch") || statusLower.includes("manifest")) {
+      return { bg: "bg-amber-500", text: "text-white", icon: Package, label: "Ready to Ship", glow: "shadow-amber-200" };
+    } else if (statusLower.includes("in process") || statusLower.includes("processing")) {
+      return { bg: "bg-cyan-500", text: "text-white", icon: Package, label: "Processing", glow: "shadow-cyan-200" };
+    } else if (statusLower.includes("on hold") || statusLower.includes("hold")) {
+      return { bg: "bg-yellow-600", text: "text-white", icon: Clock, label: "On Hold", glow: "shadow-yellow-200" };
+    } else if (statusLower.includes("cancel")) {
+      return { bg: "bg-red-600", text: "text-white", icon: AlertCircle, label: "Cancelled", glow: "shadow-red-200" };
+    } else if (statusLower === "new" || statusLower.includes("order placed")) {
+      return { bg: "bg-sky-500", text: "text-white", icon: Package, label: "New Order", glow: "shadow-sky-200" };
     } else if (statusLower.includes("pending")) {
       return { bg: "bg-yellow-500", text: "text-white", icon: Clock, label: "Pending", glow: "shadow-yellow-200" };
     }

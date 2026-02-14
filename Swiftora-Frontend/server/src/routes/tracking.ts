@@ -9,7 +9,7 @@ import { innofulfillService } from '../services/courier/InnofulfillService.js';
 const router = Router();
 
 /**
- * Normalize Blitz/Xpressbees tracking response to Delhivery ShipmentData format
+ * Normalize Blitz/Xpressbees/Ekart/Innofulfill tracking response to Delhivery ShipmentData format
  * so the frontend can display it without any changes
  */
 function normalizeToShipmentData(courierResult: any, courier: string) {
@@ -49,18 +49,32 @@ function normalizeToShipmentData(courierResult: any, courier: string) {
     // Ekart response is keyed by shipment ID
     const shipmentData = raw ? Object.values(raw)[0] as any : null;
     if (shipmentData) {
-      origin = shipmentData.sender?.city || '';
-      destination = shipmentData.receiver?.city || shipmentData.customer?.city || '';
+      origin = shipmentData.sender?.city || shipmentData.sender?.address || '';
+      destination = shipmentData.receiver?.city || shipmentData.customer?.city || shipmentData.assigned_hub?.city || '';
       expectedDeliveryDate = shipmentData.expected_delivery_date || '';
       codAmount = parseFloat(shipmentData.cod_amount) || 0;
       referenceNo = shipmentData.order_id || '';
     }
-  } else if (courier === 'innofulfill' && raw?.data) {
-    const d = raw.data;
-    origin = d.pickupAddress?.city || '';
-    destination = d.shippingAddress?.city || '';
-    codAmount = d.paymentType === 'COD' ? (d.amount || 0) : 0;
-    referenceNo = d.originalOrderId || d.orderId || '';
+  } else if (courier === 'innofulfill') {
+    // Innofulfill tracking response — extract from data or orderStateInfo
+    const d = raw?.data || raw;
+    if (d) {
+      // Try address fields first, then fall back to state info locations
+      origin = d.pickupAddress?.city || d.pickupCity || d.pickupHub || '';
+      destination = d.shippingAddress?.city || d.deliveryCity || d.deliveryHub || '';
+
+      // If no origin/destination, try to extract from latest tracking event locations
+      if (!origin && events.length > 0) {
+        const lastEvent = events[events.length - 1];
+        origin = lastEvent?.location || '';
+      }
+      if (!destination && events.length > 0) {
+        destination = events[0]?.location || '';
+      }
+
+      codAmount = d.paymentType === 'COD' ? (d.amount || 0) : 0;
+      referenceNo = d.originalOrderId || d.originalOrderNumber || d.shipperOrderId || d.orderId || '';
+    }
   }
 
   return {
