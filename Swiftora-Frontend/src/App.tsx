@@ -44,7 +44,6 @@ import AdminUsers from "./pages/admin/Users";
 import AdminVendors from "./pages/admin/Vendors";
 import AdminOrders from "./pages/admin/Orders";
 import AdminTickets from "./pages/admin/Tickets";
-import AdminServices from "./pages/admin/Services";
 import AdminPayments from "./pages/admin/Payments";
 import AdminSettings from "./pages/admin/Settings";
 import AdminIntegrations from "./pages/admin/Integrations";
@@ -120,7 +119,6 @@ const App = () => (
             <Route path="vendors" element={<AdminVendors />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="tickets" element={<AdminTickets />} />
-            <Route path="services" element={<AdminServices />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="integrations" element={<AdminIntegrations />} />
             <Route path="settings" element={<AdminSettings />} />
