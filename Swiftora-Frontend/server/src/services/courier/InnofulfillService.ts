@@ -305,12 +305,13 @@ export class InnofulfillService implements ICourierService {
             const resData = response.data?.data || response.data;
 
             // Extract AWB from various possible fields
-            const awb = resData?.trackingId
-                || resData?.awb
+            const awb = resData?.awbNumber
+                || resData?.cAwbNumber
+                || resData?.trackingId
                 || resData?.labelBarcodeNumber
-                || resData?.orderId
-                || (Array.isArray(resData) && resData[0]?.trackingId)
-                || (Array.isArray(resData) && resData[0]?.awb);
+                || (Array.isArray(resData) && resData[0]?.awbNumber)
+                || (Array.isArray(resData) && resData[0]?.cAwbNumber)
+                || (Array.isArray(resData) && resData[0]?.trackingId);
 
             if (response.data?.status === 200 || response.data?.success || awb) {
                 return {
