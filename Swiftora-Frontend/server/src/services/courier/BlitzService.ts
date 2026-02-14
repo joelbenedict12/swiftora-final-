@@ -201,12 +201,27 @@ export class BlitzService implements ICourierService {
 
       const response = await client.post('/v1/waybill/', payload);
 
-      console.log('Blitz response:', JSON.stringify(response.data, null, 2));
+      console.log('Blitz response status:', response.status);
+      console.log('Blitz response data:', JSON.stringify(response.data, null, 2));
 
-      if (response.data.status === 'SUCCESS' && response.data.waybill) {
+      // Extract waybill from response - check multiple possible fields
+      const waybill = response.data.waybill || response.data.awb || response.data.trackingId || response.data.shipmentId;
+
+      if (response.data.status === 'SUCCESS' && waybill) {
         return {
           success: true,
-          awbNumber: response.data.waybill,
+          awbNumber: waybill,
+          courierName: 'BLITZ',
+          labelUrl: response.data.shippingLabel,
+          rawResponse: response.data,
+        };
+      } else if (waybill) {
+        // Blitz created the order but returned a non-SUCCESS status (e.g. serviceability warning)
+        // Still capture the AWB since the order exists on their dashboard
+        console.warn(`Blitz returned non-SUCCESS but has waybill: ${waybill}. Message: ${response.data.message}`);
+        return {
+          success: true,
+          awbNumber: waybill,
           courierName: 'BLITZ',
           labelUrl: response.data.shippingLabel,
           rawResponse: response.data,
@@ -221,6 +236,22 @@ export class BlitzService implements ICourierService {
       }
     } catch (error: any) {
       console.error('Blitz createShipment error:', error.response?.data || error.message);
+      console.error('Blitz error status:', error.response?.status);
+      console.error('Blitz full error response:', JSON.stringify(error.response?.data));
+
+      // Check if error response still contains a waybill (Blitz sometimes creates the order but returns 4xx)
+      const errData = error.response?.data;
+      const waybill = errData?.waybill || errData?.awb || errData?.trackingId || errData?.shipmentId;
+      if (waybill) {
+        console.warn(`Blitz returned error but has waybill: ${waybill}`);
+        return {
+          success: true,
+          awbNumber: waybill,
+          courierName: 'BLITZ',
+          rawResponse: errData,
+        };
+      }
+
       return {
         success: false,
         courierName: 'BLITZ',
