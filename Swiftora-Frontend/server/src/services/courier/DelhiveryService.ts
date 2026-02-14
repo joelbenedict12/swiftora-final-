@@ -269,11 +269,18 @@ export class DelhiveryService implements ICourierService {
 
       console.log('Delhivery cancel response:', JSON.stringify(response.data, null, 2));
 
-      if (response.data?.status === 'Success' || response.data?.success) {
-        return {
-          success: true,
-          message: 'Shipment cancelled successfully',
-        };
+      // Delhivery can return status: true (boolean) or status: 'Success' (string)
+      const ok =
+        response.data?.status === 'Success' ||
+        response.data?.status === true ||
+        response.data?.success === true;
+      // Also treat "already cancelled" as success so we can update our DB when user retries
+      const remark = (response.data?.remark || response.data?.message || '').toString().toLowerCase();
+      const alreadyCancelled = remark.includes('cancelled') && (remark.includes('already') || response.data?.status === true);
+
+      if (ok || alreadyCancelled) {
+        const msg = response.data?.remark || response.data?.message || 'Shipment cancelled successfully';
+        return { success: true, message: msg };
       }
 
       return {
