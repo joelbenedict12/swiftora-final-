@@ -175,13 +175,14 @@ export class InnofulfillService implements ICourierService {
      */
     async createShipment(request: CreateShipmentRequest): Promise<CreateShipmentResponse> {
         try {
-            const client = await this.getClient();
+            // Force fresh login for booking requests
+            console.log('INNOFULFILL: Forcing fresh login for booking...');
+            const token = await this.login();
             const now = this.formatDate();
 
             console.log('=== INNOFULFILL CREATE SHIPMENT ===');
-            console.log('Request:', JSON.stringify(request, null, 2));
 
-            // Build Innofulfill order payload - EXACT match to API docs
+            // Build Innofulfill order payload
             const pickupPhone = this.sanitizePhone(request.pickupPhone);
             const customerPhone = this.sanitizePhone(request.customerPhone);
             const weightInGrams = Math.round((request.weight || 0.5) * 1000);
@@ -280,15 +281,8 @@ export class InnofulfillService implements ICourierService {
 
             console.log('INNOFULFILL Payload:', JSON.stringify(payload, null, 2));
 
-            // Force fresh login to ensure we have valid production token
-            console.log('INNOFULFILL: Forcing fresh login for booking...');
-            const token = await this.login();
             const bookingUrl = `${this.baseUrl}/booking/order/`;
-            const authHeader = `Bearer ${token}`;
-
-            console.log('INNOFULFILL: === REQUEST DEBUG ===');
             console.log('INNOFULFILL: Booking URL:', bookingUrl);
-            console.log('INNOFULFILL: Full Auth Header:', authHeader);
 
             const response = await axios.post(
                 bookingUrl,
@@ -296,8 +290,7 @@ export class InnofulfillService implements ICourierService {
                 {
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': authHeader,
-                        'async': 'false',
+                        'Authorization': `Bearer ${token}`,
                     },
                 }
             );
@@ -333,15 +326,11 @@ export class InnofulfillService implements ICourierService {
                 rawResponse: response.data,
             };
         } catch (error: any) {
-            console.error('INNOFULFILL: ======= DETAILED ERROR DEBUG =======');
+            console.error('INNOFULFILL: ======= ERROR DEBUG =======');
             console.error('INNOFULFILL: Error message:', error.message);
             console.error('INNOFULFILL: Error status:', error.response?.status);
-            console.error('INNOFULFILL: Error status text:', error.response?.statusText);
             console.error('INNOFULFILL: Error response data:', JSON.stringify(error.response?.data, null, 2));
-            console.error('INNOFULFILL: Error response headers:', JSON.stringify(error.response?.headers, null, 2));
             console.error('INNOFULFILL: Request URL:', error.config?.url);
-            console.error('INNOFULFILL: Request method:', error.config?.method);
-            console.error('INNOFULFILL: Request headers sent:', JSON.stringify(error.config?.headers, null, 2));
             console.error('INNOFULFILL: ======= END ERROR DEBUG =======');
 
             return {
