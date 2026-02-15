@@ -16,6 +16,18 @@ import {
 } from '../services/courier/index.js';
 import { calculateVendorPrice } from '../services/PricingEngine.js';
 import * as WalletService from '../services/WalletService.js';
+import { A4LabelService, A4LabelData } from '../services/A4LabelService.js';
+
+const BASE_URL = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftora.co';
+const COURIER_LOGO: Record<string, string> = {
+  DELHIVERY: `${BASE_URL}/delhivery-logo.webp`,
+  BLITZ: `${BASE_URL}/placeholder.svg`,
+  EKART: `${BASE_URL}/ekart-logo.svg`,
+  XPRESSBEES: `${BASE_URL}/xpresssbees.png`,
+  INNOFULFILL: `${BASE_URL}/innofullfil.png`,
+};
+const DEFAULT_RETURN_ADDRESS =
+  '1664, Ground Floor, 41st Cross, 18th Main Road, Opposite to GNR Kalyana Mantapa, Jayanagar 4th T Block, Bengaluru, Karnataka, India, 560041';
 
 const router = Router();
 
@@ -1034,6 +1046,77 @@ router.post('/:id/delhivery/select-service', async (req: AuthRequest, res, next)
       message: `Selected ${service_name} for order`,
       order: updated,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A4 shipping label for any courier (unified)
+router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) {
+      throw new AppError(400, 'Merchant account required');
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user.merchantId,
+      },
+      include: { merchant: true },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (!order.awbNumber) {
+      throw new AppError(400, 'Order has no AWB number');
+    }
+
+    const merchant = order.merchant;
+    const sellerAddress = [merchant?.address, merchant?.city, merchant?.state, merchant?.pincode]
+      .filter(Boolean)
+      .join(', ') || 'India';
+    const returnAddress = merchant?.address
+      ? [merchant.address, merchant.city, merchant.state, merchant.pincode].filter(Boolean).join(', ')
+      : DEFAULT_RETURN_ADDRESS;
+
+    const paymentMode = order.paymentMode === 'COD' ? 'COD' : 'Pre-paid';
+    const amount = order.codAmount && Number(order.codAmount) > 0
+      ? String(order.codAmount)
+      : String(order.productValue);
+    const courierName = (order.courierName || 'DELHIVERY').toUpperCase();
+    const labelData: A4LabelData = {
+      awb: order.awbNumber,
+      internalCode: order.orderNumber,
+      courierLogo: COURIER_LOGO[courierName] || COURIER_LOGO.DELHIVERY,
+      destinationPincode: order.shippingPincode,
+      routingCode: order.trackingStatus || '—',
+      consigneeName: order.customerName,
+      address: order.shippingAddress,
+      city: order.shippingCity,
+      state: order.shippingState,
+      pincode: order.shippingPincode,
+      phone: order.customerPhone,
+      paymentMode,
+      serviceType: order.deliveryType || 'Surface',
+      amount,
+      sellerName: merchant?.companyName || 'Seller',
+      sellerAddress,
+      gst: merchant?.gstNumber || '—',
+      date: new Date().toISOString().slice(0, 10),
+      product: `${order.productName} (${order.quantity})`,
+      returnAddress,
+    };
+
+    const pdfBuffer = await A4LabelService.generateA4ShippingLabel(labelData);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="label-${order.awbNumber}.pdf"`
+    );
+    res.send(pdfBuffer);
   } catch (error) {
     next(error);
   }

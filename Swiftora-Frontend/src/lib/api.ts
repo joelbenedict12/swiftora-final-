@@ -185,6 +185,10 @@ export const ordersApi = {
   getDelhiveryLabel: (orderId: string, size?: '4R' | 'A4') =>
     api.get(`/orders/${orderId}/delhivery/label`, { params: { size } }),
 
+  /** A4 shipping label PDF for any courier */
+  getShippingLabelPdf: (orderId: string) =>
+    api.get(`/orders/${orderId}/shipping-label`, { responseType: 'blob' }),
+
   createDelhiveryPickup: (params: {
     warehouseId: string;
     pickupDate: string;

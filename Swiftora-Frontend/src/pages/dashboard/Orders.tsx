@@ -58,6 +58,7 @@ import {
   Loader2,
   Calendar,
   AlertTriangle,
+  FileDown,
 } from "lucide-react";
 import { ordersApi, warehousesApi, ticketsApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
@@ -216,6 +217,7 @@ const Orders = () => {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<Order | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [generatingLabelId, setGeneratingLabelId] = useState<string | null>(null);
 
   // Generate next 3 available weekdays from today
   const getAvailablePickupDates = () => {
@@ -575,6 +577,29 @@ const Orders = () => {
     }
   };
 
+  const handleGenerateShippingLabel = async (order: Order) => {
+    if (!order.awbNumber) {
+      toast.error("Order has no AWB yet");
+      return;
+    }
+    try {
+      setGeneratingLabelId(order.id);
+      const response = await ordersApi.getShippingLabelPdf(order.id);
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `label-${order.awbNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Shipping label downloaded");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.response?.data?.error || "Failed to generate label");
+    } finally {
+      setGeneratingLabelId(null);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
     loadWarehouses();
@@ -860,6 +885,20 @@ const Orders = () => {
                             <DropdownMenuItem className="gap-2">
                               <Truck className="h-4 w-4" />
                               Track Shipment
+                            </DropdownMenuItem>
+                          )}
+                          {order.awbNumber && (
+                            <DropdownMenuItem
+                              onClick={() => handleGenerateShippingLabel(order)}
+                              disabled={generatingLabelId === order.id}
+                              className="gap-2"
+                            >
+                              {generatingLabelId === order.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4" />
+                              )}
+                              Generate Shipping Label
                             </DropdownMenuItem>
                           )}
                           {order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
