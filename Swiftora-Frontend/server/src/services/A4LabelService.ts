@@ -1,11 +1,16 @@
 /**
  * A4 Professional Shipping Label Service
  * Generates unified A4 PDF labels for all couriers (Delhivery, Blitz, Ekart, Xpressbees, Innofulfill).
- * Uses Code128 barcodes (bwip-js) and Puppeteer for HTML → PDF.
+ * Uses Code128 barcodes (bwip-js) and Puppeteer (puppeteer-core + @sparticuz/chromium) for HTML → PDF.
+ * @sparticuz/chromium provides a bundled Chromium so PDF generation works on serverless/Render without system Chrome.
  */
 
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import bwipjs from 'bwip-js';
+
+// Disable WebGL so serverless Chromium works without GPU (recommended for Render/Lambda).
+chromium.setGraphicsMode = false;
 
 const BASE_URL = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftora.co';
 
@@ -150,8 +155,10 @@ export class A4LabelService {
     const html = this.generateHTML(orderData, barcode1, barcode2);
 
     const browser = await puppeteer.launch({
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+      defaultViewport: { width: 794, height: 1123 }, // A4 @ 96dpi
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     try {
       const page = await browser.newPage();
