@@ -42,8 +42,8 @@ export class A4LabelService {
     const buffer = await bwipjs.toBuffer({
       bcid: 'code128',
       text,
-      scale: 3,
-      height: 12,
+      scale: 2,
+      height: 8,
       includetext: true,
       textxalign: 'center',
     });
@@ -59,38 +59,38 @@ export class A4LabelService {
   <meta charset="UTF-8">
   <style>
     * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; margin: 0; padding: 16px; font-size: 12px; color: #000; }
-    .box { border: 2px solid #000; padding: 12px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .header img { max-height: 48px; object-fit: contain; }
-    .barcode-block { text-align: center; margin: 12px 0; }
-    .barcode-block img { max-width: 60%; height: auto; }
-    .pincode-row { display: flex; justify-content: space-between; font-weight: bold; margin: 8px 0; }
-    hr { border: none; border-top: 1px solid #000; margin: 10px 0; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 8px; font-size: 10px; color: #000; line-height: 1.25; }
+    .box { border: 2px solid #000; padding: 8px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .header img { max-height: 36px; object-fit: contain; }
+    .barcode-block { text-align: center; margin: 4px 0; }
+    .barcode-block img { max-width: 55%; height: auto; }
+    .barcode-label { text-align: center; margin: 0 0 2px 0; font-weight: bold; font-size: 9px; }
+    .pincode-row { display: flex; justify-content: space-between; font-weight: bold; margin: 2px 0; font-size: 9px; }
+    hr { border: none; border-top: 1px solid #000; margin: 4px 0; }
     .two-col { display: flex; }
-    .two-col .left { width: 70%; padding-right: 12px; }
-    .two-col .right { width: 30%; border-left: 1px solid #000; padding-left: 12px; }
-    .seller-row { display: flex; margin: 10px 0; }
+    .two-col .left { width: 70%; padding-right: 8px; font-size: 10px; line-height: 1.3; }
+    .two-col .right { width: 30%; border-left: 1px solid #000; padding-left: 8px; font-size: 10px; line-height: 1.3; }
+    .seller-row { display: flex; margin: 4px 0; font-size: 9px; line-height: 1.3; }
     .seller-row .left { width: 70%; }
     .seller-row .right { width: 30%; text-align: right; }
-    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-    th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 11px; }
+    table { width: 100%; border-collapse: collapse; margin: 4px 0; font-size: 9px; }
+    th, td { border: 1px solid #000; padding: 3px 6px; text-align: left; }
     th { font-weight: bold; background: #f0f0f0; }
-    .return { margin-top: 12px; padding-top: 8px; border-top: 1px solid #000; font-size: 11px; }
+    .return { margin-top: 4px; padding-top: 4px; border-top: 1px solid #000; font-size: 9px; line-height: 1.25; }
   </style>
 </head>
 <body>
   <div class="box">
     <div class="header">
-      <img src="${BASE_URL}/new-logo.jpg" alt="Swiftora" height="50" />
-      <img src="${data.courierLogo}" alt="Courier" height="40" />
+      <img src="${BASE_URL}/new-logo.jpg" alt="Swiftora" height="36" />
+      <img src="${data.courierLogo}" alt="Courier" height="32" />
     </div>
 
     <div class="barcode-block">
       <img src="data:image/png;base64,${barcode1}" alt="AWB" />
     </div>
-    <p style="text-align:center; margin:4px 0; font-weight:bold;">${data.awb}</p>
-
+    <p class="barcode-label">${data.awb}</p>
     <div class="pincode-row">
       <span>${data.destinationPincode}</span>
       <span>${data.routingCode}</span>
@@ -108,8 +108,7 @@ export class A4LabelService {
         Phone: ${escapeHtml(data.phone)}
       </div>
       <div class="right">
-        <b>${escapeHtml(data.paymentMode)}</b><br/>
-        ${escapeHtml(data.serviceType)}<br/><br/>
+        <b>${escapeHtml(data.paymentMode)}</b> ${escapeHtml(data.serviceType)}<br/>
         INR ${amount}
       </div>
     </div>
@@ -139,7 +138,7 @@ export class A4LabelService {
     <div class="barcode-block">
       <img src="data:image/png;base64,${barcode2}" alt="Internal" />
     </div>
-    <p style="text-align:center; margin:4px 0; font-size:10px;">${escapeHtml(data.internalCode)}</p>
+    <p class="barcode-label">${escapeHtml(data.internalCode)}</p>
 
     <div class="return">
       <strong>Return Address:</strong> ${escapeHtml(data.returnAddress)}
@@ -166,7 +165,7 @@ export class A4LabelService {
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        margin: { top: '6mm', right: '6mm', bottom: '6mm', left: '6mm' },
       });
       return Buffer.from(pdf);
     } finally {
