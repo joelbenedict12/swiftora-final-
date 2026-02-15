@@ -399,16 +399,23 @@ export class XpressbeesService implements ICourierService {
         }
     }
 
+    /**
+     * Cancel shipment via Xpressbees API.
+     * POST /api/shipments2/cancel with body { "awb": "<awb_number>" }
+     */
     async cancelShipment(request: CancelShipmentRequest): Promise<CancelShipmentResponse> {
         try {
             const client = await this.getClient();
-            const response = await client.post('/api/shipments/cancel', {
-                awb_number: request.awbNumber,
-                order_number: request.orderNumber,
+            const response = await client.post('/api/shipments2/cancel', {
+                awb: request.awbNumber,
             });
-            return { success: response.data?.status === true, message: response.data?.message || 'Cancelled' };
+            return {
+                success: response.data?.status === true,
+                message: response.data?.message || 'Shipment Cancelled',
+            };
         } catch (error: any) {
-            return { success: false, error: error.message };
+            const msg = error.response?.data?.message || error.message;
+            return { success: false, error: msg };
         }
     }
 
