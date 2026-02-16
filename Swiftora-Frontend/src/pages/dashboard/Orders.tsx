@@ -50,7 +50,6 @@ import {
   Plus,
   MoreHorizontal,
   Send,
-  FileText,
   XCircle,
   Building,
   Zap,
@@ -227,8 +226,8 @@ const Orders = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [generatingLabelId, setGeneratingLabelId] = useState<string | null>(null);
 
-  // Order details panel (inline)
-  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
+  // Per-row order details (accordion)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderDetailsFull, setOrderDetailsFull] = useState<Order | null>(null);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
 
@@ -269,6 +268,30 @@ const Orders = () => {
     "Morning": "10:00:00 - 13:00:00",
     "Afternoon": "13:00:00 - 16:00:00",
     "Evening": "14:00:00 - 18:00:00",
+  };
+
+  // Toggle accordion row with order details (reuses existing GET /orders/:id logic)
+  const toggleOrderDetails = async (order: Order) => {
+    // Collapse if already expanded
+    if (expandedOrderId === order.id) {
+      setExpandedOrderId(null);
+      setOrderDetailsFull(null);
+      return;
+    }
+
+    setExpandedOrderId(order.id);
+    setLoadingOrderDetails(true);
+    setOrderDetailsFull(null);
+
+    try {
+      const res = await ordersApi.get(order.id);
+      const full = res.data as Order;
+      setOrderDetailsFull(full);
+    } catch {
+      // If fetch fails, we still show basic list data
+    } finally {
+      setLoadingOrderDetails(false);
+    }
   };
 
   // Show pickup dialog after successful ship
@@ -702,21 +725,6 @@ const Orders = () => {
     }
   };
 
-  const openDetailsModal = async (order: Order) => {
-    setSelectedOrderForDetails(order);
-    setOrderDetailsFull(null);
-    setLoadingOrderDetails(true);
-    try {
-      const res = await ordersApi.get(order.id);
-      const full = res.data as Order;
-      setOrderDetailsFull(full);
-    } catch {
-      // Keep showing list data if fetch fails
-    } finally {
-      setLoadingOrderDetails(false);
-    }
-  };
-
   const handleGenerateShippingLabel = async (order: Order) => {
     if (!order.awbNumber) {
       toast.error("Order has no AWB yet");
@@ -898,8 +906,16 @@ const Orders = () => {
                 </TableRow>
               )}
               {!isLoading &&
-                filtered.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-muted/50">
+                filtered.map((order) => {
+                  const isExpanded = expandedOrderId === order.id;
+                  const details = orderDetailsFull && orderDetailsFull.id === order.id ? orderDetailsFull : order;
+
+                  return [
+                    <TableRow
+                      key={order.id}
+                      className="hover:bg-muted/50 cursor-pointer align-top"
+                      onClick={() => toggleOrderDetails(order)}
+                    >
                     <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
                     <TableCell>
                       <div className="font-medium">{order.customerName || "-"}</div>
@@ -943,7 +959,11 @@ const Orders = () => {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -1035,13 +1055,6 @@ const Orders = () => {
                               Edit Order
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            className="gap-2"
-                            onClick={() => openDetailsModal(order)}
-                          >
-                            <FileText className="h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
                           {order.awbNumber && (
                             <DropdownMenuItem className="gap-2">
                               <Truck className="h-4 w-4" />
@@ -1081,165 +1094,141 @@ const Orders = () => {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  </TableRow>
-                ))}
+                  </TableRow>,
+                    isExpanded && (
+                      <TableRow key={`${order.id}-details`} className="bg-muted/40">
+                        <TableCell colSpan={9}>
+                          {loadingOrderDetails ? (
+                            <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              <span>Loading details...</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 py-2">
+                              <div className="grid gap-3 rounded-lg border p-4 bg-muted/40">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs uppercase text-muted-foreground">Order</p>
+                                    <p className="font-semibold text-sm">
+                                      {details.orderNumber}
+                                    </p>
+                                  </div>
+                                  <div className="text-right text-xs text-muted-foreground">
+                                    <p>Created</p>
+                                    <p className="font-medium">
+                                      {details.createdAt
+                                        ? new Date(details.createdAt!).toLocaleString()
+                                        : "-"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <p className="text-xs uppercase text-muted-foreground mb-1">Customer</p>
+                                    <p className="font-medium">{details.customerName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {details.customerPhone || "-"}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs uppercase text-muted-foreground mb-1">Courier / AWB</p>
+                                    <p className="font-medium">
+                                      {details.courierName || "Not shipped"}
+                                    </p>
+                                    <p className="text-xs font-mono text-muted-foreground">
+                                      {details.awbNumber || "-"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <p className="text-xs uppercase text-muted-foreground mb-1">Status</p>
+                                    <Badge variant={statusBadgeVariant(details.status)} className="capitalize">
+                                      {formatStatus(details.status)}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs uppercase text-muted-foreground mb-1">Payment</p>
+                                    <p className="font-medium">
+                                      {details.paymentMode === "COD"
+                                        ? `COD • ₹${Number(details.codAmount || 0).toFixed(2)}`
+                                        : "Prepaid"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="text-sm">
+                                  <p className="text-xs uppercase text-muted-foreground mb-1">Shipping mode</p>
+                                  <p className="font-medium">
+                                    {details.deliveryType || "—"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {details.warehouse && (
+                                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                                  <p className="text-xs uppercase text-muted-foreground flex items-center gap-1">
+                                    <Building className="h-3 w-3" />
+                                    Pickup location
+                                  </p>
+                                  <p className="font-medium">
+                                    {details.warehouse?.name || "-"}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {[
+                                      details.warehouse?.address,
+                                      details.warehouse?.city,
+                                      details.warehouse?.state,
+                                      details.warehouse?.pincode,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ") || "—"}
+                                  </p>
+                                  {details.warehouse?.phone && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Phone: {details.warehouse.phone}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="rounded-lg border p-4 space-y-2 text-sm">
+                                <p className="text-xs uppercase text-muted-foreground flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  Delivery (Ship To)
+                                </p>
+                                <p className="font-medium">{details.customerName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {details.shippingAddress || "—"}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {[
+                                    details.shippingCity,
+                                    details.shippingState,
+                                    details.shippingPincode,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(", ") || "—"}
+                                </p>
+                                {details.customerPhone && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Phone: {details.customerPhone}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ),
+                  ];
+                })}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-
-      {/* Inline Order Details panel (replaces modal) */}
-      {selectedOrderForDetails && (
-        <div className="max-w-2xl mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Order Details
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Quick summary of order, shipment, and payment information.
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setSelectedOrderForDetails(null);
-                setOrderDetailsFull(null);
-              }}
-            >
-              <XCircle className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {loadingOrderDetails ? (
-            <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Loading details...</span>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-3 rounded-lg border p-4 bg-muted/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Order</p>
-                    <p className="font-semibold text-sm">
-                      {(orderDetailsFull || selectedOrderForDetails).orderNumber}
-                    </p>
-                  </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <p>Created</p>
-                    <p className="font-medium">
-                      {(orderDetailsFull || selectedOrderForDetails).createdAt
-                        ? new Date((orderDetailsFull || selectedOrderForDetails).createdAt!).toLocaleString()
-                        : "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground mb-1">Customer</p>
-                    <p className="font-medium">{(orderDetailsFull || selectedOrderForDetails).customerName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(orderDetailsFull || selectedOrderForDetails).customerPhone || "-"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase text-muted-foreground mb-1">Courier / AWB</p>
-                    <p className="font-medium">
-                      {(orderDetailsFull || selectedOrderForDetails).courierName || "Not shipped"}
-                    </p>
-                    <p className="text-xs font-mono text-muted-foreground">
-                      {(orderDetailsFull || selectedOrderForDetails).awbNumber || "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground mb-1">Status</p>
-                    <Badge
-                      variant={statusBadgeVariant((orderDetailsFull || selectedOrderForDetails).status)}
-                      className="capitalize"
-                    >
-                      {formatStatus((orderDetailsFull || selectedOrderForDetails).status)}
-                    </Badge>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase text-muted-foreground mb-1">Payment</p>
-                    <p className="font-medium">
-                      {(orderDetailsFull || selectedOrderForDetails).paymentMode === "COD"
-                        ? `COD • ₹${Number((orderDetailsFull || selectedOrderForDetails).codAmount || 0).toFixed(2)}`
-                        : "Prepaid"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-sm">
-                  <p className="text-xs uppercase text-muted-foreground mb-1">Shipping mode</p>
-                  <p className="font-medium">
-                    {(orderDetailsFull || selectedOrderForDetails).deliveryType || "—"}
-                  </p>
-                </div>
-              </div>
-
-              {(orderDetailsFull?.warehouse || selectedOrderForDetails?.warehouse) && (
-                <div className="rounded-lg border p-4 space-y-2 text-sm">
-                  <p className="text-xs uppercase text-muted-foreground flex items-center gap-1">
-                    <Building className="h-3 w-3" />
-                    Pickup location
-                  </p>
-                  <p className="font-medium">
-                    {(orderDetailsFull || selectedOrderForDetails).warehouse?.name || "-"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {[
-                      (orderDetailsFull || selectedOrderForDetails).warehouse?.address,
-                      (orderDetailsFull || selectedOrderForDetails).warehouse?.city,
-                      (orderDetailsFull || selectedOrderForDetails).warehouse?.state,
-                      (orderDetailsFull || selectedOrderForDetails).warehouse?.pincode,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "—"}
-                  </p>
-                  {(orderDetailsFull || selectedOrderForDetails).warehouse?.phone && (
-                    <p className="text-xs text-muted-foreground">
-                      Phone: {(orderDetailsFull || selectedOrderForDetails).warehouse?.phone}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div className="rounded-lg border p-4 space-y-2 text-sm">
-                <p className="text-xs uppercase text-muted-foreground flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  Delivery (Ship To)
-                </p>
-                <p className="font-medium">{(orderDetailsFull || selectedOrderForDetails).customerName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {(orderDetailsFull || selectedOrderForDetails).shippingAddress || "—"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {[
-                    (orderDetailsFull || selectedOrderForDetails).shippingCity,
-                    (orderDetailsFull || selectedOrderForDetails).shippingState,
-                    (orderDetailsFull || selectedOrderForDetails).shippingPincode,
-                  ]
-                    .filter(Boolean)
-                    .join(", ") || "—"}
-                </p>
-                {(orderDetailsFull || selectedOrderForDetails).customerPhone && (
-                  <p className="text-xs text-muted-foreground">
-                    Phone: {(orderDetailsFull || selectedOrderForDetails).customerPhone}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Assign Pickup Location Modal */}
       <Dialog open={showPickupModal} onOpenChange={setShowPickupModal}>
