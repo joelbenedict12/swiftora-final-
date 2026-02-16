@@ -1073,7 +1073,7 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
         id: req.params.id,
         merchantId: req.user.merchantId,
       },
-      include: { merchant: true },
+      include: { merchant: true, warehouse: true },
     });
 
     if (!order) {
@@ -1085,6 +1085,18 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
     }
 
     const merchant = order.merchant;
+    const warehouse = order.warehouse;
+
+    // Prefer pickup location (warehouse) for seller + return on the label when available.
+    const warehouseAddressParts = warehouse
+      ? [
+          warehouse.address,
+          warehouse.city,
+          warehouse.state,
+          warehouse.pincode,
+        ].filter((part) => part && String(part).toLowerCase() !== 'null')
+      : [];
+
     const merchantAddressParts = [
       merchant?.address,
       merchant?.city,
@@ -1092,15 +1104,19 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
       merchant?.pincode,
     ].filter((part) => part && String(part).toLowerCase() !== 'null');
 
-    // If merchant has a proper address saved, use that for both seller + return.
-    // Otherwise, fall back to our default Swiftora return address so we never show just "India" or "null".
     const resolvedAddress =
-      merchantAddressParts.length > 0
-        ? merchantAddressParts.join(', ')
-        : DEFAULT_RETURN_ADDRESS;
+      warehouseAddressParts.length > 0
+        ? warehouseAddressParts.join(', ')
+        : merchantAddressParts.length > 0
+          ? merchantAddressParts.join(', ')
+          : DEFAULT_RETURN_ADDRESS;
 
     const sellerAddress = resolvedAddress;
     const returnAddress = resolvedAddress;
+    const sellerName =
+      warehouseAddressParts.length > 0 && warehouse?.name
+        ? warehouse.name
+        : merchant?.companyName || 'Seller';
 
     const paymentMode = order.paymentMode === 'COD' ? 'COD' : 'Pre-paid';
     const amount = order.codAmount && Number(order.codAmount) > 0
@@ -1122,7 +1138,7 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
       paymentMode,
       serviceType: order.deliveryType || 'Surface',
       amount,
-      sellerName: merchant?.companyName || 'Seller',
+      sellerName,
       sellerAddress,
       gst: merchant?.gstNumber || '—',
       date: new Date().toISOString().slice(0, 10),
