@@ -95,6 +95,7 @@ interface B2CFormData {
   paymentMode: "prepaid" | "cod";
   codAmount: string;
   giftWrap: boolean;
+  warehouseId?: string;
 }
 
 interface B2BFormData {
@@ -206,7 +207,9 @@ const B2CFastForm = ({
         const warehouseList = response.data || [];
         setWarehouses(warehouseList);
         if (warehouseList.length > 0) {
-          setSelectedWarehouse(warehouseList[0].id);
+          const firstId = warehouseList[0].id;
+          setSelectedWarehouse(firstId);
+          setFormData((prev) => ({ ...prev, warehouseId: firstId }));
         }
       } catch (error) {
         console.error('Failed to load warehouses:', error);
@@ -684,7 +687,13 @@ const B2CFastForm = ({
                     </div>
                   ) : (
                     <>
-                      <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+                      <Select
+                        value={selectedWarehouse}
+                        onValueChange={(id) => {
+                          setSelectedWarehouse(id);
+                          setFormData((prev) => ({ ...prev, warehouseId: id }));
+                        }}
+                      >
                         <SelectTrigger className="border-blue-200 focus:border-blue-500 h-9">
                           <SelectValue placeholder="Select Facility" />
                         </SelectTrigger>
@@ -2657,7 +2666,7 @@ const CreateOrder = () => {
         height: b2cData.boxes[0]?.height ? Number(b2cData.boxes[0].height) : undefined,
         paymentMode: b2cData.paymentMode.toUpperCase(),
         codAmount: b2cData.paymentMode === 'cod' ? Number(b2cData.codAmount) || 0 : undefined,
-        warehouseId: "default",
+        warehouseId: b2cData.warehouseId || undefined,
         isB2B: false,
       } : {
         // B2B Order
@@ -2682,7 +2691,7 @@ const CreateOrder = () => {
         deliveryType: b2bData.deliveryType || undefined,
         slotDate: b2bData.slotDate || undefined,
         slotTime: b2bData.slotTime || undefined,
-        warehouseId: b2bData.warehouseLocation || "default",
+        warehouseId: b2bData.warehouseLocation || undefined,
         isB2B: true,
       };
 

@@ -81,6 +81,8 @@ const PickupPage = () => {
   const [isSyncingFromDelhivery, setIsSyncingFromDelhivery] = useState(false);
   const [delhiveryConnected, setDelhiveryConnected] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [newPickup, setNewPickup] = useState({
     name: "",
     address: "",
@@ -214,12 +216,55 @@ const PickupPage = () => {
     toast.success("Pickup scheduled successfully");
   };
 
-  const handleEditAddress = (addressId: string) => {
-    toast.info(`Edit address ${addressId} - Feature coming soon`);
+  const handleEditAddress = (warehouse: Warehouse) => {
+    setEditingWarehouse({ ...warehouse, email: warehouse.email ?? "" });
   };
 
-  const handleSetDefault = (addressId: string) => {
-    toast.success(`Address ${addressId} set as default`);
+  const handleSaveEdit = async () => {
+    if (!editingWarehouse) return;
+    if (!editingWarehouse.name || !editingWarehouse.address || !editingWarehouse.pincode || !editingWarehouse.city || !editingWarehouse.state || !editingWarehouse.phone) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      await warehousesApi.update(editingWarehouse.id, {
+        name: editingWarehouse.name,
+        address: editingWarehouse.address,
+        pincode: editingWarehouse.pincode,
+        city: editingWarehouse.city,
+        state: editingWarehouse.state,
+        phone: editingWarehouse.phone,
+        email: editingWarehouse.email || undefined,
+      });
+      toast.success("Pickup location updated");
+      setEditingWarehouse(null);
+      loadWarehouses();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleSetDefault = async (addressId: string) => {
+    try {
+      await warehousesApi.update(addressId, { isDefault: true });
+      toast.success("Set as default pickup location");
+      loadWarehouses();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to set default");
+    }
+  };
+
+  const handleRemoveDefault = async (addressId: string) => {
+    try {
+      await warehousesApi.update(addressId, { isDefault: false });
+      toast.success("Default removed. You can set another location as default.");
+      loadWarehouses();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to remove default");
+    }
   };
 
   const handleDeleteAddress = async (addressId: string) => {
@@ -381,6 +426,106 @@ const PickupPage = () => {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Pickup Address Dialog */}
+          <Dialog open={!!editingWarehouse} onOpenChange={(open) => !open && setEditingWarehouse(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Edit Pickup Address</DialogTitle>
+                <DialogDescription>
+                  Update this pickup location
+                </DialogDescription>
+              </DialogHeader>
+              {editingWarehouse && (
+                <div className="space-y-4 py-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Location Name</label>
+                    <Input
+                      placeholder="e.g., Main Warehouse"
+                      value={editingWarehouse.name}
+                      onChange={(e) =>
+                        setEditingWarehouse({ ...editingWarehouse, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Address</label>
+                    <Input
+                      placeholder="Street address"
+                      value={editingWarehouse.address}
+                      onChange={(e) =>
+                        setEditingWarehouse({ ...editingWarehouse, address: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Pincode</label>
+                      <Input
+                        placeholder="400001"
+                        value={editingWarehouse.pincode}
+                        onChange={(e) =>
+                          setEditingWarehouse({ ...editingWarehouse, pincode: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">City</label>
+                      <Input
+                        placeholder="Mumbai"
+                        value={editingWarehouse.city}
+                        onChange={(e) =>
+                          setEditingWarehouse({ ...editingWarehouse, city: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">State</label>
+                    <Input
+                      placeholder="Maharashtra"
+                      value={editingWarehouse.state}
+                      onChange={(e) =>
+                        setEditingWarehouse({ ...editingWarehouse, state: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Phone</label>
+                      <Input
+                        placeholder="+91 98765 43210"
+                        value={editingWarehouse.phone}
+                        onChange={(e) =>
+                          setEditingWarehouse({ ...editingWarehouse, phone: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Email</label>
+                      <Input
+                        type="email"
+                        placeholder="warehouse@company.com"
+                        value={editingWarehouse.email || ""}
+                        onChange={(e) =>
+                          setEditingWarehouse({ ...editingWarehouse, email: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+                      {isSavingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Save changes
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditingWarehouse(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -434,11 +579,19 @@ const PickupPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleEditAddress(address.id)}
+                      onClick={() => handleEditAddress(address)}
                     >
                       Edit
                     </Button>
-                    {!address.isDefault && (
+                    {address.isDefault ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveDefault(address.id)}
+                      >
+                        Remove default
+                      </Button>
+                    ) : (
                       <Button
                         variant="outline"
                         size="sm"
@@ -447,6 +600,19 @@ const PickupPage = () => {
                         Set as Default
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteAddress(address.id)}
+                      disabled={isDeleting === address.id}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {isDeleting === address.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

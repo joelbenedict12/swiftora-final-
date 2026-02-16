@@ -137,7 +137,7 @@ const CreateOrderSchema = z.object({
   slotTime: z.string().optional(),
 
   // Metadata
-  warehouseId: z.string(),
+  warehouseId: z.string().optional(),
   channel: z.string().optional(),
   notes: z.string().optional(),
 
@@ -298,30 +298,41 @@ router.post('/', async (req: AuthRequest, res, next) => {
     }
     const chargeableWeight = Math.max(data.weight, volumetricWeight);
 
-    // Get or create warehouse: use provided ID, else existing default, else create one only if none exists
+    // Resolve warehouse: use provided ID if valid, else default warehouse, else first active; only create "Default Warehouse" if merchant has none
     let warehouse = data.warehouseId
       ? await prisma.warehouse.findFirst({
-        where: {
-          id: data.warehouseId,
-          merchantId: req.user!.merchantId,
-          isActive: true,
-        },
-      })
+          where: {
+            id: data.warehouseId,
+            merchantId: req.user!.merchantId,
+            isActive: true,
+          },
+        })
       : null;
 
     if (!warehouse) {
-      // Reuse existing "Default Warehouse" for this merchant if any (avoid duplicates)
+      // Use default warehouse (user can remove default in Pickup page)
       warehouse = await prisma.warehouse.findFirst({
         where: {
           merchantId: req.user!.merchantId,
-          name: 'Default Warehouse',
           isActive: true,
+          isDefault: true,
         },
       });
     }
 
     if (!warehouse) {
-      // No warehouse at all: create a single default only once per merchant
+      // No default: use any active warehouse so we don't force-create "Default Warehouse"
+      warehouse = await prisma.warehouse.findFirst({
+        where: {
+          merchantId: req.user!.merchantId,
+          isActive: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    if (!warehouse) {
+      // Merchant has zero warehouses: create a single placeholder so order can be created
       warehouse = await prisma.warehouse.create({
         data: {
           merchantId: req.user!.merchantId,
@@ -546,6 +557,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       serviceId,
       shippingMode,
       deliveryPromise,
+      deliveryType: bodyDeliveryType,
     } = req.body;
 
     const order = await prisma.order.findFirst({
@@ -701,7 +713,15 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         }
       }
 
-      // Update order with AWB + pricing data
+      // Resolve shipping mode (Air/Surface/Express) for display
+      const deliveryTypeLabel =
+        deliveryPromise === 'AIR' ? 'Air'
+          : deliveryPromise === 'SURFACE' ? 'Surface'
+            : shippingMode === 'Express' ? 'Express'
+              : shippingMode === 'Surface' ? 'Surface'
+                : bodyDeliveryType || null;
+
+      // Update order with AWB + pricing data + shipping mode
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -712,6 +732,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
           courierCost: pricing.courierCost,
           vendorCharge: pricing.vendorCharge,
           margin: pricing.margin,
+          ...(deliveryTypeLabel && { deliveryType: deliveryTypeLabel }),
         },
       });
 

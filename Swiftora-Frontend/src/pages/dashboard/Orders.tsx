@@ -103,6 +103,7 @@ type Order = {
   createdAt: string;
   paymentMode?: string;
   codAmount?: number | null;
+  deliveryType?: string | null;
   warehouse?: {
     id: string;
     name: string;
@@ -494,8 +495,10 @@ const Orders = () => {
       await ordersApi.selectXpressbeesService(selectedOrderForXpressbees.id, service);
 
       // Then ship the order
+      const deliveryType = service.service_name.toLowerCase().includes('air') ? 'Air' : 'Surface';
       const response = await ordersApi.shipToXpressbees(selectedOrderForXpressbees.id, {
         serviceId: service.service_id,
+        deliveryType,
       });
 
       if (response.data.success) {
@@ -884,13 +887,22 @@ const Orders = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {!order.awbNumber && (
+                          {!order.awbNumber && !order.warehouseId && (
                             <DropdownMenuItem
                               onClick={() => openPickupModal(order)}
                               className="gap-2"
                             >
                               <Building className="h-4 w-4" />
                               Assign Pickup Location
+                            </DropdownMenuItem>
+                          )}
+                          {!order.awbNumber && order.warehouseId && (
+                            <DropdownMenuItem
+                              onClick={() => openPickupModal(order)}
+                              className="gap-2"
+                            >
+                              <Building className="h-4 w-4" />
+                              Change Pickup Location
                             </DropdownMenuItem>
                           )}
                           {!order.awbNumber && (
@@ -1655,6 +1667,13 @@ const Orders = () => {
                             : "Prepaid"}
                         </p>
                       </div>
+                    </div>
+
+                    <div className="text-sm">
+                      <p className="text-xs uppercase text-muted-foreground mb-1">Shipping mode</p>
+                      <p className="font-medium">
+                        {(orderDetailsFull || selectedOrderForDetails).deliveryType || "—"}
+                      </p>
                     </div>
                   </div>
 
