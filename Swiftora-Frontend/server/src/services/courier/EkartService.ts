@@ -623,6 +623,7 @@ export class EkartService implements ICourierService {
         width: 10,
         serviceType: 'SURFACE', // can be SURFACE or EXPRESS – keep simple for calculator
         codAmount,
+        shippingDirection: 'FORWARD', // required by Ekart API for forward delivery
         packages: [{}],
       };
 

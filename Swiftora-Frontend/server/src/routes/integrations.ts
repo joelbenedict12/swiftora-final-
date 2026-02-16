@@ -624,11 +624,14 @@ router.get('/xpressbees/calculate-rate', async (req: AuthRequest, res, next) => 
     const weightInGrams = Math.round(Number(weight) * 1000);
     const cod = paymentMode === 'cod' && codAmount ? Number(codAmount) : 0;
 
+    // Xpressbees API requires order_amount > 0; use COD amount or default 1 for prepaid
+    const orderAmount = cod > 0 ? cod : 1;
+
     const pricingResult = await xpressbeesService.checkServiceabilityWithPricing({
       origin,
       destination,
       payment_type: paymentMode === 'cod' ? 'cod' : 'prepaid',
-      order_amount: cod || 0,
+      order_amount: orderAmount,
       weight: weightInGrams,
       length: 10,
       breadth: 10,

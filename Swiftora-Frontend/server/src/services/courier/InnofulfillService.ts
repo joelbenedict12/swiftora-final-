@@ -538,7 +538,7 @@ export class InnofulfillService implements ICourierService {
             const client = await this.getClient();
 
             const response = await client.post('/fulfillment/rate-card/calculate-rate/ecomm', {
-                deliveryPromise: 'STANDARD',
+                deliveryPromise: 'SURFACE',
                 fromPincode: parseInt(request.originPincode) || 0,
                 toPincode: parseInt(request.destinationPincode) || 0,
                 weight: Math.round(request.weight * 1000), // kg to grams
@@ -586,7 +586,7 @@ export class InnofulfillService implements ICourierService {
             const client = await this.getClient();
 
             const payload: any = {
-                deliveryPromise: 'STANDARD',
+                deliveryPromise: 'SURFACE',
                 fromPincode: parseInt(originPincode) || 0,
                 toPincode: parseInt(destinationPincode) || 0,
                 weight: weight,
