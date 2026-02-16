@@ -1075,12 +1075,22 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
     }
 
     const merchant = order.merchant;
-    const sellerAddress = [merchant?.address, merchant?.city, merchant?.state, merchant?.pincode]
-      .filter(Boolean)
-      .join(', ') || 'India';
-    const returnAddress = merchant?.address
-      ? [merchant.address, merchant.city, merchant.state, merchant.pincode].filter(Boolean).join(', ')
-      : DEFAULT_RETURN_ADDRESS;
+    const merchantAddressParts = [
+      merchant?.address,
+      merchant?.city,
+      merchant?.state,
+      merchant?.pincode,
+    ].filter((part) => part && String(part).toLowerCase() !== 'null');
+
+    // If merchant has a proper address saved, use that for both seller + return.
+    // Otherwise, fall back to our default Swiftora return address so we never show just "India" or "null".
+    const resolvedAddress =
+      merchantAddressParts.length > 0
+        ? merchantAddressParts.join(', ')
+        : DEFAULT_RETURN_ADDRESS;
+
+    const sellerAddress = resolvedAddress;
+    const returnAddress = resolvedAddress;
 
     const paymentMode = order.paymentMode === 'COD' ? 'COD' : 'Pre-paid';
     const amount = order.codAmount && Number(order.codAmount) > 0
