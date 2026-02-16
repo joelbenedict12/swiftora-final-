@@ -105,8 +105,13 @@ const RateCalculator = () => {
         toast.error("Failed to calculate rate");
       }
     } catch (error: any) {
-      console.error("Rate calculation error:", error);
-      toast.error(error.response?.data?.message || "Failed to calculate rate");
+      const data = error.response?.data;
+      console.error("Rate calculation error:", error.response?.status, data || error.message);
+      const msg =
+        (typeof data?.error === "string" && data.error) ||
+        (typeof data?.message === "string" && data.message) ||
+        (error.response?.status === 400 ? "Rate not available for this route. Check that the courier API is configured on the server (Ekart/Xpressbees/Innofulfill env vars)." : "Failed to calculate rate");
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }

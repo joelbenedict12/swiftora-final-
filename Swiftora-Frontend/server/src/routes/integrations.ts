@@ -677,7 +677,8 @@ router.get('/xpressbees/calculate-rate', async (req: AuthRequest, res, next) => 
     if (error instanceof AppError) {
       next(error);
     } else {
-      next(new AppError(500, error.response?.data?.message || 'Failed to calculate Xpressbees rate'));
+      const msg = error.response?.data?.message || error.message || 'Failed to calculate Xpressbees rate';
+      next(new AppError(400, msg));
     }
   }
 });
@@ -756,9 +757,8 @@ router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) =>
     if (error instanceof AppError) {
       next(error);
     } else {
-      next(
-        new AppError(500, error.response?.data?.message || 'Failed to calculate Innofulfill rate')
-      );
+      const msg = error.response?.data?.message || error.message || 'Failed to calculate Innofulfill rate';
+      next(new AppError(400, msg));
     }
   }
 });
@@ -828,7 +828,8 @@ router.get('/ekart/calculate-rate', async (req: AuthRequest, res, next) => {
     if (error instanceof AppError) {
       next(error);
     } else {
-      next(new AppError(500, error.response?.data?.message || 'Failed to calculate Ekart rate'));
+      const msg = error.response?.data?.message || error.message || 'Failed to calculate Ekart rate';
+      next(new AppError(400, msg));
     }
   }
 });
