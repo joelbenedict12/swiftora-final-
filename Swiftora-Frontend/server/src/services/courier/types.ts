@@ -146,6 +146,11 @@ export interface CheckServiceabilityResponse {
   city?: string;
   state?: string;
   error?: string;
+  /** Ekart (and others) may return */
+  cod?: boolean;
+  maxCodAmount?: number;
+  forwardPickup?: boolean;
+  forwardDrop?: boolean;
 }
 
 /**

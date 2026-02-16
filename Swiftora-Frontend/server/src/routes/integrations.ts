@@ -4,6 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/error.js';
 import axios from 'axios';
+import { xpressbeesService } from '../services/courier/XpressbeesService.js';
+import { innofulfillService } from '../services/courier/InnofulfillService.js';
+import { ekartService } from '../services/courier/EkartService.js';
 
 const router = Router();
 router.use(authenticate);
@@ -316,62 +319,94 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
       }
     }
 
-    // === EKART SERVICEABILITY ===
-    const ekartClientId = process.env.EKART_CLIENT_ID;
-    const ekartUsername = process.env.EKART_USERNAME;
-    const ekartPassword = process.env.EKART_PASSWORD;
-
-    if (ekartClientId && ekartUsername && ekartPassword) {
+    // === EKART SERVICEABILITY (GET /api/v2/serviceability/{pincode}) ===
+    if (ekartService.checkServiceability) {
       try {
-        const authResponse = await axios.post(
-          `https://app.goswift.in/integrations/v2/auth/token/${ekartClientId}`,
-          { username: ekartUsername, password: ekartPassword },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
+        const [ekartOrigin, ekartDest] = await Promise.all([
+          ekartService.checkServiceability({ pincode: origin }),
+          ekartService.checkServiceability({ pincode: destination }),
+        ]);
 
-        if (authResponse.data.access_token) {
-          const ekartClient = axios.create({
-            baseURL: 'https://app.goswift.in',
-            headers: {
-              'Authorization': `Bearer ${authResponse.data.access_token}`,
-              'Content-Type': 'application/json',
-            },
+        const originServiceable = ekartOrigin.success && ekartOrigin.serviceable;
+        const destServiceable = ekartDest.success && ekartDest.serviceable;
+
+        if (originServiceable && destServiceable) {
+          couriers.push({
+            name: 'Ekart',
+            serviceable: true,
+            cod: ekartDest.cod ?? true,
+            prepaid: true,
+            pickup: ekartDest.forwardPickup ?? true,
+            estimatedDays: null,
+            originCity: ekartOrigin.city || originData?.city,
+            destinationCity: ekartDest.city || destData?.city,
+            originState: ekartOrigin.state,
+            destinationState: ekartDest.state,
+            maxCodAmount: ekartDest.maxCodAmount ?? null,
+            remarks: ekartDest.error || '',
           });
-
-          const [ekartOrigin, ekartDest] = await Promise.all([
-            ekartClient.get(`/api/v2/serviceability/${origin}`).catch(() => null),
-            ekartClient.get(`/api/v2/serviceability/${destination}`).catch(() => null),
-          ]);
-
-          console.log('EKART ORIGIN RAW RESPONSE:', JSON.stringify(ekartOrigin?.data, null, 2));
-          console.log('EKART DEST RAW RESPONSE:', JSON.stringify(ekartDest?.data, null, 2));
-
-          const originServiceable = ekartOrigin?.data?.status === true;
-          const destServiceable = ekartDest?.data?.status === true;
-
-          if (originServiceable && destServiceable) {
-            const destDetails = ekartDest?.data?.details || {};
-            // Only use real ETD from Ekart API — no fabrication
-            const ekartEtd = destDetails.estimated_days ?? destDetails.etd ?? destDetails.edd ?? destDetails.transit_days ?? null;
-
-            couriers.push({
-              name: 'Ekart',
-              serviceable: true,
-              cod: destDetails.cod === true,
-              prepaid: true,
-              pickup: destDetails.forward_pickup === true,
-              estimatedDays: ekartEtd, // null if API doesn't provide it
-              originCity: ekartOrigin?.data?.details?.city || originData?.city,
-              destinationCity: destDetails.city || destData?.city,
-              maxCodAmount: destDetails.max_cod_amount || null,
-              remarks: '',
-            });
-          }
         }
       } catch (ekartError: any) {
         console.warn('Ekart serviceability check failed:', ekartError.message);
-        // Don't add Ekart if API failed — no fabricated data
       }
+    }
+
+    // === INNOFULFILL (MARUTI) ROUTE SERVICEABILITY (POST check-ecomm-order-serviceability) ===
+    try {
+      const innoResult = await innofulfillService.checkRouteServiceability(
+        origin,
+        destination,
+        false, // isCodOrder
+        'SURFACE'  // deliveryMode
+      );
+      if (innoResult.serviceable) {
+        couriers.push({
+          name: 'Innofulfill (Maruti)',
+          serviceable: true,
+          cod: false,
+          prepaid: true,
+          pickup: true,
+          estimatedDays: null,
+          originCity: originData?.city,
+          destinationCity: destData?.city,
+          originState: originData?.state_code,
+          destinationState: destData?.state_code,
+          remarks: '',
+        });
+      }
+    } catch (innoError: any) {
+      console.warn('Innofulfill serviceability check failed:', innoError.message);
+    }
+
+    // === XPRESSBEES SERVICEABILITY (serviceability API = pricing with default params) ===
+    try {
+      const xbResult = await xpressbeesService.checkServiceabilityWithPricing({
+        origin,
+        destination,
+        payment_type: 'prepaid',
+        order_amount: 0,
+        weight: 500,
+        length: 10,
+        breadth: 10,
+        height: 10,
+      });
+      if (xbResult.success && xbResult.services.length > 0) {
+        couriers.push({
+          name: 'Xpressbees',
+          serviceable: true,
+          cod: true,
+          prepaid: true,
+          pickup: true,
+          estimatedDays: null,
+          originCity: originData?.city,
+          destinationCity: destData?.city,
+          originState: originData?.state_code,
+          destinationState: destData?.state_code,
+          remarks: '',
+        });
+      }
+    } catch (xbError: any) {
+      console.warn('Xpressbees serviceability check failed:', xbError.message);
     }
 
     res.json({
@@ -404,7 +439,7 @@ router.get('/delhivery/pincode-serviceability', async (req: AuthRequest, res, ne
   }
 });
 
-// Calculate shipping rate
+// Calculate shipping rate - Delhivery (live API)
 router.get('/delhivery/calculate-rate', async (req: AuthRequest, res, next) => {
   try {
     const { origin, destination, weight, paymentMode, codAmount, serviceType } = req.query;
@@ -558,11 +593,242 @@ router.get('/delhivery/calculate-rate', async (req: AuthRequest, res, next) => {
       throw new AppError(400, 'Rate not available for this route');
     }
   } catch (error: any) {
-    console.error('Rate calculation error:', error.response?.data || error.message);
+    console.error('Delhivery rate calculation error:', error.response?.data || error.message);
     if (error instanceof AppError) {
       next(error);
     } else {
       next(new AppError(500, error.response?.data?.message || 'Failed to calculate rate'));
+    }
+  }
+});
+
+// Calculate shipping rate - Xpressbees
+router.get('/xpressbees/calculate-rate', async (req: AuthRequest, res, next) => {
+  try {
+    const { origin, destination, weight, paymentMode, codAmount } = req.query;
+
+    if (!origin || typeof origin !== 'string') {
+      throw new AppError(400, 'Origin pincode is required');
+    }
+    if (!destination || typeof destination !== 'string') {
+      throw new AppError(400, 'Destination pincode is required');
+    }
+    if (!weight || isNaN(Number(weight))) {
+      throw new AppError(400, 'Weight is required (in kg)');
+    }
+
+    if (!/^\d{6}$/.test(origin) || !/^\d{6}$/.test(destination)) {
+      throw new AppError(400, 'Pincodes must be 6 digits');
+    }
+
+    const weightInGrams = Math.round(Number(weight) * 1000);
+    const cod = paymentMode === 'cod' && codAmount ? Number(codAmount) : 0;
+
+    const pricingResult = await xpressbeesService.checkServiceabilityWithPricing({
+      origin,
+      destination,
+      payment_type: paymentMode === 'cod' ? 'cod' : 'prepaid',
+      order_amount: cod || 0,
+      weight: weightInGrams,
+      length: 10,
+      breadth: 10,
+      height: 10,
+    });
+
+    if (!pricingResult.success || pricingResult.services.length === 0) {
+      throw new AppError(
+        400,
+        pricingResult.error || 'Rate not available for this route with Xpressbees'
+      );
+    }
+
+    const bestService = pricingResult.services.reduce((min, svc) =>
+      svc.total_charges < min.total_charges ? svc : min
+    );
+
+    const breakdown = {
+      baseCharge: bestService.freight_charges,
+      weightCharge: 0,
+      codCharge: bestService.cod_charges,
+      fuelSurcharge: 0,
+      handlingCharge: 0,
+      subtotal: bestService.freight_charges + bestService.cod_charges,
+      gst: 0,
+      total: bestService.total_charges,
+      chargedWeight: bestService.chargeable_weight,
+    };
+
+    res.json({
+      success: true,
+      courier: 'Xpressbees',
+      origin,
+      destination,
+      weight: Number(weight),
+      paymentMode: paymentMode === 'cod' ? 'COD' : 'Prepaid',
+      serviceType: 'Surface',
+      breakdown,
+      estimatedDays: 5,
+      zone: 'N/A',
+      chargedWeight: breakdown.chargedWeight,
+      rawResponse: pricingResult.services,
+    });
+  } catch (error: any) {
+    console.error('Xpressbees rate calculation error:', error.response?.data || error.message);
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      next(new AppError(500, error.response?.data?.message || 'Failed to calculate Xpressbees rate'));
+    }
+  }
+});
+
+// Calculate shipping rate - Innofulfill (Maruti)
+router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) => {
+  try {
+    const { origin, destination, weight } = req.query;
+
+    if (!origin || typeof origin !== 'string') {
+      throw new AppError(400, 'Origin pincode is required');
+    }
+    if (!destination || typeof destination !== 'string') {
+      throw new AppError(400, 'Destination pincode is required');
+    }
+    if (!weight || isNaN(Number(weight))) {
+      throw new AppError(400, 'Weight is required (in kg)');
+    }
+
+    if (!/^\d{6}$/.test(origin) || !/^\d{6}$/.test(destination)) {
+      throw new AppError(400, 'Pincodes must be 6 digits');
+    }
+
+    const weightInGrams = Math.round(Number(weight) * 1000);
+
+    const result = await innofulfillService.calculateDetailedRate(
+      origin,
+      destination,
+      weightInGrams,
+      20,
+      20,
+      20
+    );
+
+    if (!result.success || !result.shippingCharge) {
+      throw new AppError(
+        400,
+        result.error || 'Rate not available for this route with Innofulfill'
+      );
+    }
+
+    const shippingCharge = result.shippingCharge || 0;
+    const fuelCharges = result.fuelCharges || 0;
+    const subtotal = shippingCharge + fuelCharges;
+    const gst = 0;
+    const total = subtotal + gst;
+
+    const breakdown = {
+      baseCharge: shippingCharge,
+      weightCharge: 0,
+      codCharge: 0,
+      fuelSurcharge: fuelCharges,
+      handlingCharge: 0,
+      subtotal,
+      gst,
+      total,
+      chargedWeight: weightInGrams,
+    };
+
+    res.json({
+      success: true,
+      courier: 'Innofulfill',
+      origin,
+      destination,
+      weight: Number(weight),
+      paymentMode: 'Prepaid',
+      serviceType: 'Surface',
+      breakdown,
+      estimatedDays: 5,
+      zone: result.appliedZone || 'Unknown',
+      chargedWeight: breakdown.chargedWeight,
+      rawResponse: result,
+    });
+  } catch (error: any) {
+    console.error('Innofulfill rate calculation error:', error.response?.data || error.message);
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      next(
+        new AppError(500, error.response?.data?.message || 'Failed to calculate Innofulfill rate')
+      );
+    }
+  }
+});
+
+// Calculate shipping rate - Ekart
+router.get('/ekart/calculate-rate', async (req: AuthRequest, res, next) => {
+  try {
+    const { origin, destination, weight, paymentMode, codAmount } = req.query;
+
+    if (!origin || typeof origin !== 'string') {
+      throw new AppError(400, 'Origin pincode is required');
+    }
+    if (!destination || typeof destination !== 'string') {
+      throw new AppError(400, 'Destination pincode is required');
+    }
+    if (!weight || isNaN(Number(weight))) {
+      throw new AppError(400, 'Weight is required (in kg)');
+    }
+
+    if (!/^\d{6}$/.test(origin) || !/^\d{6}$/.test(destination)) {
+      throw new AppError(400, 'Pincodes must be 6 digits');
+    }
+
+    const cod = paymentMode === 'cod' && codAmount ? Number(codAmount) : 0;
+
+    const rateResult = await ekartService.calculateRate({
+      originPincode: origin,
+      destinationPincode: destination,
+      weight: Number(weight),
+      paymentMode: paymentMode === 'cod' ? 'COD' : 'PREPAID',
+      codAmount: cod,
+    });
+
+    if (!rateResult.success || rateResult.rate === undefined) {
+      throw new AppError(400, rateResult.error || 'Rate not available for this route with Ekart');
+    }
+
+    const total = rateResult.rate;
+    const breakdown = {
+      baseCharge: total,
+      weightCharge: 0,
+      codCharge: cod,
+      fuelSurcharge: 0,
+      handlingCharge: 0,
+      subtotal: total,
+      gst: 0,
+      total,
+      chargedWeight: Math.round(Number(weight) * 1000),
+    };
+
+    res.json({
+      success: true,
+      courier: 'Ekart',
+      origin,
+      destination,
+      weight: Number(weight),
+      paymentMode: paymentMode === 'cod' ? 'COD' : 'Prepaid',
+      serviceType: 'Surface',
+      breakdown,
+      estimatedDays: 5,
+      zone: 'Unknown',
+      chargedWeight: breakdown.chargedWeight,
+      rawResponse: rateResult,
+    });
+  } catch (error: any) {
+    console.error('Ekart rate calculation error:', error.response?.data || error.message);
+    if (error instanceof AppError) {
+      next(error);
+    } else {
+      next(new AppError(500, error.response?.data?.message || 'Failed to calculate Ekart rate'));
     }
   }
 });

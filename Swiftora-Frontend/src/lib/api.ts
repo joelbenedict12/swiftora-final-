@@ -305,13 +305,27 @@ export const integrationsApi = {
     }),
 
   calculateRate: (params: {
+    courier: 'delhivery' | 'ekart' | 'xpressbees' | 'innofulfill';
     origin: string;
     destination: string;
     weight: number;
     paymentMode: 'prepaid' | 'cod';
     serviceType?: 'standard' | 'express' | 'priority';
     codAmount?: number;
-  }) => api.get('/integrations/delhivery/calculate-rate', { params }),
+  }) => {
+    const { courier, ...rest } = params;
+
+    let endpoint = '/integrations/delhivery/calculate-rate';
+    if (courier === 'xpressbees') {
+      endpoint = '/integrations/xpressbees/calculate-rate';
+    } else if (courier === 'ekart') {
+      endpoint = '/integrations/ekart/calculate-rate';
+    } else if (courier === 'innofulfill') {
+      endpoint = '/integrations/innofulfill/calculate-rate';
+    }
+
+    return api.get(endpoint, { params: rest });
+  },
 
   // Note: Delhivery doesn't support order syncing
   // Orders are created locally, shipments created in Delhivery

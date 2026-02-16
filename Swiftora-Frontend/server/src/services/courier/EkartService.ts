@@ -28,6 +28,10 @@ import {
   CancelShipmentRequest,
   CancelShipmentResponse,
   TrackingEvent,
+  CalculateRateRequest,
+  CalculateRateResponse,
+  CheckServiceabilityRequest,
+  CheckServiceabilityResponse,
 } from './types.js';
 
 // Ekart API URL
@@ -510,6 +514,148 @@ export class EkartService implements ICourierService {
       };
     } catch (error: any) {
       console.error('Ekart cancelShipment error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.remark || error.response?.data?.message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Check serviceability for a pincode.
+   * GET /api/v2/serviceability/{pincode}
+   * Returns COD, forward_pickup/drop, reverse, city, state, max_cod_amount in details.
+   */
+  async checkServiceability(request: CheckServiceabilityRequest): Promise<CheckServiceabilityResponse> {
+    if (!this.clientId || !this.username || !this.password) {
+      return {
+        success: false,
+        serviceable: false,
+        error: 'Ekart credentials not configured',
+      };
+    }
+
+    try {
+      const client = await this.getClient();
+      const pincode = request.pincode.replace(/\D/g, '').slice(0, 6);
+      if (pincode.length !== 6) {
+        return { success: false, serviceable: false, error: 'Pincode must be 6 digits' };
+      }
+
+      const response = await client.get(`/api/v2/serviceability/${pincode}`);
+      const data = response.data;
+
+      if (data?.status === true) {
+        const details = data.details || {};
+        return {
+          success: true,
+          serviceable: true,
+          city: details.city,
+          state: details.state,
+          cod: details.cod === true,
+          maxCodAmount: typeof details.max_cod_amount === 'number' ? details.max_cod_amount : undefined,
+          forwardPickup: details.forward_pickup === true,
+          forwardDrop: details.forward_drop === true,
+        };
+      }
+
+      return {
+        success: true,
+        serviceable: false,
+        city: data?.details?.city,
+        state: data?.details?.state,
+        error: data?.remark || 'Pincode not serviceable',
+      };
+    } catch (error: any) {
+      console.error('Ekart checkServiceability error:', error.response?.data || error.message);
+      return {
+        success: false,
+        serviceable: false,
+        error: error.response?.data?.remark || error.response?.data?.message || error.message,
+      };
+    }
+  }
+
+  /**
+   * Calculate shipping rate (best-effort, uses Ekart pricing estimate API)
+   *
+   * Note: Ekart's pricing API expects weight as an integer and also supports
+   * dimensions and invoice/order amounts. For this generic calculator we:
+   * - Convert weight from kg → grams and round
+   * - Use a small default invoice amount when not provided
+   * - Use placeholder dimensions (10 x 10 x 10)
+   * - Always request SURFACE service for now
+   */
+  async calculateRate(request: CalculateRateRequest): Promise<CalculateRateResponse> {
+    console.log('=== EKART CALCULATE RATE ===');
+
+    // Ensure credentials are configured
+    if (!this.clientId || !this.username || !this.password) {
+      return {
+        success: false,
+        error:
+          'Ekart credentials not configured. Please add EKART_CLIENT_ID, EKART_USERNAME, EKART_PASSWORD in environment variables.',
+      };
+    }
+
+    try {
+      const client = await this.getClient();
+
+      const pickupPincode = parseInt(request.originPincode) || 0;
+      const dropPincode = parseInt(request.destinationPincode) || 0;
+
+      // Ekart docs show integer "weight" – we use grams
+      const weightInGrams = Math.max(1, Math.round(request.weight * 1000));
+
+      const codAmount = request.paymentMode === 'COD' ? request.codAmount || 0 : 0;
+      const invoiceAmount =
+        typeof request.codAmount === 'number' && request.codAmount > 0
+          ? request.codAmount
+          : 500; // sensible default when not provided
+
+      const payload = {
+        pickupPincode,
+        dropPincode,
+        invoiceAmount,
+        weight: weightInGrams,
+        length: 10,
+        height: 10,
+        width: 10,
+        serviceType: 'SURFACE', // can be SURFACE or EXPRESS – keep simple for calculator
+        codAmount,
+        packages: [{}],
+      };
+
+      console.log('Ekart pricing payload:', JSON.stringify(payload));
+
+      const response = await client.post('/data/pricing/estimate', payload);
+      const data = response.data || {};
+
+      const shippingCharge = Number(data.shippingCharge) || 0;
+      const fuelSurcharge = Number(data.fuelSurcharge) || 0;
+      const codCharge = Number(data.codCharge) || 0;
+      const taxes = Number(data.taxes) || 0;
+      const totalFromApi = Number(data.total);
+
+      const total =
+        !isNaN(totalFromApi) && totalFromApi > 0
+          ? totalFromApi
+          : shippingCharge + fuelSurcharge + codCharge + taxes;
+
+      if (!total || total <= 0) {
+        return {
+          success: false,
+          error: 'Ekart did not return a valid total amount',
+        };
+      }
+
+      return {
+        success: true,
+        rate: total,
+        currency: 'INR',
+      };
+    } catch (error: any) {
+      console.error('Ekart calculateRate error:', error.response?.data || error.message);
       return {
         success: false,
         error: error.response?.data?.remark || error.response?.data?.message || error.message,

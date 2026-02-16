@@ -73,6 +73,7 @@ const RateCalculator = () => {
     setIsLoading(true);
     try {
       const response = await integrationsApi.calculateRate({
+        courier: formData.courier as 'delhivery' | 'ekart' | 'xpressbees' | 'innofulfill',
         origin: formData.originPincode,
         destination: formData.destinationPincode,
         weight,
@@ -253,6 +254,9 @@ const RateCalculator = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-background border-gray-200">
                     <SelectItem value="delhivery">Delhivery</SelectItem>
+                    <SelectItem value="ekart">Ekart</SelectItem>
+                    <SelectItem value="xpressbees">Xpressbees</SelectItem>
+                    <SelectItem value="innofulfill">Maruti (Innofulfill)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
