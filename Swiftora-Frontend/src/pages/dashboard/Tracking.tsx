@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -61,10 +62,12 @@ interface TrackingResponse {
 }
 
 const Tracking = () => {
+  const [searchParams] = useSearchParams();
   const [trackingQuery, setTrackingQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [trackingResult, setTrackingResult] = useState<TrackingResponse | null>(null);
   const [noResults, setNoResults] = useState(false);
+  const lastAutoTrackedAwbRef = useRef<string | null>(null);
 
   // Raise Ticket state
   const [showTicketDialog, setShowTicketDialog] = useState(false);
@@ -76,8 +79,8 @@ const Tracking = () => {
     priority: "MEDIUM",
   });
 
-  const handleTrack = async () => {
-    if (!trackingQuery.trim()) {
+  const performTrack = async (query: string) => {
+    if (!query.trim()) {
       toast.error("Please enter AWB number to track");
       return;
     }
@@ -88,7 +91,7 @@ const Tracking = () => {
 
     try {
       const params: { awb?: string; orderId?: string; phone?: string } = {};
-      params.awb = trackingQuery.trim();
+      params.awb = query.trim();
 
       const response = await trackingApi.track(params);
       const data = response.data;
@@ -116,6 +119,20 @@ const Tracking = () => {
       setIsLoading(false);
     }
   };
+
+  const handleTrack = () => {
+    performTrack(trackingQuery);
+  };
+
+  // When opened with ?awb=..., fill the input and run search (e.g. from Orders "Track Shipment")
+  useEffect(() => {
+    const awb = searchParams.get("awb")?.trim() || null;
+    if (awb && awb !== lastAutoTrackedAwbRef.current) {
+      lastAutoTrackedAwbRef.current = awb;
+      setTrackingQuery(awb);
+      performTrack(awb);
+    }
+  }, [searchParams]);
 
   const handleCopyAWB = () => {
     navigator.clipboard.writeText(trackingQuery.trim());

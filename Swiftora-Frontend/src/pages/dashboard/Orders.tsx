@@ -1056,7 +1056,10 @@ const Orders = () => {
                             </DropdownMenuItem>
                           )}
                           {order.awbNumber && (
-                            <DropdownMenuItem className="gap-2">
+                            <DropdownMenuItem
+                              className="gap-2"
+                              onClick={() => navigate(`/dashboard/tracking?awb=${encodeURIComponent(order.awbNumber!)}`)}
+                            >
                               <Truck className="h-4 w-4" />
                               Track Shipment
                             </DropdownMenuItem>

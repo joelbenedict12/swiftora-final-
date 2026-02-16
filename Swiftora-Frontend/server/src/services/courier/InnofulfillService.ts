@@ -567,6 +567,7 @@ export class InnofulfillService implements ICourierService {
 
     /**
      * Calculate detailed shipping rate with dimensions
+     * deliveryPromise: 'SURFACE' (economy) or 'AIR' (express)
      */
     async calculateDetailedRate(
         originPincode: string,
@@ -574,7 +575,8 @@ export class InnofulfillService implements ICourierService {
         weight: number, // in grams
         length?: number,
         width?: number,
-        height?: number
+        height?: number,
+        deliveryPromise: 'SURFACE' | 'AIR' = 'SURFACE'
     ): Promise<{
         success: boolean;
         shippingCharge?: number;
@@ -586,7 +588,7 @@ export class InnofulfillService implements ICourierService {
             const client = await this.getClient();
 
             const payload: any = {
-                deliveryPromise: 'SURFACE',
+                deliveryPromise,
                 fromPincode: parseInt(originPincode) || 0,
                 toPincode: parseInt(destinationPincode) || 0,
                 weight: weight,

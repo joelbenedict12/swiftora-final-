@@ -689,7 +689,7 @@ router.get('/xpressbees/calculate-rate', async (req: AuthRequest, res, next) => 
 // Calculate shipping rate - Innofulfill (Maruti)
 router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) => {
   try {
-    const { origin, destination, weight } = req.query;
+    const { origin, destination, weight, serviceType, paymentMode, codAmount } = req.query;
 
     if (!origin || typeof origin !== 'string') {
       throw new AppError(400, 'Origin pincode is required');
@@ -706,6 +706,11 @@ router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) =>
     }
 
     const weightInGrams = Math.round(Number(weight) * 1000);
+    const isExpress = String(serviceType || '').toLowerCase() === 'express';
+    const deliveryPromise = isExpress ? 'AIR' : 'SURFACE';
+    const serviceTypeLabel = isExpress ? 'Express' : 'Surface';
+    const isCod = String(paymentMode || '').toLowerCase() === 'cod';
+    const codValue = isCod && codAmount && !isNaN(Number(codAmount)) ? Number(codAmount) : 0;
 
     const result = await innofulfillService.calculateDetailedRate(
       origin,
@@ -713,7 +718,8 @@ router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) =>
       weightInGrams,
       20,
       20,
-      20
+      20,
+      deliveryPromise
     );
 
     if (!result.success || !result.shippingCharge) {
@@ -725,14 +731,16 @@ router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) =>
 
     const shippingCharge = result.shippingCharge || 0;
     const fuelCharges = result.fuelCharges || 0;
-    const subtotal = shippingCharge + fuelCharges;
+    // Innofulfill rate API doesn't return COD charge; apply typical COD fee when COD is selected
+    const codCharge = isCod ? 40 : 0;
+    const subtotal = shippingCharge + fuelCharges + codCharge;
     const gst = 0;
     const total = subtotal + gst;
 
     const breakdown = {
       baseCharge: shippingCharge,
       weightCharge: 0,
-      codCharge: 0,
+      codCharge,
       fuelSurcharge: fuelCharges,
       handlingCharge: 0,
       subtotal,
@@ -747,10 +755,9 @@ router.get('/innofulfill/calculate-rate', async (req: AuthRequest, res, next) =>
       origin,
       destination,
       weight: Number(weight),
-      paymentMode: 'Prepaid',
-      serviceType: 'Surface',
+      paymentMode: isCod ? 'COD' : 'Prepaid',
+      serviceType: serviceTypeLabel,
       breakdown,
-      estimatedDays: 5,
       zone: result.appliedZone || 'Unknown',
       chargedWeight: breakdown.chargedWeight,
       rawResponse: result,

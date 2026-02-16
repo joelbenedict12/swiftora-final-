@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import {
   Calculator,
@@ -196,57 +195,6 @@ const RateCalculator = () => {
                 />
               </div>
               <div>
-                <Label className="text-foreground">Payment Mode *</Label>
-                <RadioGroup
-                  value={formData.paymentMode}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, paymentMode: value })
-                  }
-                  className="mt-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="prepaid"
-                      id="prepaid"
-                      className="border-gray-200"
-                    />
-                    <Label
-                      htmlFor="prepaid"
-                      className="cursor-pointer text-foreground"
-                    >
-                      Prepaid
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="cod"
-                      id="cod"
-                      className="border-gray-200"
-                    />
-                    <Label
-                      htmlFor="cod"
-                      className="cursor-pointer text-foreground"
-                    >
-                      COD
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-              {formData.paymentMode === "cod" && (
-                <div>
-                  <Label className="text-foreground">COD Amount (₹)</Label>
-                  <Input
-                    type="number"
-                    value={formData.codAmount}
-                    onChange={(e) =>
-                      setFormData({ ...formData, codAmount: e.target.value })
-                    }
-                    placeholder="1000"
-                    className="bg-background/50 border-gray-200 focus:border-[blue-600] text-foreground"
-                  />
-                </div>
-              )}
-              <div>
                 <Label className="text-foreground">Courier</Label>
                 <Select
                   value={formData.courier}
@@ -349,12 +297,6 @@ const RateCalculator = () => {
                                 <h3 className="text-lg font-bold text-foreground">
                                   {rate.courier}
                                 </h3>
-                                <Badge
-                                  variant="outline"
-                                  className="ml-2 border-gray-200 text-foreground/80"
-                                >
-                                  {rate.estimatedDays} days
-                                </Badge>
                                 {rate.zone && (
                                   <Badge
                                     variant="outline"
