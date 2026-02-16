@@ -118,6 +118,9 @@ export const ordersApi = {
 
   create: (data: CreateOrderData) => api.post('/orders', data),
 
+  update: (id: string, data: Partial<CreateOrderData>) =>
+    api.put(`/orders/${id}`, data),
+
   cancel: (id: string) => api.post(`/orders/${id}/cancel`),
 
   // Generic ship method - pass courier name

@@ -35,7 +35,6 @@ import {
 import {
   MapPin,
   Plus,
-  Calendar,
   Clock,
   CheckCircle2,
   XCircle,
@@ -212,10 +211,6 @@ const PickupPage = () => {
     }
   };
 
-  const handleSchedulePickup = (addressId: string) => {
-    toast.success("Pickup scheduled successfully");
-  };
-
   const handleEditAddress = (warehouse: Warehouse) => {
     setEditingWarehouse({ ...warehouse, email: warehouse.email ?? "" });
   };
@@ -244,26 +239,6 @@ const PickupPage = () => {
       toast.error(error.response?.data?.message || "Failed to update");
     } finally {
       setIsSavingEdit(false);
-    }
-  };
-
-  const handleSetDefault = async (addressId: string) => {
-    try {
-      await warehousesApi.update(addressId, { isDefault: true });
-      toast.success("Set as default pickup location");
-      loadWarehouses();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to set default");
-    }
-  };
-
-  const handleRemoveDefault = async (addressId: string) => {
-    try {
-      await warehousesApi.update(addressId, { isDefault: false });
-      toast.success("Default removed. You can set another location as default.");
-      loadWarehouses();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to remove default");
     }
   };
 
@@ -571,35 +546,10 @@ const PickupPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleSchedulePickup(address.id)}
-                    >
-                      <Calendar className="w-4 h-4 mr-2" />
-                      Schedule Pickup
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
                       onClick={() => handleEditAddress(address)}
                     >
                       Edit
                     </Button>
-                    {address.isDefault ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRemoveDefault(address.id)}
-                      >
-                        Remove default
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSetDefault(address.id)}
-                      >
-                        Set as Default
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"

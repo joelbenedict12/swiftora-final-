@@ -59,6 +59,7 @@ import {
   Calendar,
   AlertTriangle,
   FileDown,
+  Pencil,
 } from "lucide-react";
 import { ordersApi, warehousesApi, ticketsApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
@@ -231,6 +232,19 @@ const Orders = () => {
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
   const [orderDetailsFull, setOrderDetailsFull] = useState<Order | null>(null);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
+
+  // Edit order modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
+  const [editForm, setEditForm] = useState({
+    customerName: "",
+    customerPhone: "",
+    shippingAddress: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPincode: "",
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Innofulfill Surface/Air selection modal
   const [showInnofulfillModal, setShowInnofulfillModal] = useState(false);
@@ -427,6 +441,55 @@ const Orders = () => {
       setWarehouses(response.data || []);
     } catch (error) {
       console.error("Failed to load warehouses:", error);
+    }
+  };
+
+  const openEditModal = (order: Order) => {
+    if (order.awbNumber) {
+      toast.error("You can only edit orders before they are shipped.");
+      return;
+    }
+
+    setOrderBeingEdited(order);
+    setEditForm({
+      customerName: order.customerName || "",
+      customerPhone: order.customerPhone || "",
+      shippingAddress: order.shippingAddress || "",
+      shippingCity: order.shippingCity || "",
+      shippingState: order.shippingState || "",
+      shippingPincode: order.shippingPincode || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!orderBeingEdited) return;
+
+    try {
+      setIsSavingEdit(true);
+      const response = await ordersApi.update(orderBeingEdited.id, {
+        customerName: editForm.customerName,
+        customerPhone: editForm.customerPhone,
+        shippingAddress: editForm.shippingAddress,
+        shippingCity: editForm.shippingCity,
+        shippingState: editForm.shippingState,
+        shippingPincode: editForm.shippingPincode,
+      });
+
+      if (response.data?.success) {
+        toast.success("Order updated successfully");
+      } else {
+        toast.success("Order updated");
+      }
+
+      setShowEditModal(false);
+      setOrderBeingEdited(null);
+      loadOrders();
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || "Failed to update order";
+      toast.error(message);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -965,6 +1028,15 @@ const Orders = () => {
                               {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill (Surface/Air)"}
                             </DropdownMenuItem>
                           )}
+                          {!order.awbNumber && (
+                            <DropdownMenuItem
+                              className="gap-2"
+                              onClick={() => openEditModal(order)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit Order
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="gap-2"
                             onClick={() => openDetailsModal(order)}
@@ -1061,6 +1133,112 @@ const Orders = () => {
                 ))}
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Order Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Order Details</DialogTitle>
+            <DialogDescription>
+              Update the customer and delivery address before shipping.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {orderBeingEdited && (
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <p className="font-medium">Order: {orderBeingEdited.orderNumber}</p>
+                <p className="text-muted-foreground">
+                  Created: {new Date(orderBeingEdited.createdAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Customer Name</Label>
+              <Input
+                value={editForm.customerName}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, customerName: e.target.value })
+                }
+                placeholder="Customer name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Customer Phone</Label>
+              <Input
+                value={editForm.customerPhone}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, customerPhone: e.target.value })
+                }
+                placeholder="+91..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Delivery Address</Label>
+              <Textarea
+                value={editForm.shippingAddress}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, shippingAddress: e.target.value })
+                }
+                placeholder="Street address"
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input
+                  value={editForm.shippingCity}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, shippingCity: e.target.value })
+                  }
+                  placeholder="City"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Input
+                  value={editForm.shippingState}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, shippingState: e.target.value })
+                  }
+                  placeholder="State"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Pincode</Label>
+                <Input
+                  value={editForm.shippingPincode}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, shippingPincode: e.target.value })
+                  }
+                  placeholder="560001"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditModal(false)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+                {isSavingEdit && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                Save changes
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

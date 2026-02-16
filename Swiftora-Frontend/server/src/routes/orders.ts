@@ -145,6 +145,19 @@ const CreateOrderSchema = z.object({
   courierName: CourierNameEnum.optional(),
 });
 
+// Allow editing limited customer + shipping details before shipment
+const UpdateOrderSchema = z.object({
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  customerEmail: z.string().email().optional(),
+  shippingAddress: z.string().optional(),
+  shippingCity: z.string().optional(),
+  shippingState: z.string().optional(),
+  shippingPincode: z.string().optional(),
+  shippingLandmark: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 // Get available couriers
 router.get('/couriers', async (req: AuthRequest, res) => {
   const couriers = getAvailableCouriers();
@@ -198,8 +211,12 @@ router.get('/', async (req: AuthRequest, res, next) => {
       merchantId: req.user.merchantId,
     };
 
-    if (status && status !== 'ALL') {
-      where.status = status;
+    // Normalise status filter (frontend sends lowercase like "pending")
+    if (status) {
+      const statusStr = String(status).toUpperCase();
+      if (statusStr && statusStr !== 'ALL') {
+        where.status = statusStr;
+      }
     }
 
     if (search) {
@@ -265,6 +282,40 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
     }
 
     res.json(order);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update basic order details (only before shipment)
+router.put('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const data = UpdateOrderSchema.parse(req.body);
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        merchantId: req.user!.merchantId,
+      },
+    });
+
+    if (!order) {
+      throw new AppError(404, 'Order not found');
+    }
+
+    if (order.awbNumber) {
+      throw new AppError(400, 'Cannot edit an order that has already been shipped. Please cancel and re-create the order if needed.');
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data,
+    });
+
+    res.json({
+      success: true,
+      order: updated,
+    });
   } catch (error) {
     next(error);
   }

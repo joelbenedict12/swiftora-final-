@@ -235,10 +235,11 @@ const DashboardLayout = () => {
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white">
             <Link to="/dashboard" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-700 transition-colors shadow-sm">
-                <Package className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-xl text-gray-900">Swiftora</span>
+              <img
+                src="/new-logo.jpg"
+                alt="Swiftora"
+                className="h-9 w-auto object-contain"
+              />
             </Link>
             <Button
               variant="ghost"
@@ -432,12 +433,6 @@ const DashboardLayout = () => {
                 </button>
               </div>
             )}
-            <Button asChild variant="outline" className="mr-2">
-              <Link to="/dashboard/all-products">
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                All Products
-              </Link>
-            </Button>
             <div className="flex justify-end">
               <Link to="/dashboard/billing" className="group">
                 <div className="bg-white/60 backdrop-blur-sm border border-white/20 rounded-lg px-5 py-1.5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all inline-flex items-center gap-4">
