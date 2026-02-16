@@ -234,11 +234,11 @@ const DashboardLayout = () => {
         <div className="flex flex-col h-full">
           {/* Logo - Swiftora new logo */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
-            <Link to="/dashboard" className="flex items-center min-w-0 flex-1">
+            <Link to="/dashboard" className="flex items-center justify-start min-w-0 flex-1">
               <img
-                src="/swiftora%20new%20logo.jpeg"
+                src="/resize-17712485012066810715swiftoranewlogo.jpeg"
                 alt="Swiftora"
-                className="h-12 w-auto max-w-[220px] object-contain object-left select-none"
+                className="h-14 w-auto object-contain object-left select-none"
               />
             </Link>
             <Button
