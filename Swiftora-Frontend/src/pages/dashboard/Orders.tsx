@@ -219,6 +219,15 @@ const Orders = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [generatingLabelId, setGeneratingLabelId] = useState<string | null>(null);
 
+  // Order details modal
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
+
+  // Innofulfill Surface/Air selection modal
+  const [showInnofulfillModal, setShowInnofulfillModal] = useState(false);
+  const [selectedOrderForInnofulfill, setSelectedOrderForInnofulfill] = useState<Order | null>(null);
+  const [isShippingInnofulfill, setIsShippingInnofulfill] = useState(false);
+
   // Generate next 3 available weekdays from today
   const getAvailablePickupDates = () => {
     const dates: Date[] = [];
@@ -274,6 +283,44 @@ const Orders = () => {
       setIsSchedulingPickup(false);
       setShowAddToPickup(false);
       setPickupOrderData(null);
+    }
+  };
+
+  // Open Innofulfill Surface/Air modal
+  const openInnofulfillModal = (order: Order) => {
+    setSelectedOrderForInnofulfill(order);
+    setShowInnofulfillModal(true);
+  };
+
+  const handleShipInnofulfill = async (mode: 'SURFACE' | 'AIR') => {
+    if (!selectedOrderForInnofulfill) return;
+    try {
+      setIsShippingInnofulfill(true);
+      setShippingOrderId(selectedOrderForInnofulfill.id);
+      const response = await ordersApi.shipToInnofulfill(selectedOrderForInnofulfill.id, { deliveryPromise: mode });
+      if (response.data.success) {
+        toast.success(`Shipped via Innofulfill (${mode})! AWB: ${response.data.awbNumber}`);
+        setShowInnofulfillModal(false);
+        const order = selectedOrderForInnofulfill;
+        setSelectedOrderForInnofulfill(null);
+        loadOrders();
+        if (order.warehouse) {
+          showPickupDialog(
+            order.id,
+            order.warehouse.id || order.warehouseId || '',
+            order.warehouse.name || 'Warehouse',
+            'INNOFULFILL',
+            response.data.awbNumber
+          );
+        }
+      } else {
+        toast.error(response.data.error || 'Failed to ship order');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || 'Failed to ship order');
+    } finally {
+      setIsShippingInnofulfill(false);
+      setShippingOrderId(null);
     }
   };
 
@@ -439,7 +486,9 @@ const Orders = () => {
       await ordersApi.selectXpressbeesService(selectedOrderForXpressbees.id, service);
 
       // Then ship the order
-      const response = await ordersApi.shipToXpressbees(selectedOrderForXpressbees.id);
+      const response = await ordersApi.shipToXpressbees(selectedOrderForXpressbees.id, {
+        serviceId: service.service_id,
+      });
 
       if (response.data.success) {
         toast.success(`Shipped via Xpressbees! AWB: ${response.data.awbNumber}`);
@@ -490,7 +539,10 @@ const Orders = () => {
       await ordersApi.selectDelhiveryService(selectedOrderForDelhivery.id, service);
 
       // Then ship the order
-      const response = await ordersApi.shipToDelhivery(selectedOrderForDelhivery.id);
+      const response = await ordersApi.shipToDelhivery(selectedOrderForDelhivery.id, {
+        // Map surface/express service id to Delhivery shipping_mode
+        shippingMode: service.service_id === 'express' ? 'Express' : 'Surface',
+      });
 
       if (response.data.success) {
         toast.success(`Shipped via Delhivery! AWB: ${response.data.awbNumber}`);
@@ -575,6 +627,11 @@ const Orders = () => {
     } finally {
       setIsCancelling(false);
     }
+  };
+
+  const openDetailsModal = (order: Order) => {
+    setSelectedOrderForDetails(order);
+    setShowDetailsModal(true);
   };
 
   const handleGenerateShippingLabel = async (order: Order) => {
@@ -866,18 +923,21 @@ const Orders = () => {
                               Delhivery (Surface/Express)
                             </DropdownMenuItem>
                           )}
-                          {/* Innofulfill option */}
+                          {/* Innofulfill option (Surface/Air choice) */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => shipAndShowPickup(order.id, 'INNOFULFILL')}
+                              onClick={() => openInnofulfillModal(order)}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-teal-600"
                             >
                               <Truck className="h-4 w-4" />
-                              {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill"}
+                              {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill (Surface/Air)"}
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onClick={() => openDetailsModal(order)}
+                          >
                             <FileText className="h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
@@ -1271,6 +1331,53 @@ const Orders = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Innofulfill Surface/Air selection */}
+      <Dialog open={showInnofulfillModal} onOpenChange={setShowInnofulfillModal}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-teal-700">
+              <Truck className="h-5 w-5" />
+              Ship via Innofulfill
+            </DialogTitle>
+            <DialogDescription>
+              Choose delivery mode for order {selectedOrderForInnofulfill?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select Surface (standard) or Air (faster). Booking will use this mode.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-1 border-2 hover:border-teal-500 hover:bg-teal-50"
+                onClick={() => handleShipInnofulfill('SURFACE')}
+                disabled={isShippingInnofulfill}
+              >
+                <Truck className="h-6 w-6 text-muted-foreground" />
+                <span className="font-medium">Surface</span>
+                <span className="text-xs text-muted-foreground">Standard delivery</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto py-4 flex flex-col items-center gap-1 border-2 hover:border-teal-500 hover:bg-teal-50"
+                onClick={() => handleShipInnofulfill('AIR')}
+                disabled={isShippingInnofulfill}
+              >
+                <Zap className="h-6 w-6 text-muted-foreground" />
+                <span className="font-medium">Air</span>
+                <span className="text-xs text-muted-foreground">Faster delivery</span>
+              </Button>
+            </div>
+            {isShippingInnofulfill && (
+              <p className="text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Booking shipment...
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Add to Pickup Dialog (Delhivery-style) */}
       <Dialog open={showAddToPickup} onOpenChange={setShowAddToPickup}>
         <DialogContent className="sm:max-w-[520px]">
@@ -1443,6 +1550,93 @@ const Orders = () => {
                     <><XCircle className="h-4 w-4 mr-2" /> Cancel Order</>
                   )}
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Details Modal */}
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Order Details
+            </DialogTitle>
+            <DialogDescription>
+              Quick summary of order, shipment, and payment information.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrderForDetails && (
+            <div className="space-y-4 py-2">
+              <div className="grid gap-3 rounded-lg border p-4 bg-muted/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Order</p>
+                    <p className="font-semibold text-sm">
+                      {selectedOrderForDetails.orderNumber}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p>Created</p>
+                    <p className="font-medium">
+                      {selectedOrderForDetails.createdAt
+                        ? new Date(selectedOrderForDetails.createdAt).toLocaleString()
+                        : "-"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Customer</p>
+                    <p className="font-medium">{selectedOrderForDetails.customerName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedOrderForDetails.customerPhone || "-"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Courier / AWB</p>
+                    <p className="font-medium">
+                      {selectedOrderForDetails.courierName || "Not shipped"}
+                    </p>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {selectedOrderForDetails.awbNumber || "-"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Status</p>
+                    <Badge variant={statusBadgeVariant(selectedOrderForDetails.status)} className="capitalize">
+                      {formatStatus(selectedOrderForDetails.status)}
+                    </Badge>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Payment</p>
+                    <p className="font-medium">
+                      {selectedOrderForDetails.paymentMode === "COD"
+                        ? `COD • ₹${Number(selectedOrderForDetails.codAmount || 0).toFixed(2)}`
+                        : "Prepaid"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-2 text-sm">
+                <p className="text-xs uppercase text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Ship To
+                </p>
+                <p className="font-medium">{selectedOrderForDetails.customerName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {[selectedOrderForDetails.shippingCity, selectedOrderForDetails.shippingState, selectedOrderForDetails.shippingPincode]
+                    .filter(Boolean)
+                    .join(", ") || "-"}
+                </p>
               </div>
             </div>
           )}

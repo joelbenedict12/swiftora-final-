@@ -213,7 +213,7 @@ export class InnofulfillService implements ICourierService {
 
                 // --- Optional order-level fields ---
                 orderSubtype: 'FORWARD',
-                deliveryPromise: 'SURFACE',
+                deliveryPromise: (request.deliveryPromise || 'SURFACE').toUpperCase(),
                 remarks: request.productDescription || 'Order from Swiftora',
                 orderCreatedAt: new Date().toISOString(),
                 subTotal: productValue * quantity,

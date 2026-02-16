@@ -59,6 +59,11 @@ export interface CreateShipmentRequest {
 
   // Ekart-specific: preferred pickup date (YYYY-MM-DD)
   preferredDispatchDate?: string;
+
+  // Service selection (optional, used by some couriers)
+  serviceId?: string;       // e.g. Xpressbees courier/service id
+  shippingMode?: string;    // e.g. 'Surface' | 'Express' for Delhivery
+  deliveryPromise?: string; // e.g. 'SURFACE' | 'AIR' for Innofulfill
 }
 
 // Standardized shipment response

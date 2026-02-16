@@ -125,15 +125,19 @@ export const ordersApi = {
     api.post(`/orders/${id}/ship`, { courierName }),
 
   // Convenience methods for each courier
-  shipToDelhivery: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'DELHIVERY' }),
+  shipToDelhivery: (id: string, extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'DELHIVERY', ...(extra || {}) }),
 
   shipToBlitz: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'BLITZ' }),
 
-  shipToEkart: (id: string, preferredDispatchDate?: string) => api.post(`/orders/${id}/ship`, { courierName: 'EKART', preferredDispatchDate }),
+  shipToEkart: (id: string, preferredDispatchDate?: string) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'EKART', preferredDispatchDate }),
 
-  shipToXpressbees: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES' }),
+  shipToXpressbees: (id: string, extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES', ...(extra || {}) }),
 
-  shipToInnofulfill: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'INNOFULFILL' }),
+  shipToInnofulfill: (id: string, extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'INNOFULFILL', ...(extra || {}) }),
 
   assignPickupLocation: (id: string, warehouseId: string) =>
     api.put(`/orders/${id}/pickup-location`, { warehouseId }),

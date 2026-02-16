@@ -323,8 +323,8 @@ export class XpressbeesService implements ICourierService {
                     sku: String(request.orderNumber || 'SKU001'),
                 }],
 
-                // Courier ID (service selected from pricing)
-                courier_id: String((request as any).serviceId || ''),
+                // Courier ID (service selected from pricing; defaults to first service if not set)
+                courier_id: String(request.serviceId || (request as any).serviceId || ''),
             };
 
             console.log('=== XPRESSBEES CREATE SHIPMENT - PAYLOAD ===');

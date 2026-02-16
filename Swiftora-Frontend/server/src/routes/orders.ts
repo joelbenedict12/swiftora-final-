@@ -540,7 +540,13 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     }
 
     // Get courier from request body (optional, defaults to order's courierName or DELHIVERY)
-    const { courierName: requestedCourier, preferredDispatchDate } = req.body;
+    const {
+      courierName: requestedCourier,
+      preferredDispatchDate,
+      serviceId,
+      shippingMode,
+      deliveryPromise,
+    } = req.body;
 
     const order = await prisma.order.findFirst({
       where: {
@@ -642,6 +648,10 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
 
       // Ekart-specific: preferred pickup date
       preferredDispatchDate: preferredDispatchDate || undefined,
+      // Optional service selection (used by Delhivery/Xpressbees/Innofulfill)
+      serviceId: serviceId,
+      shippingMode: shippingMode,
+      deliveryPromise: deliveryPromise,
     };
 
     console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));
