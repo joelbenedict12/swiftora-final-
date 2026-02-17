@@ -52,7 +52,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ticketsApi } from "@/lib/api";
+import { ticketsApi, ordersApi } from "@/lib/api";
 
 const Support = () => {
   const [newTicket, setNewTicket] = useState({
@@ -68,11 +68,28 @@ const Support = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [orderList, setOrderList] = useState<{ orderNumber: string; customerName?: string }[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Load tickets
   useEffect(() => {
     loadTickets();
   }, []);
+
+  // Load recent orders when Create dialog opens (for order selector)
+  useEffect(() => {
+    if (showCreateDialog && orderList.length === 0) {
+      setLoadingOrders(true);
+      ordersApi
+        .list({ limit: 100 })
+        .then((res) => {
+          const list = res.data?.orders ?? res.data ?? [];
+          setOrderList(Array.isArray(list) ? list : []);
+        })
+        .catch(() => setOrderList([]))
+        .finally(() => setLoadingOrders(false));
+    }
+  }, [showCreateDialog]);
 
   const loadTickets = async () => {
     try {
@@ -273,14 +290,41 @@ const Support = () => {
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Order ID (if applicable)
+                  Order (optional)
                 </label>
+                <Select
+                  value={newTicket.orderId || "_none"}
+                  onValueChange={(value) =>
+                    setNewTicket({
+                      ...newTicket,
+                      orderId: value === "_none" ? "" : value,
+                    })
+                  }
+                  disabled={loadingOrders}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingOrders ? "Loading orders..." : "Select an order to link"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">None</SelectItem>
+                    {orderList.map((o) => (
+                      <SelectItem key={o.orderNumber} value={o.orderNumber}>
+                        {o.orderNumber}
+                        {o.customerName ? ` — ${o.customerName}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1 mb-1">
+                  Or type order ID manually:
+                </p>
                 <Input
-                  placeholder="ORD-12345"
+                  placeholder="e.g. ORD123..."
                   value={newTicket.orderId}
                   onChange={(e) =>
                     setNewTicket({ ...newTicket, orderId: e.target.value })
                   }
+                  className="h-9 text-sm"
                 />
               </div>
               <div>

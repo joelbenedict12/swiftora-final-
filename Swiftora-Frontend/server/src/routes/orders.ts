@@ -445,36 +445,6 @@ router.post('/', async (req: AuthRequest, res, next) => {
     });
     console.log('Order created:', order.id);
 
-    // Auto-create support ticket for the order
-    try {
-      const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
-      const ticketNumber = `TKT-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}-${rand}`;
-
-      // Calculate SLA due date (48 hours default)
-      const dueAt = new Date();
-      dueAt.setHours(dueAt.getHours() + 48);
-
-      await prisma.ticket.create({
-        data: {
-          ticketNumber,
-          merchantId: req.user!.merchantId,
-          userId: req.user!.id,
-          orderId: order.id,
-          type: 'OTHER',
-          subject: `Order Created: ${orderNumber}`,
-          description: `A new order ${orderNumber} has been created. Customer: ${data.customerName}, Product: ${data.productName}, Amount: ₹${data.productValue}`,
-          priority: 'MEDIUM',
-          status: 'OPEN',
-          slaHours: 48,
-          dueAt,
-        },
-      });
-      console.log('Auto-created ticket for order:', orderNumber);
-    } catch (ticketError: any) {
-      console.error('Failed to auto-create ticket:', ticketError);
-      // Don't fail the order creation if ticket creation fails
-    }
-
     // Return order (no courier yet — user picks courier later from Orders page)
     return res.status(201).json({
       order,
