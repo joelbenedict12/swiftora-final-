@@ -88,14 +88,18 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
           status: { in: ['RTO', 'RTO_DELIVERED'] },
         },
       }),
-      prisma.pickup.count({
-        where: { merchantId },
-      }),
-      prisma.pickup.count({
+      // Total Pickups: orders ready at warehouse (scheduled for courier pickup)
+      prisma.order.count({
         where: {
           merchantId,
-          status: 'SCHEDULED',
-          scheduledDate: { gte: today },
+          status: 'READY_TO_SHIP',
+        },
+      }),
+      // Pending Pickups: orders awaiting pickup (courier out for pickup)
+      prisma.order.count({
+        where: {
+          merchantId,
+          status: 'OUT_FOR_PICKUP',
         },
       }),
       prisma.merchant.findUnique({

@@ -274,12 +274,12 @@ const Dashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pickups</CardTitle>
+            <CardTitle className="text-sm font-medium">Ready to Ship</CardTitle>
             <Package className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalPickups || 0}</div>
-            <p className="text-xs text-muted-foreground">Scheduled</p>
+            <div className="text-2xl font-bold">{stats?.totalPickups ?? 0}</div>
+            <p className="text-xs text-muted-foreground">At warehouse, awaiting pickup</p>
           </CardContent>
         </Card>
 
@@ -289,8 +289,8 @@ const Dashboard = () => {
             <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.pendingPickups || 0}</div>
-            <p className="text-xs text-muted-foreground">Awaiting pickup</p>
+            <div className="text-2xl font-bold">{stats?.pendingPickups ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Courier out for pickup</p>
           </CardContent>
         </Card>
       </div>
