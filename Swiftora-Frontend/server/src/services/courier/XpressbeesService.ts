@@ -371,31 +371,34 @@ export class XpressbeesService implements ICourierService {
             const trackingId = request.awbNumber || request.orderNumber;
             if (!trackingId) throw new Error('Tracking ID required');
 
+            // GET https://shipment.xpressbees.com/api/shipments2/track/{AWB}
+            // Response: { status: true, data: { awb_number, status, history: [{ message, event_time, location, status_code }] } }
             const response = await client.get(`/api/shipments2/track/${trackingId}`);
             const events: TrackingEvent[] = [];
             const trackData = response.data?.data;
 
-            if (trackData?.scans && Array.isArray(trackData.scans)) {
-                for (const scan of trackData.scans) {
+            if (trackData?.history && Array.isArray(trackData.history)) {
+                for (const h of trackData.history) {
                     events.push({
-                        status: scan.status || scan.activity,
-                        statusCode: scan.status_code,
-                        location: scan.location,
-                        timestamp: new Date(scan.timestamp || scan.date),
-                        remarks: scan.remarks,
+                        status: h.message || h.status,
+                        statusCode: h.status_code,
+                        location: h.location || '',
+                        timestamp: new Date(h.event_time || 0),
+                        remarks: h.message,
                     });
                 }
             }
 
-            // Xpressbees may not return current_status; use the scan with latest timestamp as fallback
-            let currentStatus = trackData?.current_status;
-            if (!currentStatus && trackData?.scans?.length) {
-                const byTime = [...trackData.scans].sort(
-                    (a, b) => new Date(b.timestamp || b.date || 0).getTime() - new Date(a.timestamp || a.date || 0).getTime()
+            // Current status: API has data.status (e.g. "pending pickup"); prefer latest history message by event_time
+            let currentStatus = trackData?.status;
+            if (trackData?.history?.length) {
+                const byTime = [...trackData.history].sort(
+                    (a, b) => new Date(b.event_time || 0).getTime() - new Date(a.event_time || 0).getTime()
                 );
-                const latest = byTime[0];
-                currentStatus = latest?.status || latest?.activity;
+                const latestMessage = byTime[0]?.message;
+                if (latestMessage) currentStatus = latestMessage;
             }
+            if (!currentStatus) currentStatus = 'Unknown';
 
             return {
                 success: response.data?.status === true,

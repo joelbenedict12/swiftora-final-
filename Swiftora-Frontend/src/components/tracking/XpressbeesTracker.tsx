@@ -15,8 +15,9 @@ const getStatusConfig = (status: string) => {
     if (s.includes("delivered")) return { bg: "bg-emerald-500", icon: CheckCircle2, label: "Delivered" };
     if (s.includes("out for delivery")) return { bg: "bg-purple-500", icon: Truck, label: "Out for Delivery" };
     if (s.includes("transit") || s.includes("dispatched")) return { bg: "bg-blue-500", icon: Truck, label: "In Transit" };
-    if (s.includes("picked")) return { bg: "bg-indigo-500", icon: Package, label: "Picked Up" };
-    if (s.includes("manifest")) return { bg: "bg-amber-500", icon: Package, label: "Manifested" };
+    if (s.includes("picked") || s.includes("pickup done")) return { bg: "bg-indigo-500", icon: Package, label: "Picked Up" };
+    if (s.includes("out for pickup") || s.includes("ready for pickup")) return { bg: "bg-amber-500", icon: Truck, label: "Out for Pickup" };
+    if (s.includes("manifest") || s.includes("data received")) return { bg: "bg-amber-500", icon: Package, label: "Manifested" };
     if (s.includes("rto")) return { bg: "bg-red-500", icon: AlertCircle, label: "RTO" };
     if (s.includes("pending")) return { bg: "bg-yellow-500", icon: Clock, label: "Pending" };
     return { bg: "bg-gray-500", icon: Package, label: status };
