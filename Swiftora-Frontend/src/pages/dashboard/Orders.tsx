@@ -60,7 +60,7 @@ import {
   FileDown,
   Pencil,
 } from "lucide-react";
-import { ordersApi, warehousesApi, ticketsApi } from "@/lib/api";
+import { ordersApi, warehousesApi, ticketsApi, trackingApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
@@ -166,6 +166,7 @@ const Orders = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [shippingOrderId, setShippingOrderId] = useState<string | null>(null);
@@ -454,6 +455,27 @@ const Orders = () => {
       toast.error(message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /** Fetch tracking from couriers for all orders with AWB so status (e.g. Out for Pickup) updates in DB and shows here. */
+  const syncStatusFromCouriers = async () => {
+    const withAwb = orders.filter((o) => o.awbNumber?.trim());
+    if (withAwb.length === 0) {
+      toast.info("No orders with AWB to sync. Ship orders first.");
+      return;
+    }
+    try {
+      setIsSyncingStatus(true);
+      await Promise.allSettled(
+        withAwb.map((o) => trackingApi.track({ awb: o.awbNumber! }))
+      );
+      await loadOrders();
+      toast.success(`Status synced for ${withAwb.length} order(s).`);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || e?.message || "Sync failed");
+    } finally {
+      setIsSyncingStatus(false);
     }
   };
 
@@ -869,6 +891,16 @@ const Orders = () => {
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={syncStatusFromCouriers}
+                disabled={isLoading || isSyncingStatus}
+                className="gap-2"
+                title="Fetch latest status from couriers (e.g. Out for Pickup) and refresh list"
+              >
+                {isSyncingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                {isSyncingStatus ? "Syncing…" : "Sync status"}
+              </Button>
               <Button variant="outline" onClick={loadOrders} disabled={isLoading} className="gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Reload
