@@ -46,6 +46,7 @@ type DashboardStats = {
   totalOrders: number;
   todayOrders: number;
   activeOrders: number;
+  outForPickupOrders: number;
   deliveredOrders: number;
   rtoOrders: number;
   totalPickups: number;
@@ -132,6 +133,7 @@ const Dashboard = () => {
         totalOrders: overviewRes.data.totalOrders || 0,
         todayOrders: overviewRes.data.todayOrders || 0,
         activeOrders: overviewRes.data.activeOrders || 0,
+        outForPickupOrders: overviewRes.data.outForPickupOrders || 0,
         deliveredOrders: overviewRes.data.deliveredOrders || 0,
         rtoOrders: overviewRes.data.rtoOrders || 0,
         totalPickups: overviewRes.data.totalPickups || 0,
@@ -244,7 +246,21 @@ const Dashboard = () => {
       </div>
 
       {/* Secondary Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate("/dashboard/orders?status=out_for_pickup")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Out for Pickup</CardTitle>
+            <Truck className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.outForPickupOrders ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Courier out for pickup</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">RTO Cases</CardTitle>

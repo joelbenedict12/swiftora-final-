@@ -387,10 +387,20 @@ export class XpressbeesService implements ICourierService {
                 }
             }
 
+            // Xpressbees may not return current_status; use the scan with latest timestamp as fallback
+            let currentStatus = trackData?.current_status;
+            if (!currentStatus && trackData?.scans?.length) {
+                const byTime = [...trackData.scans].sort(
+                    (a, b) => new Date(b.timestamp || b.date || 0).getTime() - new Date(a.timestamp || a.date || 0).getTime()
+                );
+                const latest = byTime[0];
+                currentStatus = latest?.status || latest?.activity;
+            }
+
             return {
                 success: response.data?.status === true,
                 awbNumber: trackData?.awb_number || trackingId,
-                currentStatus: trackData?.current_status,
+                currentStatus,
                 events,
                 rawResponse: response.data,
             };

@@ -18,6 +18,7 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
           totalOrders: 0,
           todayOrders: 0,
           activeOrders: 0,
+          outForPickupOrders: 0,
           deliveredOrders: 0,
           rtoOrders: 0,
           totalPickups: 0,
@@ -27,10 +28,10 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
         },
         recentOrders: [],
         upcomingPickups: [],
-        // Frontend expects these at root level too
         totalOrders: 0,
         todayOrders: 0,
         activeOrders: 0,
+        outForPickupOrders: 0,
         deliveredOrders: 0,
         rtoOrders: 0,
         totalPickups: 0,
@@ -49,6 +50,7 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
       totalOrders,
       todayOrders,
       activeOrders,
+      outForPickupOrders,
       deliveredOrders,
       rtoOrders,
       totalPickups,
@@ -66,6 +68,12 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
         where: {
           merchantId,
           status: { in: ['IN_TRANSIT', 'OUT_FOR_DELIVERY'] },
+        },
+      }),
+      prisma.order.count({
+        where: {
+          merchantId,
+          status: 'OUT_FOR_PICKUP',
         },
       }),
       prisma.order.count({
@@ -129,6 +137,7 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
         totalOrders,
         todayOrders,
         activeOrders,
+        outForPickupOrders,
         deliveredOrders,
         rtoOrders,
         totalPickups,
@@ -136,10 +145,10 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
         walletBalance: merchant?.walletBalance || 0,
         creditLimit: merchant?.creditLimit || 0,
       },
-      // Also include at root level for frontend compatibility
       totalOrders,
       todayOrders,
       activeOrders,
+      outForPickupOrders,
       deliveredOrders,
       rtoOrders,
       totalPickups,

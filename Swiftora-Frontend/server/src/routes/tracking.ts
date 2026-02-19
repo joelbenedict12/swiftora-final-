@@ -10,13 +10,15 @@ import { innofulfillService } from '../services/courier/InnofulfillService.js';
 
 const router = Router();
 
-/** Sync order status in DB from courier tracking (so "Out for Pickup" etc. reflects on the website). */
+/** Sync order status in DB from courier tracking (so "Out for Pickup", "Picked", "In Transit" etc. reflect on the website). */
 async function syncOrderStatusFromTracking(awb: string, rawStatus: string): Promise<void> {
   if (!awb || !rawStatus) return;
   const status = courierStatusToOrderStatus(rawStatus);
   if (!status) return;
+  const awbTrimmed = String(awb).trim();
+  if (!awbTrimmed) return;
   try {
-    const order = await prisma.order.findFirst({ where: { awbNumber: awb } });
+    const order = await prisma.order.findFirst({ where: { awbNumber: awbTrimmed } });
     if (order) {
       await prisma.order.update({
         where: { id: order.id },
@@ -27,6 +29,8 @@ async function syncOrderStatusFromTracking(awb: string, rawStatus: string): Prom
         },
       });
       console.log(`Synced order ${order.orderNumber} status to ${status} (from tracking: ${rawStatus})`);
+    } else {
+      console.warn(`syncOrderStatusFromTracking: no order found for AWB ${awbTrimmed}, status was: ${rawStatus}`);
     }
   } catch (e) {
     console.error('syncOrderStatusFromTracking error:', e);
@@ -108,34 +112,38 @@ router.get('/track', async (req, res, next) => {
       }
     }
 
-    // Check Blitz
+    // Check Blitz (use latest event if no currentStatus)
     if (blitzResult.status === 'fulfilled') {
       const data = blitzResult.value.data;
-      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
+      const statusToSync = data?.currentStatus || data?.events?.[0]?.status;
+      if (data?.awbNumber && statusToSync) await syncOrderStatusFromTracking(data.awbNumber, statusToSync);
       console.log('Found on Blitz');
       return res.json({ courier: 'blitz', data });
     }
 
-    // Check Xpressbees
+    // Check Xpressbees (use latest event status if API doesn't send current_status)
     if (xpressbeesResult.status === 'fulfilled') {
       const data = xpressbeesResult.value.data;
-      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
+      const statusToSync = data?.currentStatus || data?.events?.[0]?.status;
+      if (data?.awbNumber && statusToSync) await syncOrderStatusFromTracking(data.awbNumber, statusToSync);
       console.log('Found on Xpressbees');
       return res.json({ courier: 'xpressbees', data });
     }
 
-    // Check Ekart
+    // Check Ekart (use latest event if no currentStatus)
     if (ekartResult.status === 'fulfilled') {
       const data = ekartResult.value.data;
-      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
+      const statusToSync = data?.currentStatus || data?.events?.[0]?.status;
+      if (data?.awbNumber && statusToSync) await syncOrderStatusFromTracking(data.awbNumber, statusToSync);
       console.log('Found on Ekart');
       return res.json({ courier: 'ekart', data });
     }
 
-    // Check Innofulfill
+    // Check Innofulfill (use latest event if no currentStatus)
     if (innofulfillResult.status === 'fulfilled') {
       const data = innofulfillResult.value.data;
-      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
+      const statusToSync = data?.currentStatus || data?.events?.[0]?.status;
+      if (data?.awbNumber && statusToSync) await syncOrderStatusFromTracking(data.awbNumber, statusToSync);
       console.log('Found on Innofulfill');
       return res.json({ courier: 'innofulfill', data });
     }

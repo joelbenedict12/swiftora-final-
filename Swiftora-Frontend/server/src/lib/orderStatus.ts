@@ -35,6 +35,7 @@ const PICKED_UP_ALIASES = [
   'pickup',
   'picked',
   'collected',
+  'pickup done',
 ];
 
 const IN_TRANSIT_ALIASES = [
