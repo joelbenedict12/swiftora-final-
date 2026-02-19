@@ -222,6 +222,17 @@ const B2CFastForm = ({
     }
   };
 
+  // Normalise state to full name whenever it's a 2-letter code (e.g. KA → Karnataka)
+  useEffect(() => {
+    const state = formData.shippingState?.trim();
+    if (state && state.length <= 2) {
+      const full = expandStateDisplay(state);
+      if (full && full !== state) {
+        setFormData((prev) => ({ ...prev, shippingState: full }));
+      }
+    }
+  }, [formData.shippingState]);
+
   // Fetch warehouses on mount
   useEffect(() => {
     const fetchWarehouses = async () => {
@@ -449,8 +460,15 @@ const B2CFastForm = ({
                         <Label className="text-xs font-medium text-slate-700">State *</Label>
                         <Input
                           required
-                          value={formData.shippingState}
+                          value={expandStateDisplay(formData.shippingState) || formData.shippingState}
                           onChange={(e) => setFormData({ ...formData, shippingState: e.target.value })}
+                          onBlur={() => {
+                            setFormData((prev) => {
+                              const expanded = expandStateDisplay(prev.shippingState);
+                              if (expanded && expanded !== prev.shippingState) return { ...prev, shippingState: expanded };
+                              return prev;
+                            });
+                          }}
                           placeholder="State"
                           className="mt-1 h-9 text-sm border-blue-200 focus:border-blue-500"
                         />
