@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
+import { courierStatusToOrderStatus } from '../lib/orderStatus.js';
 import { delhivery } from '../services/delhivery.js';
 import { blitzService } from '../services/courier/BlitzService.js';
 import { xpressbeesService } from '../services/courier/XpressbeesService.js';
@@ -7,6 +9,29 @@ import { ekartService } from '../services/courier/EkartService.js';
 import { innofulfillService } from '../services/courier/InnofulfillService.js';
 
 const router = Router();
+
+/** Sync order status in DB from courier tracking (so "Out for Pickup" etc. reflects on the website). */
+async function syncOrderStatusFromTracking(awb: string, rawStatus: string): Promise<void> {
+  if (!awb || !rawStatus) return;
+  const status = courierStatusToOrderStatus(rawStatus);
+  if (!status) return;
+  try {
+    const order = await prisma.order.findFirst({ where: { awbNumber: awb } });
+    if (order) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status,
+          trackingStatus: rawStatus,
+          ...(status === 'DELIVERED' ? { actualDelivery: new Date() } : {}),
+        },
+      });
+      console.log(`Synced order ${order.orderNumber} status to ${status} (from tracking: ${rawStatus})`);
+    }
+  } catch (e) {
+    console.error('syncOrderStatusFromTracking error:', e);
+  }
+}
 
 // Public tracking endpoint (no auth required)
 // Tries ALL courier APIs in parallel — returns whichever finds the AWB
@@ -73,7 +98,11 @@ router.get('/track', async (req, res, next) => {
     // Check Delhivery first (returns native ShipmentData format)
     if (delhiveryResult.status === 'fulfilled') {
       const dData = delhiveryResult.value.data;
-      if (dData?.ShipmentData?.[0]?.Shipment) {
+      const shipment = dData?.ShipmentData?.[0]?.Shipment;
+      if (shipment) {
+        const awbNum = shipment.AWB;
+        const currentStatus = shipment.Status?.Status;
+        if (awbNum && currentStatus) await syncOrderStatusFromTracking(awbNum, currentStatus);
         console.log('Found on Delhivery');
         return res.json({ courier: 'delhivery', data: dData });
       }
@@ -81,26 +110,34 @@ router.get('/track', async (req, res, next) => {
 
     // Check Blitz
     if (blitzResult.status === 'fulfilled') {
+      const data = blitzResult.value.data;
+      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
       console.log('Found on Blitz');
-      return res.json({ courier: 'blitz', data: blitzResult.value.data });
+      return res.json({ courier: 'blitz', data });
     }
 
     // Check Xpressbees
     if (xpressbeesResult.status === 'fulfilled') {
+      const data = xpressbeesResult.value.data;
+      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
       console.log('Found on Xpressbees');
-      return res.json({ courier: 'xpressbees', data: xpressbeesResult.value.data });
+      return res.json({ courier: 'xpressbees', data });
     }
 
     // Check Ekart
     if (ekartResult.status === 'fulfilled') {
+      const data = ekartResult.value.data;
+      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
       console.log('Found on Ekart');
-      return res.json({ courier: 'ekart', data: ekartResult.value.data });
+      return res.json({ courier: 'ekart', data });
     }
 
     // Check Innofulfill
     if (innofulfillResult.status === 'fulfilled') {
+      const data = innofulfillResult.value.data;
+      if (data?.awbNumber && data?.currentStatus) await syncOrderStatusFromTracking(data.awbNumber, data.currentStatus);
       console.log('Found on Innofulfill');
-      return res.json({ courier: 'innofulfill', data: innofulfillResult.value.data });
+      return res.json({ courier: 'innofulfill', data });
     }
 
     // None found

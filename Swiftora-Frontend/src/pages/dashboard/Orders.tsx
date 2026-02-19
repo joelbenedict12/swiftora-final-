@@ -143,7 +143,7 @@ type Warehouse = {
 const statusBadgeVariant = (status: string) => {
   const normalized = status?.toUpperCase();
   if (["DELIVERED"].includes(normalized)) return "secondary" as const;
-  if (["IN_TRANSIT", "READY_TO_SHIP", "OUT_FOR_DELIVERY"].includes(normalized))
+  if (["IN_TRANSIT", "READY_TO_SHIP", "OUT_FOR_DELIVERY", "OUT_FOR_PICKUP", "PICKED_UP"].includes(normalized))
     return "outline" as const;
   if (["PENDING", "PROCESSING", "MANIFESTED"].includes(normalized))
     return "default" as const;
@@ -861,6 +861,7 @@ const Orders = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="processing">Processing</SelectItem>
                   <SelectItem value="ready_to_ship">Ready to Ship</SelectItem>
+                  <SelectItem value="out_for_pickup">Out for Pickup</SelectItem>
                   <SelectItem value="in_transit">In Transit</SelectItem>
                   <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { courierStatusToOrderStatus } from '../lib/orderStatus.js';
 
 const router = Router();
 
@@ -25,36 +26,10 @@ router.post('/delhivery', async (req, res, next) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Update order status
-    let newStatus = order.status;
+    // Update order status (use shared mapper so "Out for Pickup" and all variants are handled)
     const statusCode = data.Status?.Status || data.status;
-
-    switch (statusCode) {
-      case 'Manifested':
-        newStatus = 'MANIFESTED';
-        break;
-      case 'Pickup':
-      case 'PickedUp':
-        newStatus = 'PICKED_UP';
-        break;
-      case 'In-transit':
-      case 'InTransit':
-        newStatus = 'IN_TRANSIT';
-        break;
-      case 'Out for Delivery':
-      case 'OutForDelivery':
-        newStatus = 'OUT_FOR_DELIVERY';
-        break;
-      case 'Delivered':
-        newStatus = 'DELIVERED';
-        break;
-      case 'RTO':
-        newStatus = 'RTO';
-        break;
-      case 'RTO-Delivered':
-        newStatus = 'RTO_DELIVERED';
-        break;
-    }
+    const mapped = courierStatusToOrderStatus(statusCode);
+    const newStatus = mapped ?? order.status;
 
     // Create tracking event
     await prisma.trackingEvent.create({
