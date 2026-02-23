@@ -544,9 +544,21 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
         data: { status: 'CANCELLED' },
       });
 
+      // Refund wallet if this order had a vendor charge
+      if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+        await WalletService.credit(
+          req.user!.merchantId,
+          Number(order.vendorCharge),
+          `Refund: Order ${order.orderNumber} cancelled (${courierName})`,
+          order.id
+        );
+        console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
+      }
+
       return res.json({
         success: true,
         message: cancelResult.message || `Shipment cancelled on ${courierName}`,
+        refunded: order.vendorCharge ? Number(order.vendorCharge) : 0,
         order: updated,
       });
     }
@@ -554,6 +566,17 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
     // No AWB — just a local/pending order cancel (only PENDING/READY_TO_SHIP)
     if (!['PENDING', 'READY_TO_SHIP'].includes(order.status)) {
       throw new AppError(400, 'Cannot cancel order in current status');
+    }
+
+    // Refund wallet if a pending/ready order had been charged
+    if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+      await WalletService.credit(
+        req.user!.merchantId,
+        Number(order.vendorCharge),
+        `Refund: Order ${order.orderNumber} cancelled`,
+        order.id
+      );
+      console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
     }
 
     const updated = await prisma.order.update({
