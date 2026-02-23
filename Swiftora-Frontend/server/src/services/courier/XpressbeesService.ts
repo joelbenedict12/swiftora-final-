@@ -554,7 +554,7 @@ export class XpressbeesService implements ICourierService {
             origin: request.originPincode,
             destination: request.destinationPincode,
             payment_type: request.paymentMode === 'COD' ? 'cod' : 'prepaid',
-            order_amount: request.codAmount || 0,
+            order_amount: request.codAmount || 500,
             weight: Math.round(request.weight * 1000),
             length: 10, breadth: 10, height: 10,
         });

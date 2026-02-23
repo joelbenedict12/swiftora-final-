@@ -627,7 +627,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
             destinationPincode: order.shippingPincode,
             weight,
             paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
-            codAmount: order.codAmount ? Number(order.codAmount) : undefined,
+            codAmount: Number(order.codAmount || order.productValue || 500),
           });
           console.log(`[ESTIMATE] ${courier} result:`, JSON.stringify(rateResult));
           if (rateResult.success && rateResult.rate && rateResult.rate > 0) {

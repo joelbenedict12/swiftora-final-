@@ -541,7 +541,10 @@ export class InnofulfillService implements ICourierService {
                 deliveryPromise: 'SURFACE',
                 fromPincode: parseInt(request.originPincode) || 0,
                 toPincode: parseInt(request.destinationPincode) || 0,
-                weight: Math.round(request.weight * 1000), // kg to grams
+                weight: Math.round(request.weight * 1000),
+                length: 10,
+                width: 10,
+                height: 10,
             });
 
             if (response.data?.data?.shippingCharge !== undefined) {
