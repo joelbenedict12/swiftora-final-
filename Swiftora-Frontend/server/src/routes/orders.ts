@@ -561,7 +561,32 @@ router.post('/bulk/import', async (req: AuthRequest, res, next) => {
   }
 });
 
-// Note: Orders are created locally, then shipments are created with the selected courier
+// Pre-flight wallet check -- frontend calls this before showing the ship confirmation dialog
+router.get('/wallet-check', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.user.merchantId },
+      select: { isPaused: true, walletBalance: true, creditLimit: true },
+    });
+
+    if (!merchant) throw new AppError(404, 'Merchant not found');
+
+    const available = (merchant.walletBalance || 0) + (merchant.creditLimit || 0);
+
+    res.json({
+      success: true,
+      walletBalance: merchant.walletBalance || 0,
+      creditLimit: merchant.creditLimit || 0,
+      available,
+      isPaused: merchant.isPaused,
+      canShip: !merchant.isPaused && available > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Ship order - creates shipment with selected courier and gets AWB
 // Accepts optional courierName in body to override the order's default courier
@@ -642,7 +667,13 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       throw new AppError(403, 'Your account is paused. Please contact support to resume shipping.');
     }
 
-    // 2. Get pricing estimate for wallet check
+    // 2. Hard-block if wallet balance + credit limit <= 0
+    const availableBalance = (merchant?.walletBalance || 0) + (merchant?.creditLimit || 0);
+    if (availableBalance <= 0) {
+      throw new AppError(402, 'Insufficient wallet balance. Please recharge your wallet before shipping.');
+    }
+
+    // 3. Get pricing estimate for wallet check
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
       select: { accountType: true },

@@ -123,6 +123,8 @@ export const ordersApi = {
 
   cancel: (id: string) => api.post(`/orders/${id}/cancel`),
 
+  walletCheck: () => api.get('/orders/wallet-check'),
+
   // Generic ship method - pass courier name
   ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL') =>
     api.post(`/orders/${id}/ship`, { courierName }),

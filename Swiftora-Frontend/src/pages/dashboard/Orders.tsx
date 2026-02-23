@@ -59,8 +59,9 @@ import {
   AlertTriangle,
   FileDown,
   Pencil,
+  Wallet,
 } from "lucide-react";
-import { ordersApi, warehousesApi, ticketsApi, trackingApi } from "@/lib/api";
+import { ordersApi, warehousesApi, ticketsApi, trackingApi, billingApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
@@ -251,6 +252,13 @@ const Orders = () => {
   const [selectedOrderForInnofulfill, setSelectedOrderForInnofulfill] = useState<Order | null>(null);
   const [isShippingInnofulfill, setIsShippingInnofulfill] = useState(false);
 
+  // Wallet confirmation dialog state
+  const [showWalletConfirm, setShowWalletConfirm] = useState(false);
+  const [walletInfo, setWalletInfo] = useState<{ walletBalance: number; creditLimit: number; available: number; isPaused: boolean; canShip: boolean } | null>(null);
+  const [loadingWalletCheck, setLoadingWalletCheck] = useState(false);
+  const [pendingShipAction, setPendingShipAction] = useState<(() => void) | null>(null);
+  const [pendingShipCourier, setPendingShipCourier] = useState<string>('');
+
   // Generate next 3 available weekdays from today
   const getAvailablePickupDates = () => {
     const dates: Date[] = [];
@@ -330,6 +338,33 @@ const Orders = () => {
       setIsSchedulingPickup(false);
       setShowAddToPickup(false);
       setPickupOrderData(null);
+    }
+  };
+
+  // Wallet pre-check: fetches balance and shows confirmation before any ship action
+  const confirmAndShip = async (courierLabel: string, action: () => void) => {
+    try {
+      setLoadingWalletCheck(true);
+      setPendingShipCourier(courierLabel);
+      setShowWalletConfirm(true);
+
+      const res = await ordersApi.walletCheck();
+      const data = res.data;
+      setWalletInfo(data);
+      setPendingShipAction(() => action);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to check wallet balance');
+      setShowWalletConfirm(false);
+    } finally {
+      setLoadingWalletCheck(false);
+    }
+  };
+
+  const handleConfirmShip = () => {
+    setShowWalletConfirm(false);
+    if (pendingShipAction) {
+      pendingShipAction();
+      setPendingShipAction(null);
     }
   };
 
@@ -1022,7 +1057,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => shipAndShowPickup(order.id, 'DELHIVERY')}
+                              onClick={() => confirmAndShip('Delhivery', () => shipAndShowPickup(order.id, 'DELHIVERY'))}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-blue-600"
                             >
@@ -1032,7 +1067,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => shipAndShowPickup(order.id, 'BLITZ')}
+                              onClick={() => confirmAndShip('Blitz', () => shipAndShowPickup(order.id, 'BLITZ'))}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-orange-600"
                             >
@@ -1042,7 +1077,7 @@ const Orders = () => {
                           )}
                           {!order.awbNumber && (
                             <DropdownMenuItem
-                              onClick={() => openEkartDateModal(order)}
+                              onClick={() => confirmAndShip('Ekart', () => openEkartDateModal(order))}
                               className="gap-2 text-purple-600"
                             >
                               <ShoppingCart className="h-4 w-4" />
@@ -1052,7 +1087,7 @@ const Orders = () => {
                           {/* Xpressbees option */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => openXpressbeesModal(order)}
+                              onClick={() => confirmAndShip('Xpressbees', () => openXpressbeesModal(order))}
                               className="gap-2 text-green-600"
                             >
                               <Truck className="h-4 w-4" />
@@ -1062,7 +1097,7 @@ const Orders = () => {
                           {/* Delhivery with options */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => openDelhiveryModal(order)}
+                              onClick={() => confirmAndShip('Delhivery (Surface/Express)', () => openDelhiveryModal(order))}
                               className="gap-2 text-indigo-600"
                             >
                               <Package className="h-4 w-4" />
@@ -1072,7 +1107,7 @@ const Orders = () => {
                           {/* Innofulfill option (Surface/Air choice) */}
                           {!order.awbNumber && order.warehouse && (
                             <DropdownMenuItem
-                              onClick={() => openInnofulfillModal(order)}
+                              onClick={() => confirmAndShip('Innofulfill', () => openInnofulfillModal(order))}
                               disabled={shippingOrderId === order.id}
                               className="gap-2 text-teal-600"
                             >
@@ -1865,6 +1900,106 @@ const Orders = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wallet Confirmation Dialog */}
+      <Dialog open={showWalletConfirm} onOpenChange={(open) => {
+        if (!open) { setPendingShipAction(null); }
+        setShowWalletConfirm(open);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Confirm Shipment
+            </DialogTitle>
+            <DialogDescription>
+              Review your wallet balance before shipping via {pendingShipCourier}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {loadingWalletCheck ? (
+              <div className="flex flex-col items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Checking wallet balance...</p>
+              </div>
+            ) : walletInfo?.isPaused ? (
+              <div className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+                  <AlertTriangle className="h-10 w-10 text-red-500 mx-auto mb-2" />
+                  <p className="font-semibold text-red-700">Account Paused</p>
+                  <p className="text-sm text-red-600 mt-1">
+                    Your account is currently paused. Contact support to resume shipping.
+                  </p>
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => setShowWalletConfirm(false)}>
+                  Close
+                </Button>
+              </div>
+            ) : walletInfo && !walletInfo.canShip ? (
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                  <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                  <p className="font-semibold text-amber-700">Insufficient Balance</p>
+                  <p className="text-sm text-amber-600 mt-1">
+                    Your wallet balance is too low to ship orders. Please recharge first.
+                  </p>
+                </div>
+                <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Wallet Balance</span>
+                    <span className="font-semibold">₹{(walletInfo.walletBalance || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Credit Limit</span>
+                    <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t pt-2">
+                    <span className="text-muted-foreground">Available</span>
+                    <span className="font-bold text-red-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowWalletConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button className="flex-1" onClick={() => { setShowWalletConfirm(false); navigate('/dashboard/billing'); }}>
+                    Recharge Wallet
+                  </Button>
+                </div>
+              </div>
+            ) : walletInfo ? (
+              <div className="space-y-4">
+                <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Wallet Balance</span>
+                    <span className="font-semibold">₹{(walletInfo.walletBalance || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Credit Limit</span>
+                    <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t pt-2">
+                    <span className="text-muted-foreground">Total Available</span>
+                    <span className="font-bold text-green-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Shipping charges will be deducted from your wallet after the shipment is created.
+                </p>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => { setShowWalletConfirm(false); setPendingShipAction(null); }}>
+                    Cancel
+                  </Button>
+                  <Button className="flex-1" onClick={handleConfirmShip}>
+                    Confirm & Ship
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
