@@ -260,6 +260,33 @@ router.get('/', async (req: AuthRequest, res, next) => {
   }
 });
 
+// Pre-flight wallet check (must be above /:id to avoid param collision)
+router.get('/wallet-check', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.user.merchantId },
+      select: { isPaused: true, walletBalance: true, creditLimit: true },
+    });
+
+    if (!merchant) throw new AppError(404, 'Merchant not found');
+
+    const available = (merchant.walletBalance || 0) + (merchant.creditLimit || 0);
+
+    res.json({
+      success: true,
+      walletBalance: merchant.walletBalance || 0,
+      creditLimit: merchant.creditLimit || 0,
+      available,
+      isPaused: merchant.isPaused,
+      canShip: !merchant.isPaused && available > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single order
 router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
@@ -555,33 +582,6 @@ router.post('/bulk/import', async (req: AuthRequest, res, next) => {
       message: 'Bulk import started',
       jobId: `job_${Date.now()}`,
       total: orders.length,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Pre-flight wallet check -- frontend calls this before showing the ship confirmation dialog
-router.get('/wallet-check', async (req: AuthRequest, res, next) => {
-  try {
-    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
-
-    const merchant = await prisma.merchant.findUnique({
-      where: { id: req.user.merchantId },
-      select: { isPaused: true, walletBalance: true, creditLimit: true },
-    });
-
-    if (!merchant) throw new AppError(404, 'Merchant not found');
-
-    const available = (merchant.walletBalance || 0) + (merchant.creditLimit || 0);
-
-    res.json({
-      success: true,
-      walletBalance: merchant.walletBalance || 0,
-      creditLimit: merchant.creditLimit || 0,
-      available,
-      isPaused: merchant.isPaused,
-      canShip: !merchant.isPaused && available > 0,
     });
   } catch (error) {
     next(error);
