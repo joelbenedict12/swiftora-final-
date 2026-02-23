@@ -1026,29 +1026,29 @@ const Orders = () => {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="text-xs">
-                <TableHead className="w-[120px] py-2">Order #</TableHead>
-                <TableHead className="py-2">Customer</TableHead>
-                <TableHead className="py-2">Destination</TableHead>
-                <TableHead className="py-2">Courier</TableHead>
-                <TableHead className="py-2">Status</TableHead>
-                <TableHead className="py-2">AWB</TableHead>
-                <TableHead className="py-2">COD</TableHead>
-                <TableHead className="text-right py-2">Created</TableHead>
-                <TableHead className="w-[60px] py-2">Actions</TableHead>
+              <TableRow>
+                <TableHead className="w-[140px]">Order #</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Destination</TableHead>
+                <TableHead>Courier</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>AWB</TableHead>
+                <TableHead>COD</TableHead>
+                <TableHead className="text-right">Created</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-6 text-muted-foreground text-sm">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Loading orders...
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-6 text-muted-foreground text-sm">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No orders found. Create your first order.
                   </TableCell>
                 </TableRow>
@@ -1061,45 +1061,45 @@ const Orders = () => {
                   return [
                     <TableRow
                       key={order.id}
-                      className="hover:bg-muted/50 cursor-pointer align-top text-xs"
+                      className="hover:bg-muted/50 cursor-pointer align-top"
                       onClick={() => toggleOrderDetails(order)}
                     >
-                    <TableCell className="font-medium py-2 text-xs">{order.orderNumber || order.id}</TableCell>
-                    <TableCell className="py-2">
-                      <div className="font-medium text-xs leading-tight">{order.customerName || "-"}</div>
-                      <div className="text-[11px] text-muted-foreground leading-tight">{order.customerPhone || "-"}</div>
+                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
+                    <TableCell>
+                      <div>{order.customerName || "-"}</div>
+                      <div className="text-sm text-muted-foreground">{order.customerPhone || "-"}</div>
                     </TableCell>
-                    <TableCell className="py-2">
-                      <div className="flex items-center gap-1 text-xs">
+                    <TableCell>
+                      <div className="flex items-center gap-1">
                         <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate max-w-[180px]">
+                        <span>
                           {[order.shippingCity, order.shippingState, order.shippingPincode]
                             .filter(Boolean)
                             .join(", ") || "-"}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell>
                       {order.courierName ? (
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
                           {COURIER_CONFIG[order.courierName]?.label || order.courierName}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
+                        <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="py-2">
-                      <Badge variant={statusBadgeVariant(order.status)} className="capitalize text-[11px] px-1.5 py-0">
+                    <TableCell>
+                      <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
                         {formatStatus(order.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-2 text-xs font-mono">{order.awbNumber || "-"}</TableCell>
-                    <TableCell className="py-2 text-xs">
+                    <TableCell>{order.awbNumber || "-"}</TableCell>
+                    <TableCell>
                       {order.paymentMode === "COD"
                         ? `₹${Number(order.codAmount || 0).toFixed(0)}`
                         : "-"}
                     </TableCell>
-                    <TableCell className="text-right text-[11px] text-muted-foreground py-2">
+                    <TableCell className="text-right text-sm text-muted-foreground">
                       {order.createdAt
                         ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
                         : "-"}
