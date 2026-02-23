@@ -33,6 +33,17 @@ export interface ProfitByVendor {
     totalProfit: number;
 }
 
+// Only include orders that generated revenue; exclude cancelled and other non-revenue statuses
+const PNL_ORDER_STATUSES = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] as const;
+
+function orderProfit(o: { margin?: unknown; vendorCharge?: unknown; courierCost?: unknown }): number {
+    const vc = Number(o.vendorCharge) || 0;
+    const cc = Number(o.courierCost) || 0;
+    const m = o.margin != null ? Number(o.margin) : NaN;
+    if (!Number.isNaN(m)) return m;
+    return vc - cc;
+}
+
 /**
  * Get total profit by date range.
  */
@@ -41,7 +52,7 @@ export async function getTotalProfitByDateRange(
     endDate?: Date
 ): Promise<ProfitSummary> {
     const where: any = {
-        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
+        status: { in: [...PNL_ORDER_STATUSES] },
     };
 
     if (startDate || endDate) {
@@ -62,7 +73,7 @@ export async function getTotalProfitByDateRange(
 
     const totalCourierCost = orders.reduce((sum, o) => sum + (Number(o.courierCost) || 0), 0);
     const totalVendorRevenue = orders.reduce((sum, o) => sum + (Number(o.vendorCharge) || Number(o.productValue) || 0), 0);
-    const totalProfit = orders.reduce((sum, o) => sum + (Number(o.margin) || 0), 0);
+    const totalProfit = orders.reduce((sum, o) => sum + orderProfit(o), 0);
     const averageMarginPercent = totalVendorRevenue > 0
         ? Math.round((totalProfit / totalVendorRevenue) * 10000) / 100
         : 0;
@@ -85,7 +96,7 @@ export async function getProfitByCourier(
 ): Promise<ProfitByCourier[]> {
     const where: any = {
         courierName: { not: null },
-        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
+        status: { in: [...PNL_ORDER_STATUSES] },
     };
 
     if (startDate || endDate) {
@@ -123,7 +134,7 @@ export async function getProfitByCourier(
         byCourier[name].totalOrders++;
         byCourier[name].totalCourierCost += Number(order.courierCost) || 0;
         byCourier[name].totalVendorRevenue += Number(order.vendorCharge) || Number(order.productValue) || 0;
-        byCourier[name].totalProfit += Number(order.margin) || 0;
+        byCourier[name].totalProfit += orderProfit(order);
     });
 
     // Calculate margin percent
@@ -146,7 +157,7 @@ export async function getProfitByVendor(
     endDate?: Date
 ): Promise<ProfitByVendor[]> {
     const where: any = {
-        status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
+        status: { in: [...PNL_ORDER_STATUSES] },
     };
 
     if (startDate || endDate) {
@@ -187,7 +198,7 @@ export async function getProfitByVendor(
         byVendor[id].totalOrders++;
         byVendor[id].totalCourierCost += Number(order.courierCost) || 0;
         byVendor[id].totalVendorRevenue += Number(order.vendorCharge) || Number(order.productValue) || 0;
-        byVendor[id].totalProfit += Number(order.margin) || 0;
+        byVendor[id].totalProfit += orderProfit(order);
     });
 
     return Object.values(byVendor).map(v => ({

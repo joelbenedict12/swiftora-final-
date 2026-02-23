@@ -194,7 +194,10 @@ model Order {
   // Pricing (Swiftora margin tracking)
   courierCost       Decimal?    @db.Decimal(10, 2)  // What Swiftora pays the courier
   vendorCharge      Decimal?    @db.Decimal(10, 2)  // What the vendor pays Swiftora
-  margin            Decimal?    @db.Decimal(10, 2)  // vendorCharge - courierCost
+  margin            Decimal?    @db.Decimal(10, 2)  // vendorCharge - courierCost (net profit)
+  
+  // When shipment was successfully booked (AWB assigned)
+  shippedAt         DateTime?
   
   // Pickup scheduling
   pickupDate        DateTime?
@@ -237,6 +240,7 @@ model Order {
   @@index([orderNumber])
   @@index([customerPhone])
   @@index([createdAt])
+  @@index([shippedAt])
 }
 
 enum PaymentMode {

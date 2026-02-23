@@ -1109,6 +1109,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         courierCost: pricing.courierCost,
         vendorCharge: pricing.vendorCharge,
         margin: pricing.margin,
+        shippedAt: new Date(),
         ...(deliveryTypeLabel && { deliveryType: deliveryTypeLabel }),
       },
     });

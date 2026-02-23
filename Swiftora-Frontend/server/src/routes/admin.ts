@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { AppError } from '../middleware/error.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import * as InvoiceService from '../services/InvoiceService.js';
-import * as ProfitService from '../services/ProfitService.js';
+import * as AnalyticsService from '../services/analyticsService.js';
 import * as WalletService from '../services/WalletService.js';
 import * as CommissionService from '../services/commissionService.js';
 
@@ -582,25 +582,94 @@ router.get('/wallet/:merchantId/transactions', authenticate, requireAdmin, async
 // PROFIT & LOSS ANALYTICS
 // ============================================================
 
-// Get P&L analytics
+// Get P&L analytics (shipped orders only; date filter on shippedAt)
 router.get('/analytics/profit', authenticate, requireAdmin, async (req, res, next) => {
     try {
         const { startDate, endDate } = req.query;
-
         const start = startDate ? new Date(startDate as string) : undefined;
         const end = endDate ? new Date(endDate as string) : undefined;
 
-        const [summary, byCourier, byVendor] = await Promise.all([
-            ProfitService.getTotalProfitByDateRange(start, end),
-            ProfitService.getProfitByCourier(start, end),
-            ProfitService.getProfitByVendor(start, end),
+        const [summary, byCourier, byVendor, orderCountByCourier] = await Promise.all([
+            AnalyticsService.getProfitSummary(start, end),
+            AnalyticsService.getProfitByCourier(start, end),
+            AnalyticsService.getProfitByVendor(start, end),
+            AnalyticsService.getOrderCountByCourier(start, end),
         ]);
 
         res.json({
             summary,
             byCourier,
             byVendor,
+            orderCountByCourier,
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get admin orders list with profit and margin % per order (shipped orders only)
+router.get('/orders', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { startDate, endDate, status, limit = '50', offset = '0' } = req.query;
+        const where: Record<string, unknown> = {
+            status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
+            awbNumber: { not: null },
+        };
+        if (status && typeof status === 'string') where.status = status;
+        if (startDate || endDate) {
+            const range: { gte?: Date; lte?: Date } = {};
+            if (startDate) range.gte = new Date(startDate as string);
+            if (endDate) range.lte = new Date(endDate as string);
+            where.OR = [
+                { shippedAt: { not: null, ...range } },
+                { shippedAt: null, updatedAt: range },
+            ];
+        }
+        const take = Math.min(parseInt(limit as string, 10) || 50, 200);
+        const skip = parseInt(offset as string, 10) || 0;
+
+        const orders = await prisma.order.findMany({
+            where,
+            take,
+            skip,
+            orderBy: { shippedAt: 'desc' },
+            select: {
+                id: true,
+                orderNumber: true,
+                customerName: true,
+                courierName: true,
+                status: true,
+                vendorCharge: true,
+                courierCost: true,
+                margin: true,
+                shippedAt: true,
+                createdAt: true,
+                merchant: { select: { companyName: true } },
+            },
+        });
+
+        const list = orders.map((o) => {
+            const revenue = Number(o.vendorCharge) || 0;
+            const cost = Number(o.courierCost) || 0;
+            const profit = Number(o.margin) ?? (revenue - cost);
+            const marginPercent = revenue > 0 ? Math.round((profit / revenue) * 10000) / 100 : 0;
+            return {
+                id: o.id,
+                orderNumber: o.orderNumber,
+                customerName: o.customerName,
+                vendorName: o.merchant?.companyName,
+                courierName: AnalyticsService.normalizeCourierName(o.courierName),
+                status: o.status,
+                revenue,
+                courierCost: cost,
+                profit,
+                marginPercent,
+                shippedAt: o.shippedAt,
+                createdAt: o.createdAt,
+            };
+        });
+
+        res.json({ orders: list });
     } catch (error) {
         next(error);
     }

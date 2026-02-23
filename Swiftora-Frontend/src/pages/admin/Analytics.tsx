@@ -16,8 +16,8 @@ import { adminApi } from "../../lib/api";
 import "./Dashboard.css";
 
 interface ProfitSummary {
+    totalRevenue: number;
     totalCourierCost: number;
-    totalVendorRevenue: number;
     totalProfit: number;
     totalOrders: number;
     averageMarginPercent: number;
@@ -25,20 +25,27 @@ interface ProfitSummary {
 
 interface CourierProfit {
     courierName: string;
+    totalRevenue: number;
     totalCourierCost: number;
-    totalVendorRevenue: number;
     totalProfit: number;
-    totalOrders: number;
+    orderCount: number;
     marginPercent: number;
+}
+
+interface OrderCountByCourier {
+    courierName: string;
+    count: number;
+    percent: number;
 }
 
 interface VendorProfit {
     merchantId: string;
     companyName: string;
-    totalCourierCost: number;
-    totalVendorRevenue: number;
-    totalProfit: number;
     totalOrders: number;
+    totalRevenue: number;
+    totalCourierCost: number;
+    totalProfit: number;
+    marginPercent: number;
 }
 
 const COURIER_COLORS: Record<string, string> = {
@@ -54,6 +61,7 @@ const PIE_COLORS = ["#3b82f6", "#22c55e", "#a855f7", "#f97316", "#14b8a6", "#ef4
 export default function Analytics() {
     const [summary, setSummary] = useState<ProfitSummary | null>(null);
     const [byCourier, setByCourier] = useState<CourierProfit[]>([]);
+    const [orderCountByCourier, setOrderCountByCourier] = useState<OrderCountByCourier[]>([]);
     const [byVendor, setByVendor] = useState<VendorProfit[]>([]);
     const [dateRange, setDateRange] = useState({ from: "", to: "" });
     const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +79,7 @@ export default function Analytics() {
             const data = res.data;
             setSummary(data.summary || null);
             setByCourier(data.byCourier || []);
+            setOrderCountByCourier(data.orderCountByCourier || []);
             setByVendor(data.byVendor || []);
         } catch (err: any) {
             console.error("Failed to load analytics:", err);
@@ -112,39 +121,42 @@ export default function Analytics() {
 
     const statCards = [
         {
-            title: "Total Profit",
-            value: formatCurrency(summary?.totalProfit || 0),
-            icon: "💰",
-            color: "#10b981",
-        },
-        {
-            title: "Vendor Charges",
-            value: formatCurrency(summary?.totalVendorRevenue || 0),
-            icon: "🧾",
+            title: "Total Revenue",
+            value: formatCurrency(summary?.totalRevenue ?? 0),
+            icon: "📈",
             color: "#4f46e5",
         },
         {
-            title: "Courier Costs",
-            value: formatCurrency(summary?.totalCourierCost || 0),
+            title: "Courier Cost",
+            value: formatCurrency(summary?.totalCourierCost ?? 0),
             icon: "🚚",
             color: "#f59e0b",
         },
         {
-            title: "Avg Margin",
-            value: `${(summary?.averageMarginPercent || 0).toFixed(1)}%`,
+            title: "Net Profit",
+            value: formatCurrency(summary?.totalProfit ?? 0),
+            icon: "💰",
+            color: "#10b981",
+        },
+        {
+            title: "Avg Margin %",
+            value: `${(summary?.averageMarginPercent ?? 0).toFixed(1)}%`,
             icon: "📊",
             color: "#ef4444",
         },
     ];
 
-    // Transform courier data for chart
     const courierChartData = byCourier.map((c) => ({
         name: c.courierName,
         profit: c.totalProfit,
         cost: c.totalCourierCost,
-        charge: c.totalVendorRevenue,
-        orders: c.totalOrders,
+        revenue: c.totalRevenue,
+        orders: c.orderCount,
     }));
+
+    const pieData = orderCountByCourier.length > 0
+        ? orderCountByCourier.map((r) => ({ name: r.courierName, count: r.count, percent: r.percent }))
+        : byCourier.map((c) => ({ name: c.courierName, count: c.orderCount, percent: summary?.totalOrders ? (c.orderCount / summary.totalOrders) * 100 : 0 }));
 
     return (
         <div className="dashboard">
@@ -256,20 +268,16 @@ export default function Analytics() {
                                             boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
                                         }}
                                         formatter={(value: number, name: string) => [
-                                            `₹${value.toLocaleString()}`,
-                                            name === "profit"
-                                                ? "Profit"
-                                                : name === "cost"
-                                                    ? "Courier Cost"
-                                                    : "Vendor Charge",
+                                            typeof value === "number" && name === "revenue" ? `₹${value.toLocaleString()}` : `₹${Number(value).toLocaleString()}`,
+                                            name === "profit" ? "Profit" : name === "cost" ? "Courier Cost" : "Revenue",
                                         ]}
                                     />
-                                    <Bar dataKey="charge" fill="#4f46e5" name="charge" radius={[4, 4, 0, 0]} barSize={30} />
+                                    <Bar dataKey="revenue" fill="#4f46e5" name="revenue" radius={[4, 4, 0, 0]} barSize={30} />
                                     <Bar dataKey="cost" fill="#f59e0b" name="cost" radius={[4, 4, 0, 0]} barSize={30} />
                                     <Bar dataKey="profit" fill="#10b981" name="profit" radius={[4, 4, 0, 0]} barSize={30} />
                                     <Legend
                                         formatter={(val) =>
-                                            val === "charge" ? "Vendor Charge" : val === "cost" ? "Courier Cost" : "Profit"
+                                            val === "revenue" ? "Revenue" : val === "cost" ? "Courier Cost" : "Profit"
                                         }
                                     />
                                 </BarChart>
