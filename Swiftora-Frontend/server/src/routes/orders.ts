@@ -498,10 +498,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // Cancel order (unified — detects courier and calls the right cancellation API)
 router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
   try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+    const merchantId = req.user.merchantId;
+
     const order = await prisma.order.findFirst({
       where: {
         id: req.params.id,
-        merchantId: req.user!.merchantId,
+        merchantId,
       },
     });
 
@@ -547,9 +550,9 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       // Refund wallet if this order had a vendor charge
       if (order.vendorCharge && Number(order.vendorCharge) > 0) {
         await WalletService.credit(
-          req.user!.merchantId,
+          merchantId,
           Number(order.vendorCharge),
-          `Refund: Order ${order.orderNumber} cancelled (${courierName})`,
+          `Refund: Order ${order.orderNumber || order.id} cancelled (${courierName})`,
           order.id
         );
         console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
@@ -571,9 +574,9 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
     // Refund wallet if a pending/ready order had been charged
     if (order.vendorCharge && Number(order.vendorCharge) > 0) {
       await WalletService.credit(
-        req.user!.merchantId,
+        merchantId,
         Number(order.vendorCharge),
-        `Refund: Order ${order.orderNumber} cancelled`,
+        `Refund: Order ${order.orderNumber || order.id} cancelled`,
         order.id
       );
       console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
