@@ -611,10 +611,14 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
 
     let courierCostEstimate = 0;
     let estimateAvailable = false;
+    let estimateNote = '';
 
-    // Try to get rate from courier API
-    try {
-      if (order.warehouse?.pincode && order.shippingPincode) {
+    if (!order.warehouse?.pincode) {
+      estimateNote = 'Assign a pickup location first to see estimated cost';
+    } else if (!order.shippingPincode) {
+      estimateNote = 'Delivery pincode missing';
+    } else {
+      try {
         const courierService = getCourierService(courier);
         if (courierService.calculateRate) {
           const rateResult = await courierService.calculateRate({
@@ -627,11 +631,16 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
           if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
             courierCostEstimate = rateResult.rate;
             estimateAvailable = true;
+          } else {
+            estimateNote = rateResult.error || 'Rate not available for this route';
           }
+        } else {
+          estimateNote = 'Rate estimation not available for this courier';
         }
+      } catch (e: any) {
+        console.log(`Rate estimate failed for ${courier}:`, e.message);
+        estimateNote = 'Could not fetch rate from courier';
       }
-    } catch (e) {
-      // Rate API not available for this courier, use fallback
     }
 
     const pricing = await estimateVendorCharge({
@@ -658,6 +667,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
         vendorCharge: pricing.vendorCharge,
         estimateAvailable,
         courier,
+        note: estimateNote,
       },
       wallet: {
         balance: walletBal,

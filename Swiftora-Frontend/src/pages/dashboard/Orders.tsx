@@ -259,7 +259,7 @@ const Orders = () => {
     isPaused: boolean; canShip: boolean; sufficientBalance: boolean;
   } | null>(null);
   const [shippingEstimate, setShippingEstimate] = useState<{
-    vendorCharge: number; estimateAvailable: boolean; courier: string;
+    vendorCharge: number; estimateAvailable: boolean; courier: string; note?: string;
   } | null>(null);
   const [loadingWalletCheck, setLoadingWalletCheck] = useState(false);
   const [pendingShipAction, setPendingShipAction] = useState<(() => void) | null>(null);
@@ -1950,7 +1950,7 @@ const Orders = () => {
               </div>
             ) : walletInfo && !walletInfo.canShip ? (
               <div className="space-y-4">
-                {shippingEstimate && shippingEstimate.vendorCharge > 0 && (
+                {shippingEstimate && shippingEstimate.vendorCharge > 0 ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-blue-700">Shipping Cost</span>
@@ -1960,7 +1960,11 @@ const Orders = () => {
                       </span>
                     </div>
                   </div>
-                )}
+                ) : shippingEstimate?.note ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-sm text-blue-700">{shippingEstimate.note}</p>
+                  </div>
+                ) : null}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
                   <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-2" />
                   <p className="font-semibold text-amber-700">Insufficient Balance</p>
@@ -2009,7 +2013,7 @@ const Orders = () => {
                 ) : (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <p className="text-sm text-blue-700">
-                      Shipping cost will be calculated and deducted after the shipment is created.
+                      {shippingEstimate?.note || 'Shipping cost will be calculated and deducted after the shipment is created.'}
                     </p>
                   </div>
                 )}
