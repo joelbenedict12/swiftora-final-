@@ -37,7 +37,6 @@ import {
   CreditCard,
   Building2,
   Calculator,
-  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -157,7 +156,6 @@ const DashboardLayout = () => {
     { name: "Tracking", href: "/dashboard/tracking", icon: Truck },
 
     { name: "Billing & Wallet", href: "/dashboard/billing", icon: Wallet },
-    { name: "Remittance", href: "/dashboard/remittance", icon: DollarSign },
     { name: "Pickup Management", href: "/dashboard/pickup", icon: MapPin },
     {
       name: "Support & Disputes",
@@ -271,7 +269,6 @@ const DashboardLayout = () => {
           "/dashboard/tracking",
           "/dashboard/pickup",
           "/dashboard/billing",
-          "/dashboard/remittance",
         ].includes(item.href)
       );
 

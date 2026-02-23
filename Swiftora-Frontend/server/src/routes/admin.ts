@@ -25,8 +25,8 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
             prisma.merchant.count(),
             prisma.order.count(),
             prisma.order.aggregate({
-                _sum: { productValue: true },
-                where: { status: { in: ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PROCESSING'] } },
+                _sum: { vendorCharge: true },
+                where: { status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] } },
             }),
         ]);
 
@@ -34,7 +34,7 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
             totalUsers: usersCount,
             activeVendors: merchantsCount,
             totalOrders: ordersCount,
-            totalRevenue: Number(revenueResult._sum?.productValue) || 0,
+            totalRevenue: Number(revenueResult._sum?.vendorCharge) || 0,
         });
     } catch (error) {
         next(error);
@@ -92,9 +92,9 @@ router.get('/revenue-chart', authenticate, requireAdmin, async (req, res, next) 
         const orders = await prisma.order.findMany({
             where: {
                 createdAt: { gte: sixMonthsAgo },
-                status: { in: ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'PROCESSING'] },
+                status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
             },
-            select: { createdAt: true, productValue: true },
+            select: { createdAt: true, vendorCharge: true },
         });
 
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -112,7 +112,7 @@ router.get('/revenue-chart', authenticate, requireAdmin, async (req, res, next) 
         orders.forEach(order => {
             const month = months[order.createdAt.getMonth()];
             if (monthlyData[month] !== undefined) {
-                monthlyData[month] += Number(order.productValue) || 0;
+                monthlyData[month] += Number(order.vendorCharge) || 0;
             }
         });
 

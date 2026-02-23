@@ -17,27 +17,28 @@ import "./Dashboard.css";
 
 interface ProfitSummary {
     totalCourierCost: number;
-    totalVendorCharge: number;
+    totalVendorRevenue: number;
     totalProfit: number;
     totalOrders: number;
-    avgMarginPercent: number;
+    averageMarginPercent: number;
 }
 
 interface CourierProfit {
     courierName: string;
     totalCourierCost: number;
-    totalVendorCharge: number;
-    profit: number;
-    orders: number;
+    totalVendorRevenue: number;
+    totalProfit: number;
+    totalOrders: number;
+    marginPercent: number;
 }
 
 interface VendorProfit {
     merchantId: string;
-    merchantName: string;
+    companyName: string;
     totalCourierCost: number;
-    totalVendorCharge: number;
-    profit: number;
-    orders: number;
+    totalVendorRevenue: number;
+    totalProfit: number;
+    totalOrders: number;
 }
 
 const COURIER_COLORS: Record<string, string> = {
@@ -118,7 +119,7 @@ export default function Analytics() {
         },
         {
             title: "Vendor Charges",
-            value: formatCurrency(summary?.totalVendorCharge || 0),
+            value: formatCurrency(summary?.totalVendorRevenue || 0),
             icon: "🧾",
             color: "#4f46e5",
         },
@@ -130,7 +131,7 @@ export default function Analytics() {
         },
         {
             title: "Avg Margin",
-            value: `${(summary?.avgMarginPercent || 0).toFixed(1)}%`,
+            value: `${(summary?.averageMarginPercent || 0).toFixed(1)}%`,
             icon: "📊",
             color: "#ef4444",
         },
@@ -139,10 +140,10 @@ export default function Analytics() {
     // Transform courier data for chart
     const courierChartData = byCourier.map((c) => ({
         name: c.courierName,
-        profit: c.profit,
+        profit: c.totalProfit,
         cost: c.totalCourierCost,
-        charge: c.totalVendorCharge,
-        orders: c.orders,
+        charge: c.totalVendorRevenue,
+        orders: c.totalOrders,
     }));
 
     return (
@@ -332,17 +333,17 @@ export default function Analytics() {
                             {byVendor.length > 0 ? (
                                 byVendor.map((vendor, i) => {
                                     const margin =
-                                        vendor.totalVendorCharge > 0
-                                            ? ((vendor.profit / vendor.totalVendorCharge) * 100).toFixed(1)
+                                        vendor.totalVendorRevenue > 0
+                                            ? ((vendor.totalProfit / vendor.totalVendorRevenue) * 100).toFixed(1)
                                             : "0.0";
                                     return (
                                         <tr key={i}>
-                                            <td className="fw-medium">{vendor.merchantName || vendor.merchantId}</td>
-                                            <td>{vendor.orders}</td>
+                                            <td className="fw-medium">{vendor.companyName || vendor.merchantId}</td>
+                                            <td>{vendor.totalOrders}</td>
                                             <td>₹{vendor.totalCourierCost.toLocaleString()}</td>
-                                            <td>₹{vendor.totalVendorCharge.toLocaleString()}</td>
-                                            <td style={{ color: vendor.profit >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
-                                                ₹{vendor.profit.toLocaleString()}
+                                            <td>₹{vendor.totalVendorRevenue.toLocaleString()}</td>
+                                            <td style={{ color: vendor.totalProfit >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                                                ₹{vendor.totalProfit.toLocaleString()}
                                             </td>
                                             <td>
                                                 <span

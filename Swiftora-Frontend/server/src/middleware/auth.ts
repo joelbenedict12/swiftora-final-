@@ -36,6 +36,16 @@ export const authenticate = async (
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
+    if (
+      session.user.role !== 'ADMIN' &&
+      session.user.merchant?.isPaused
+    ) {
+      return res.status(403).json({
+        error: 'Your account has been paused by the administrator. Please contact support.',
+        code: 'ACCOUNT_PAUSED',
+      });
+    }
+
     req.user = {
       id: session.user.id,
       email: session.user.email,

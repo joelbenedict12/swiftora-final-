@@ -30,7 +30,7 @@ import PincodeServiceability from "./pages/dashboard/PincodeServiceability";
 import RestrictedItems from "./pages/dashboard/RestrictedItems";
 import RTOPredictor from "./pages/dashboard/RTOPredictor";
 import TermsAndConditions from "./pages/dashboard/TermsAndConditions";
-import Remittance from "./pages/dashboard/Remittance";
+
 import AnalyticsReports from "./pages/dashboard/AnalyticsReports";
 import BusinessSuccessRate from "./pages/dashboard/BusinessSuccessRate";
 import AllProducts from "./pages/dashboard/AllProducts";
@@ -42,7 +42,6 @@ import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminVendors from "./pages/admin/Vendors";
-import AdminOrders from "./pages/admin/Orders";
 import AdminTickets from "./pages/admin/Tickets";
 import AdminPayments from "./pages/admin/Payments";
 import AdminSettings from "./pages/admin/Settings";
@@ -104,7 +103,6 @@ const App = () => (
               path="terms-and-conditions"
               element={<TermsAndConditions />}
             />
-            <Route path="remittance" element={<Remittance />} />
             <Route
               path="business-success-rate"
               element={<BusinessSuccessRate />}
@@ -117,7 +115,6 @@ const App = () => (
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="vendors" element={<AdminVendors />} />
-            <Route path="orders" element={<AdminOrders />} />
             <Route path="tickets" element={<AdminTickets />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="integrations" element={<AdminIntegrations />} />
