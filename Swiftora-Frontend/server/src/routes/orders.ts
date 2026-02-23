@@ -823,31 +823,37 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       deliveryPromise: deliveryPromise,
     };
 
-    console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));
+    // --- STEP 1: Get shipping rate estimate BEFORE creating shipment ---
+    let courierCost = 0;
+    const shipWeight = Number(order.chargeableWeight) || Number(order.weight) || 0.5;
 
-    // Create shipment using the courier service
-    const shipmentResponse = await courierService.createShipment(shipmentRequest);
-    console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
-
-    if (!shipmentResponse.success || !shipmentResponse.awbNumber) {
-      console.error(`${selectedCourier} shipment failed:`, shipmentResponse.error);
-      throw new AppError(400, `${selectedCourier} Error: ${shipmentResponse.error || 'Failed to create shipment'}`);
+    try {
+      if (courierService.calculateRate && warehouse.pincode && order.shippingPincode) {
+        const rateResult = await courierService.calculateRate({
+          originPincode: warehouse.pincode,
+          destinationPincode: order.shippingPincode,
+          weight: shipWeight,
+          paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
+          codAmount: Number(order.codAmount || order.productValue || 500),
+        });
+        if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
+          courierCost = rateResult.rate;
+        }
+      }
+    } catch (e: any) {
+      console.log(`[SHIP] Rate API failed for ${selectedCourier}, will use fallback:`, e.message);
     }
-
-    // --- PRICING ENGINE: calculate vendor charge ---
-    const courierCost = shipmentResponse.rawResponse?.freight
-      || shipmentResponse.rawResponse?.total_charge
-      || shipmentResponse.rawResponse?.total
-      || 0;
 
     const pricing = await calculateVendorPrice({
       courierCost,
       userAccountType: accountType,
       courierName: selectedCourier,
-      weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
+      weight: shipWeight,
     });
 
-    // --- WALLET: hard debit requirement ---
+    console.log(`[SHIP] ${selectedCourier} pricing: courierCost=${courierCost}, vendorCharge=${pricing.vendorCharge}, margin=${pricing.margin}`);
+
+    // --- STEP 2: Debit wallet BEFORE creating shipment ---
     let walletResult = null;
     if (pricing.vendorCharge > 0) {
       walletResult = await WalletService.debit(
@@ -859,6 +865,32 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       if (!walletResult.success) {
         throw new AppError(402, walletResult.error || 'Insufficient wallet balance. Please recharge your wallet.');
       }
+    }
+
+    // --- STEP 3: Create shipment (wallet already debited) ---
+    console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));
+
+    let shipmentResponse;
+    try {
+      shipmentResponse = await courierService.createShipment(shipmentRequest);
+      console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
+    } catch (shipError: any) {
+      // Shipment failed -- refund the wallet
+      if (walletResult?.success && pricing.vendorCharge > 0) {
+        console.log(`[SHIP] Refunding ₹${pricing.vendorCharge} due to courier failure`);
+        await WalletService.credit(req.user!.merchantId, pricing.vendorCharge, `Refund: ${selectedCourier} shipment failed for ${order.orderNumber}`, order.id);
+      }
+      throw shipError;
+    }
+
+    if (!shipmentResponse.success || !shipmentResponse.awbNumber) {
+      // Shipment failed -- refund the wallet
+      if (walletResult?.success && pricing.vendorCharge > 0) {
+        console.log(`[SHIP] Refunding ₹${pricing.vendorCharge} due to courier rejection`);
+        await WalletService.credit(req.user!.merchantId, pricing.vendorCharge, `Refund: ${selectedCourier} rejected shipment for ${order.orderNumber}`, order.id);
+      }
+      console.error(`${selectedCourier} shipment failed:`, shipmentResponse.error);
+      throw new AppError(400, `${selectedCourier} Error: ${shipmentResponse.error || 'Failed to create shipment'}`);
     }
 
     // Resolve shipping mode (Air/Surface/Express) for display
