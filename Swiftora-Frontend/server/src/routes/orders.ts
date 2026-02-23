@@ -620,6 +620,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
     } else {
       try {
         const courierService = getCourierService(courier);
+        console.log(`[ESTIMATE] ${courier} | origin: ${order.warehouse.pincode} | dest: ${order.shippingPincode} | weight: ${weight}kg | hasCalcRate: ${!!courierService.calculateRate}`);
         if (courierService.calculateRate) {
           const rateResult = await courierService.calculateRate({
             originPincode: order.warehouse.pincode,
@@ -628,6 +629,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
             paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
             codAmount: order.codAmount ? Number(order.codAmount) : undefined,
           });
+          console.log(`[ESTIMATE] ${courier} result:`, JSON.stringify(rateResult));
           if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
             courierCostEstimate = rateResult.rate;
             estimateAvailable = true;
@@ -638,7 +640,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
           estimateNote = 'Rate estimation not available for this courier';
         }
       } catch (e: any) {
-        console.log(`Rate estimate failed for ${courier}:`, e.message);
+        console.log(`[ESTIMATE] ${courier} FAILED:`, e.message);
         estimateNote = 'Could not fetch rate from courier';
       }
     }
