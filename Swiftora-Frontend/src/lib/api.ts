@@ -125,6 +125,9 @@ export const ordersApi = {
 
   walletCheck: () => api.get('/orders/wallet-check'),
 
+  shippingEstimate: (orderId: string, courierName: string) =>
+    api.post(`/orders/${orderId}/shipping-estimate`, { courierName }),
+
   // Generic ship method - pass courier name
   ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL') =>
     api.post(`/orders/${id}/ship`, { courierName }),

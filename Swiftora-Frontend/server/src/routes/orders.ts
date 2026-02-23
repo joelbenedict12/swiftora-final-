@@ -14,7 +14,7 @@ import {
   xpressbeesService,
   delhiveryService,
 } from '../services/courier/index.js';
-import { calculateVendorPrice } from '../services/PricingEngine.js';
+import { calculateVendorPrice, estimateVendorCharge } from '../services/PricingEngine.js';
 import * as WalletService from '../services/WalletService.js';
 import { A4LabelService, A4LabelData } from '../services/A4LabelService.js';
 
@@ -582,6 +582,89 @@ router.get('/wallet-check', async (req: AuthRequest, res, next) => {
       available,
       isPaused: merchant.isPaused,
       canShip: !merchant.isPaused && available > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Estimate shipping cost for an order + courier (calls courier rate API when available)
+router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+
+    const { courierName: reqCourier } = req.body;
+    const courier = (reqCourier && isCourierSupported(reqCourier)) ? reqCourier as CourierName : 'DELHIVERY';
+
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, merchantId: req.user.merchantId },
+      include: { warehouse: true },
+    });
+    if (!order) throw new AppError(404, 'Order not found');
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { accountType: true },
+    });
+    const accountType = user?.accountType || 'B2C';
+    const weight = Number(order.chargeableWeight) || Number(order.weight) || 0.5;
+
+    let courierCostEstimate = 0;
+    let estimateAvailable = false;
+
+    // Try to get rate from courier API
+    try {
+      if (order.warehouse?.pincode && order.shippingPincode) {
+        const courierService = getCourierService(courier);
+        if (courierService.calculateRate) {
+          const rateResult = await courierService.calculateRate({
+            originPincode: order.warehouse.pincode,
+            destinationPincode: order.shippingPincode,
+            weight,
+            paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
+            codAmount: order.codAmount ? Number(order.codAmount) : undefined,
+          });
+          if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
+            courierCostEstimate = rateResult.rate;
+            estimateAvailable = true;
+          }
+        }
+      }
+    } catch (e) {
+      // Rate API not available for this courier, use fallback
+    }
+
+    const pricing = await estimateVendorCharge({
+      courierName: courier,
+      userAccountType: accountType,
+      weight,
+      paymentMode: order.paymentMode || 'PREPAID',
+      courierCostEstimate,
+    });
+
+    // Get wallet info
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.user.merchantId },
+      select: { walletBalance: true, creditLimit: true, isPaused: true },
+    });
+
+    const available = (merchant?.walletBalance || 0) + (merchant?.creditLimit || 0);
+
+    res.json({
+      success: true,
+      estimate: {
+        vendorCharge: pricing.vendorCharge,
+        estimateAvailable,
+        courier,
+      },
+      wallet: {
+        balance: merchant?.walletBalance || 0,
+        creditLimit: merchant?.creditLimit || 0,
+        available,
+        isPaused: merchant?.isPaused || false,
+        canShip: !merchant?.isPaused && available > 0,
+        sufficientBalance: available >= pricing.vendorCharge,
+      },
     });
   } catch (error) {
     next(error);
