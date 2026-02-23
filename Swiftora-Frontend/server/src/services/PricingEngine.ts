@@ -8,6 +8,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import { getCommissionPercent } from './commissionService.js';
 
 export interface PricingInput {
     courierCost: number;
@@ -57,15 +58,13 @@ export async function calculateVendorPrice(input: PricingInput): Promise<Pricing
     });
 
     if (!rateCard) {
-        // No rate card found — use default margins from DB seed
-        // If DB is empty, apply 15% B2C / 10% B2B as safe defaults
-        const defaultPercentage = userAccountType === 'B2B' ? 10 : 15;
-        const marginAmount = courierCost * defaultPercentage / 100;
+        const platformCommission = await getCommissionPercent();
+        const marginAmount = courierCost * platformCommission / 100;
         return {
             vendorCharge: Math.round((courierCost + marginAmount) * 100) / 100,
             margin: Math.round(marginAmount * 100) / 100,
             marginType: 'percentage',
-            marginValue: defaultPercentage,
+            marginValue: platformCommission,
             courierCost,
         };
     }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -24,193 +25,267 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Wallet,
   CreditCard,
-  Download,
-  Upload,
-  FileText,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
+  QrCode,
   ArrowUpRight,
   ArrowDownRight,
-  IndianRupee,
   TrendingUp,
+  RefreshCw,
+  Loader2,
+  Copy,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { billingApi } from "@/lib/api";
+
+declare global {
+  interface Window {
+    Cashfree?: any;
+  }
+}
+
+interface WalletData {
+  balance: number;
+  creditLimit: number;
+  availableBalance: number;
+  isPaused: boolean;
+  companyName: string;
+}
+
+interface Transaction {
+  id: string;
+  amount: number;
+  type: string;
+  status: string;
+  description: string | null;
+  reference: string | null;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: string;
+  order?: { orderNumber: string; courierName: string } | null;
+}
 
 const Billing = () => {
+  const [searchParams] = useSearchParams();
   const [rechargeAmount, setRechargeAmount] = useState("");
+  const [qrAmount, setQrAmount] = useState("");
+  const [qrUtr, setQrUtr] = useState("");
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txnPagination, setTxnPagination] = useState({ total: 0, page: 1, totalPages: 1 });
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [minRecharge, setMinRecharge] = useState(500);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRecharging, setIsRecharging] = useState(false);
+  const [isSubmittingQr, setIsSubmittingQr] = useState(false);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
 
-  const walletBalance = 45230.5;
-  const pendingCOD = 125000;
-  const totalCODCollected = 2450000;
-  // const totalCODRemitted = 2325000;
-  const pendingRemittance = 125000;
+  const loadWallet = useCallback(async () => {
+    try {
+      const res = await billingApi.getWallet();
+      setWallet(res.data);
+    } catch (err) {
+      console.error("Failed to load wallet:", err);
+    }
+  }, []);
 
-  const invoices = [
-    {
-      id: "INV-2025-001",
-      date: "2025-01-15",
-      amount: 45230.5,
-      status: "Paid",
-      type: "Shipping Charges",
-      download: true,
-    },
-    {
-      id: "INV-2025-002",
-      date: "2025-01-10",
-      amount: 38250.0,
-      status: "Paid",
-      type: "Shipping Charges",
-      download: true,
-    },
-    {
-      id: "INV-2025-003",
-      date: "2025-01-05",
-      amount: 41500.75,
-      status: "Pending",
-      type: "Shipping Charges",
-      download: false,
-    },
-  ];
+  const loadTransactions = useCallback(async (page = 1) => {
+    try {
+      const res = await billingApi.getTransactions({ page, limit: 15 });
+      setTransactions(res.data.transactions);
+      setTxnPagination(res.data.pagination);
+    } catch (err) {
+      console.error("Failed to load transactions:", err);
+    }
+  }, []);
 
-  // const codRemittances = [
-  //   {
-  //     id: "COD-2025-001",
-  //     week: "Week 1 (Jan 1-7)",
-  //     collected: 450000,
-  //     remitted: 420000,
-  //     pending: 30000,
-  //     status: "Completed",
-  //     date: "2025-01-10",
-  //   },
-  //   {
-  //     id: "COD-2025-002",
-  //     week: "Week 2 (Jan 8-14)",
-  //     collected: 520000,
-  //     remitted: 500000,
-  //     pending: 20000,
-  //     status: "Completed",
-  //     date: "2025-01-17",
-  //   },
-  //   {
-  //     id: "COD-2025-003",
-  //     week: "Week 3 (Jan 15-21)",
-  //     collected: 480000,
-  //     remitted: 0,
-  //     pending: 480000,
-  //     status: "Pending",
-  //     date: "2025-01-24",
-  //   },
-  // ];
+  const loadQrInfo = useCallback(async () => {
+    try {
+      const res = await billingApi.getQrCode();
+      setQrUrl(res.data.qrUrl);
+      setMinRecharge(res.data.minRechargeAmount || 500);
+    } catch (err) {
+      console.error("Failed to load QR info:", err);
+    }
+  }, []);
 
-  const transactions = [
-    {
-      id: "TXN-001",
-      date: "2025-01-15",
-      type: "Debit",
-      amount: 1250.0,
-      description: "Order ORD-12345 shipping charges",
-      balance: 45230.5,
-    },
-    {
-      id: "TXN-002",
-      date: "2025-01-14",
-      type: "Credit",
-      amount: 10000.0,
-      description: "Wallet recharge via UPI",
-      balance: 46480.5,
-    },
-    {
-      id: "TXN-003",
-      date: "2025-01-13",
-      type: "Debit",
-      amount: 890.0,
-      description: "Order ORD-12346 shipping charges",
-      balance: 36480.5,
-    },
-  ];
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true);
+      await Promise.all([loadWallet(), loadTransactions(), loadQrInfo()]);
+      setIsLoading(false);
+    };
+    init();
+  }, [loadWallet, loadTransactions, loadQrInfo]);
 
-  const weightDisputes = [
-    {
-      id: "WD-001",
-      orderId: "ORD-12345",
-      declaredWeight: "0.5 kg",
-      chargedWeight: "0.8 kg",
-      difference: "0.3 kg",
-      amount: 150.0,
-      status: "Under Review",
-      date: "2025-01-15",
-    },
-    {
-      id: "WD-002",
-      orderId: "ORD-12340",
-      declaredWeight: "1.0 kg",
-      chargedWeight: "1.5 kg",
-      difference: "0.5 kg",
-      amount: 250.0,
-      status: "Resolved",
-      date: "2025-01-10",
-    },
-  ];
+  // Handle return from Cashfree payment
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment_status");
+    const orderId = searchParams.get("order_id");
+    if (paymentStatus === "success" && orderId) {
+      billingApi.checkPaymentStatus(orderId).then((res) => {
+        if (res.data.status === "PAID") {
+          toast.success(`Wallet recharged with ₹${Number(res.data.amount).toLocaleString("en-IN")}`);
+          loadWallet();
+          loadTransactions();
+        }
+      }).catch(() => {});
+    }
+  }, [searchParams, loadWallet, loadTransactions]);
 
-  const handleRecharge = () => {
-    if (!rechargeAmount || parseFloat(rechargeAmount) <= 0) {
+  const handleCashfreeRecharge = async () => {
+    const amount = parseFloat(rechargeAmount);
+    if (!amount || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
-    toast.success(`Recharge of ₹${rechargeAmount} initiated`);
-    setRechargeAmount("");
+    if (amount < minRecharge) {
+      toast.error(`Minimum recharge amount is ₹${minRecharge}`);
+      return;
+    }
+
+    setIsRecharging(true);
+    try {
+      const res = await billingApi.recharge(amount);
+      const { paymentSessionId, env } = res.data;
+
+      if (!paymentSessionId) {
+        toast.error("Failed to initiate payment");
+        return;
+      }
+
+      const cashfreeMode = env === "production" ? "production" : "sandbox";
+
+      if (!window.Cashfree) {
+        const script = document.createElement("script");
+        script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+        script.async = true;
+        document.body.appendChild(script);
+        await new Promise((resolve) => { script.onload = resolve; });
+      }
+
+      const cashfree = window.Cashfree({ mode: cashfreeMode });
+      const result = await cashfree.checkout({ paymentSessionId });
+
+      if (result.error) {
+        toast.error(result.error.message || "Payment failed");
+      } else if (result.paymentDetails) {
+        toast.success("Payment successful! Wallet will be updated shortly.");
+        setTimeout(() => {
+          loadWallet();
+          loadTransactions();
+        }, 2000);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to initiate recharge");
+    } finally {
+      setIsRecharging(false);
+      setRechargeAmount("");
+    }
   };
 
-  const handleExportInvoices = () => {
-    toast.success("Exporting all invoices...");
-    // Simulate export
-    setTimeout(() => {
-      toast.success("Invoices exported successfully");
-    }, 1500);
+  const handleQrPayment = async () => {
+    const amount = parseFloat(qrAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    if (amount < minRecharge) {
+      toast.error(`Minimum amount is ₹${minRecharge}`);
+      return;
+    }
+    if (!qrUtr.trim() || qrUtr.trim().length < 4) {
+      toast.error("Please enter a valid UTR / transaction reference");
+      return;
+    }
+
+    setIsSubmittingQr(true);
+    try {
+      await billingApi.submitQrPayment({ amount, utrReference: qrUtr.trim() });
+      toast.success("Payment submitted! It will be credited once admin approves.");
+      setQrAmount("");
+      setQrUtr("");
+      setQrDialogOpen(false);
+      loadTransactions();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to submit payment");
+    } finally {
+      setIsSubmittingQr(false);
+    }
   };
 
-  const handleDownloadInvoice = (invoiceId: string) => {
-    toast.success(`Downloading invoice ${invoiceId}...`);
-    // Simulate download
-    setTimeout(() => {
-      toast.success("Invoice downloaded successfully");
-    }, 1000);
+  const formatCurrency = (val: number) =>
+    `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+  const txnTypeLabel = (type: string) => {
+    const map: Record<string, { label: string; color: string; icon: any }> = {
+      RECHARGE: { label: "Recharge", color: "bg-green-100 text-green-800 border-green-200", icon: ArrowUpRight },
+      QR_CREDIT: { label: "QR Credit", color: "bg-green-100 text-green-800 border-green-200", icon: ArrowUpRight },
+      REFUND: { label: "Refund", color: "bg-blue-100 text-blue-800 border-blue-200", icon: ArrowUpRight },
+      COD_REMITTANCE: { label: "COD", color: "bg-green-100 text-green-800 border-green-200", icon: ArrowUpRight },
+      DEBIT: { label: "Debit", color: "bg-red-100 text-red-800 border-red-200", icon: ArrowDownRight },
+      ADJUSTMENT: { label: "Adjustment", color: "bg-gray-100 text-gray-800 border-gray-200", icon: ArrowUpRight },
+    };
+    return map[type] || { label: type, color: "bg-gray-100 text-gray-800", icon: ArrowUpRight };
   };
 
-  const handleRaiseDispute = () => {
-    toast.info("Raise weight dispute - Feature coming soon");
-  };
+  const isCredit = (type: string) => type !== "DEBIT";
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8  ">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
-          Billing & Wallet
-        </h1>
-        <p className="text-gray-600 text-lg">
-          Manage your wallet, invoices, and COD remittances
-        </p>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
+            Billing & Wallet
+          </h1>
+          <p className="text-gray-600 text-lg">
+            Manage your wallet, recharge, and transactions
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => { loadWallet(); loadTransactions(); }}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
+
+      {wallet?.isPaused && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <div>
+            <p className="font-semibold text-red-800">Account Paused</p>
+            <p className="text-sm text-red-600">Your account is paused. You cannot ship orders. Please contact support.</p>
+          </div>
+        </div>
+      )}
 
       {/* Wallet Balance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-primary via-primary/90 to-[hsl(207,97%,45%)] text-white border-0 shadow-xl shadow-primary/20 hover:shadow-2xl transition-shadow">
+        <Card className="bg-gradient-to-br from-primary via-primary/90 to-[hsl(207,97%,45%)] text-white border-0 shadow-xl shadow-primary/20">
           <CardHeader>
-            <CardDescription className="text-white/80">
-              Wallet Balance
-            </CardDescription>
+            <CardDescription className="text-white/80">Wallet Balance</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold mb-2">
-              ₹{walletBalance.toLocaleString("en-IN")}
-            </div>
+            <div className="text-4xl font-bold mb-2">{formatCurrency(wallet?.balance || 0)}</div>
             <div className="flex items-center gap-2 text-sm text-white/80">
               <TrendingUp className="w-4 h-4" />
               <span>Available for shipping</span>
@@ -218,107 +293,99 @@ const Billing = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200/80 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white/80 backdrop-blur-sm">
+        <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Pending COD
+              Credit Limit
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600 mb-2">
-              ₹{pendingCOD.toLocaleString("en-IN")}
-            </div>
-            <div className="text-sm text-gray-600">Awaiting remittance</div>
+            <div className="text-3xl font-bold text-blue-600 mb-2">{formatCurrency(wallet?.creditLimit || 0)}</div>
+            <div className="text-sm text-gray-600">Extra spending allowance</div>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200/80 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white/80 backdrop-blur-sm">
+        <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Total COD Collected
+              Total Available
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600 mb-2">
-              ₹{totalCODCollected.toLocaleString("en-IN")}
-            </div>
-            <div className="text-sm text-gray-600">This month</div>
+            <div className="text-3xl font-bold text-green-600 mb-2">{formatCurrency(wallet?.availableBalance || 0)}</div>
+            <div className="text-sm text-gray-600">Balance + credit limit</div>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="wallet" className="w-full">
         <TabsList>
-          <TabsTrigger value="wallet">Wallet</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          {/* <TabsTrigger value="cod">COD Remittance</TabsTrigger> */}
+          <TabsTrigger value="wallet">
+            <Wallet className="w-4 h-4 mr-2" />
+            Recharge
+          </TabsTrigger>
+          <TabsTrigger value="qr">
+            <QrCode className="w-4 h-4 mr-2" />
+            Pay via QR
+          </TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
-          <TabsTrigger value="disputes">Weight Disputes</TabsTrigger>
         </TabsList>
 
-        {/* Wallet Tab */}
+        {/* Wallet Recharge Tab */}
         <TabsContent value="wallet" className="space-y-6 mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Recharge Wallet</CardTitle>
                 <CardDescription>
-                  Add funds to your wallet for seamless shipping
+                  Add funds via UPI, Card, or Net Banking (min ₹{minRecharge})
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Amount
-                  </label>
+                  <label className="text-sm font-medium mb-2 block">Amount (₹)</label>
                   <Input
                     type="number"
-                    placeholder="Enter amount"
+                    placeholder={`Min ₹${minRecharge}`}
                     value={rechargeAmount}
                     onChange={(e) => setRechargeAmount(e.target.value)}
                     className="text-lg"
+                    min={minRecharge}
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setRechargeAmount("1000")}
-                    className="w-full"
-                  >
-                    ₹1,000
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setRechargeAmount("5000")}
-                    className="w-full"
-                  >
-                    ₹5,000
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setRechargeAmount("10000")}
-                    className="w-full"
-                  >
-                    ₹10,000
-                  </Button>
+                  {[1000, 5000, 10000].map((amt) => (
+                    <Button
+                      key={amt}
+                      variant="outline"
+                      onClick={() => setRechargeAmount(String(amt))}
+                      className="w-full"
+                    >
+                      ₹{amt.toLocaleString()}
+                    </Button>
+                  ))}
                 </div>
                 <Button
-                  onClick={handleRecharge}
+                  onClick={handleCashfreeRecharge}
+                  disabled={isRecharging}
                   className="w-full bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg"
                 >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Recharge via UPI/Card
+                  {isRecharging ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-4 h-4 mr-2" />
+                  )}
+                  {isRecharging ? "Processing..." : "Pay via UPI / Card / Net Banking"}
                 </Button>
                 <div className="text-xs text-gray-500 text-center">
-                  Secure payment powered by Razorpay
+                  Secure payment powered by Cashfree
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Payment Methods</CardTitle>
-                <CardDescription>Manage your payment options</CardDescription>
+                <CardTitle>Quick Info</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -326,198 +393,104 @@ const Billing = () => {
                     <CreditCard className="w-5 h-5 text-gray-400" />
                     <div>
                       <div className="font-medium">UPI</div>
-                      <div className="text-xs text-gray-500">
-                        Instant payments
-                      </div>
+                      <div className="text-xs text-gray-500">Google Pay, PhonePe, Paytm</div>
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="bg-green-50 text-green-700 border-green-200"
-                  >
-                    Active
-                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Available</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <CreditCard className="w-5 h-5 text-gray-400" />
                     <div>
-                      <div className="font-medium">Credit/Debit Card</div>
-                      <div className="text-xs text-gray-500">
-                        Cards ending in 4567
-                      </div>
+                      <div className="font-medium">Credit / Debit Card</div>
+                      <div className="text-xs text-gray-500">Visa, Mastercard, RuPay</div>
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="bg-green-50 text-green-700 border-green-200"
-                  >
-                    Active
-                  </Badge>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Available</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <CreditCard className="w-5 h-5 text-gray-400" />
                     <div>
                       <div className="font-medium">Net Banking</div>
-                      <div className="text-xs text-gray-500">
-                        All major banks
-                      </div>
+                      <div className="text-xs text-gray-500">All major banks</div>
                     </div>
                   </div>
-                  <Badge variant="outline">Available</Badge>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Available</Badge>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Invoices Tab */}
-        <TabsContent value="invoices" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Invoices</CardTitle>
-                  <CardDescription>
-                    Download GST invoices for your shipping charges
-                  </CardDescription>
-                </div>
-                <Button variant="outline" onClick={handleExportInvoices}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export All
+        {/* QR Payment Tab */}
+        <TabsContent value="qr" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pay via QR Code</CardTitle>
+                <CardDescription>
+                  Scan the QR code to pay via any UPI app, then submit the UTR reference
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                {qrUrl ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-4">
+                    <img src={qrUrl} alt="Payment QR Code" className="w-64 h-64 object-contain" />
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400">
+                    <QrCode className="w-16 h-16 mx-auto mb-2" />
+                    <p>QR code not configured yet</p>
+                    <p className="text-xs">Admin needs to upload the payment QR</p>
+                  </div>
+                )}
+                <Button
+                  onClick={() => setQrDialogOpen(true)}
+                  disabled={!qrUrl}
+                  className="w-full bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] text-white"
+                >
+                  I've Made the Payment
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">
-                          {invoice.id}
-                        </TableCell>
-                        <TableCell>{invoice.date}</TableCell>
-                        <TableCell>{invoice.type}</TableCell>
-                        <TableCell className="font-semibold">
-                          ₹
-                          {invoice.amount.toLocaleString("en-IN", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.status === "Paid" ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Paid
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Pending
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {invoice.download && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDownloadInvoice(invoice.id)}
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* COD Remittance Tab */}
-        <TabsContent value="cod" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>COD Remittance</CardTitle>
-                  <CardDescription>
-                    Track COD collection and remittance
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-sm">
-                    <span className="text-gray-600">Pending Remittance: </span>
-                    <span className="font-bold text-orange-600">
-                      ₹{pendingRemittance.toLocaleString("en-IN")}
-                    </span>
+            <Card>
+              <CardHeader>
+                <CardTitle>How it works</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">1</div>
+                  <div>
+                    <p className="font-medium">Scan QR Code</p>
+                    <p className="text-sm text-gray-500">Open any UPI app and scan the QR code above</p>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Week</TableHead>
-                      <TableHead>Collected</TableHead>
-                      <TableHead>Remitted</TableHead>
-                      <TableHead>Pending</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Remittance Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* {codRemittances.map((remittance) => (
-                      <TableRow key={remittance.id}>
-                        <TableCell className="font-medium">{remittance.week}</TableCell>
-                        <TableCell className="font-semibold">
-                          ₹{remittance.collected.toLocaleString('en-IN')}
-                        </TableCell>
-                        <TableCell className="text-green-600 font-semibold">
-                          ₹{remittance.remitted.toLocaleString('en-IN')}
-                        </TableCell>
-                        <TableCell className="text-orange-600 font-semibold">
-                          ₹{remittance.pending.toLocaleString('en-IN')}
-                        </TableCell>
-                        <TableCell>
-                          {remittance.status === "Completed" ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Completed
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Pending
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{remittance.date}</TableCell>
-                      </TableRow>
-                    ))} */}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">2</div>
+                  <div>
+                    <p className="font-medium">Pay the amount</p>
+                    <p className="text-sm text-gray-500">Enter the recharge amount (min ₹{minRecharge}) and complete the payment</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">3</div>
+                  <div>
+                    <p className="font-medium">Submit UTR reference</p>
+                    <p className="text-sm text-gray-500">Click "I've Made the Payment" and enter the UTR/transaction ID from your UPI app</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">4</div>
+                  <div>
+                    <p className="font-medium">Admin approval</p>
+                    <p className="text-sm text-gray-500">Once admin verifies, the amount will be credited to your wallet</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Transactions Tab */}
@@ -525,144 +498,148 @@ const Billing = () => {
           <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
-              <CardDescription>
-                Complete history of wallet transactions
-              </CardDescription>
+              <CardDescription>Complete history of wallet transactions</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactions.map((txn) => (
-                      <TableRow key={txn.id}>
-                        <TableCell className="font-medium">{txn.id}</TableCell>
-                        <TableCell>{txn.date}</TableCell>
-                        <TableCell>
-                          {txn.type === "Credit" ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">
-                              <ArrowUpRight className="w-3 h-3 mr-1" />
-                              Credit
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-red-100 text-red-800 border-red-200">
-                              <ArrowDownRight className="w-3 h-3 mr-1" />
-                              Debit
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {txn.description}
-                        </TableCell>
-                        <TableCell
-                          className={`font-semibold ${
-                            txn.type === "Credit"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
+              {transactions.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Wallet className="w-12 h-12 mx-auto mb-3" />
+                  <p>No transactions yet</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Balance After</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.map((txn) => {
+                          const typeInfo = txnTypeLabel(txn.type);
+                          const Icon = typeInfo.icon;
+                          return (
+                            <TableRow key={txn.id}>
+                              <TableCell className="text-sm">{formatDate(txn.createdAt)}</TableCell>
+                              <TableCell>
+                                <Badge className={typeInfo.color}>
+                                  <Icon className="w-3 h-3 mr-1" />
+                                  {typeInfo.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm max-w-xs truncate">
+                                {txn.description || (txn.order ? `Order ${txn.order.orderNumber}` : "-")}
+                              </TableCell>
+                              <TableCell>
+                                {txn.status === "COMPLETED" ? (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    <CheckCircle2 className="w-3 h-3 mr-1" />Done
+                                  </Badge>
+                                ) : txn.status === "PENDING" ? (
+                                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                    <Clock className="w-3 h-3 mr-1" />Pending
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline">{txn.status}</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className={`text-right font-semibold ${isCredit(txn.type) ? "text-green-600" : "text-red-600"}`}>
+                                {isCredit(txn.type) ? "+" : "-"}{formatCurrency(Number(txn.amount))}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(Number(txn.balanceAfter))}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {txnPagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <p className="text-sm text-gray-500">
+                        Page {txnPagination.page} of {txnPagination.totalPages} ({txnPagination.total} total)
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={txnPagination.page <= 1}
+                          onClick={() => loadTransactions(txnPagination.page - 1)}
                         >
-                          {txn.type === "Credit" ? "+" : "-"}₹
-                          {txn.amount.toLocaleString("en-IN", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          ₹
-                          {txn.balance.toLocaleString("en-IN", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Weight Disputes Tab */}
-        <TabsContent value="disputes" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weight Discrepancy Disputes</CardTitle>
-              <CardDescription>
-                Raise and track weight discrepancy disputes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Button
-                  onClick={handleRaiseDispute}
-                  className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg w-full"
-                >
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                  Raise New Dispute
-                </Button>
-              </div>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Dispute ID</TableHead>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Declared Weight</TableHead>
-                      <TableHead>Charged Weight</TableHead>
-                      <TableHead>Difference</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {weightDisputes.map((dispute) => (
-                      <TableRow key={dispute.id}>
-                        <TableCell className="font-medium">
-                          {dispute.id}
-                        </TableCell>
-                        <TableCell>
-                          <a href="#" className="text-blue-600 hover:underline">
-                            {dispute.orderId}
-                          </a>
-                        </TableCell>
-                        <TableCell>{dispute.declaredWeight}</TableCell>
-                        <TableCell>{dispute.chargedWeight}</TableCell>
-                        <TableCell className="text-red-600 font-semibold">
-                          {dispute.difference}
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          ₹{dispute.amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          {dispute.status === "Resolved" ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">
-                              Resolved
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                              Under Review
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{dispute.date}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={txnPagination.page >= txnPagination.totalPages}
+                          onClick={() => loadTransactions(txnPagination.page + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* QR Payment Dialog */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit Payment Details</DialogTitle>
+            <DialogDescription>
+              Enter the amount you paid and the UTR/transaction reference from your UPI app
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Amount Paid (₹)</label>
+              <Input
+                type="number"
+                placeholder={`Min ₹${minRecharge}`}
+                value={qrAmount}
+                onChange={(e) => setQrAmount(e.target.value)}
+                min={minRecharge}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">UTR / Transaction Reference</label>
+              <Input
+                type="text"
+                placeholder="e.g. 412345678901"
+                value={qrUtr}
+                onChange={(e) => setQrUtr(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Find the UTR number in your UPI app's transaction details
+              </p>
+            </div>
+            <Button
+              onClick={handleQrPayment}
+              disabled={isSubmittingQr}
+              className="w-full"
+            >
+              {isSubmittingQr ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              {isSubmittingQr ? "Submitting..." : "Submit for Approval"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

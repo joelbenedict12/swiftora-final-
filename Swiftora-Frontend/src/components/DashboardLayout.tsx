@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { billingApi } from "@/lib/api";
 import {
   Package,
   BarChart3,
@@ -153,12 +154,24 @@ const DashboardLayout = () => {
     { name: "General Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
-  // Wallet Balance
-  const walletBalance = {
-    available: "₹1,25,680.50",
-    pending: "₹12,450.00",
-    total: "₹1,38,130.50",
-  };
+  // Wallet Balance (live from API)
+  const [walletBalance, setWalletBalance] = useState({
+    available: "₹0.00",
+    pending: "₹0.00",
+    total: "₹0.00",
+  });
+
+  useEffect(() => {
+    billingApi.getWallet().then((res) => {
+      const d = res.data;
+      const fmt = (v: number) => `₹${Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+      setWalletBalance({
+        available: fmt(d.balance),
+        pending: fmt(d.creditLimit),
+        total: fmt(d.availableBalance),
+      });
+    }).catch(() => {});
+  }, [location.pathname]);
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + "/");
@@ -190,13 +203,8 @@ const DashboardLayout = () => {
   };
 
   const handleRecharge = () => {
-    if (!rechargeAmount || parseFloat(rechargeAmount) <= 0) {
-      toast.error("Please enter a valid amount");
-      return;
-    }
-    toast.success(`Recharge of ₹${rechargeAmount} initiated`);
-    setRechargeAmount("");
     setRechargeDialogOpen(false);
+    navigate("/dashboard/billing");
   };
 
   // Filter navigation for B2C-only users (hide heavier B2B pages)

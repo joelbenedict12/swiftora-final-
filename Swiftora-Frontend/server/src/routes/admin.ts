@@ -5,6 +5,7 @@ import { authenticate, AuthRequest } from '../middleware/auth.js';
 import * as InvoiceService from '../services/InvoiceService.js';
 import * as ProfitService from '../services/ProfitService.js';
 import * as WalletService from '../services/WalletService.js';
+import * as CommissionService from '../services/commissionService.js';
 
 const router = Router();
 
@@ -192,6 +193,7 @@ router.get('/vendors', authenticate, requireAdmin, async (req, res, next) => {
             email: m.email,
             phone: m.phone,
             walletBalance: m.walletBalance,
+            isPaused: m.isPaused,
             orderCount: m._count.orders,
             userCount: m._count.users,
             warehouseCount: m._count.warehouses,
@@ -531,8 +533,6 @@ router.get('/wallet/:merchantId', authenticate, requireAdmin, async (req, res, n
 });
 
 // Credit vendor wallet (admin adds funds)
-// TODO: Integrate PayU payment gateway here for actual payment processing
-// PayU webhook will call this endpoint after successful payment verification
 router.post('/wallet/credit', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
     try {
         const { merchantId, amount, description, reference } = req.body;
@@ -540,12 +540,6 @@ router.post('/wallet/credit', authenticate, requireAdmin, async (req: AuthReques
         if (!merchantId || !amount || amount <= 0) {
             throw new AppError(400, 'merchantId and a positive amount are required');
         }
-
-        // TODO: When PayU is integrated:
-        // 1. Verify payment with PayU transaction ID
-        // 2. Check PayU webhook signature
-        // 3. Only credit after verified payment
-        // For now, admin can manually credit wallets
 
         const result = await WalletService.credit(
             merchantId,
@@ -612,5 +606,115 @@ router.get('/analytics/profit', authenticate, requireAdmin, async (req, res, nex
     }
 });
 
+
+// ============================================================
+// PLATFORM SETTINGS
+// ============================================================
+
+router.get('/settings', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const settings = await CommissionService.getAllSettings();
+        res.json(settings);
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { platform_commission_percent, min_recharge_amount, platform_qr_url } = req.body;
+
+        if (platform_commission_percent !== undefined) {
+            await CommissionService.updateCommissionPercent(Number(platform_commission_percent));
+        }
+        if (min_recharge_amount !== undefined) {
+            await CommissionService.updateMinRechargeAmount(Number(min_recharge_amount));
+        }
+        if (platform_qr_url !== undefined) {
+            await CommissionService.updateQrUrl(String(platform_qr_url));
+        }
+
+        const settings = await CommissionService.getAllSettings();
+        res.json({ success: true, settings });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// VENDOR PAUSE / UNPAUSE
+// ============================================================
+
+router.put('/vendors/:id/pause', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { isPaused } = req.body;
+        if (typeof isPaused !== 'boolean') {
+            throw new AppError(400, 'isPaused (boolean) is required');
+        }
+
+        const merchant = await prisma.merchant.update({
+            where: { id: req.params.id },
+            data: { isPaused },
+            select: { id: true, companyName: true, isPaused: true },
+        });
+
+        res.json({ success: true, merchant });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// PENDING QR PAYMENTS (ADMIN APPROVAL)
+// ============================================================
+
+router.get('/pending-payments', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const pending = await prisma.walletTransaction.findMany({
+            where: { type: 'QR_CREDIT', status: 'PENDING' },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                merchant: { select: { companyName: true, email: true } },
+            },
+        });
+        res.json({ payments: pending });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.post('/pending-payments/:id/approve', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const result = await WalletService.approvePendingTransaction(req.params.id);
+        if (!result.success) {
+            throw new AppError(400, result.error || 'Failed to approve payment');
+        }
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.post('/pending-payments/:id/reject', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const result = await WalletService.rejectPendingTransaction(req.params.id);
+        if (!result.success) {
+            throw new AppError(400, result.error || 'Failed to reject payment');
+        }
+        res.json({ success: true });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Wallet balance verification / reconciliation
+router.get('/wallet/:merchantId/verify', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const result = await WalletService.verifyBalance(req.params.merchantId);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
 
 export const adminRouter = router;

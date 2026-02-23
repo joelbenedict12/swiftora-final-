@@ -632,6 +632,23 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
 
     console.log(`Shipping order ${order.orderNumber} with courier: ${selectedCourier}`);
 
+    // --- PRE-FLIGHT CHECKS ---
+    // 1. Check if merchant account is paused
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.user!.merchantId },
+      select: { isPaused: true, walletBalance: true, creditLimit: true },
+    });
+    if (merchant?.isPaused) {
+      throw new AppError(403, 'Your account is paused. Please contact support to resume shipping.');
+    }
+
+    // 2. Get pricing estimate for wallet check
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { accountType: true },
+    });
+    const accountType = user?.accountType || 'B2C';
+
     // Get the courier service
     const courierService = getCourierService(selectedCourier);
 
@@ -639,7 +656,6 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     const shipmentRequest: CreateShipmentRequest = {
       orderNumber: order.orderNumber,
 
-      // Customer details
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerEmail: order.customerEmail || undefined,
@@ -649,7 +665,6 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       shippingPincode: order.shippingPincode,
       shippingCountry: 'India',
 
-      // Pickup/Warehouse details
       pickupName: warehouse.delhiveryName || warehouse.name,
       pickupPhone: warehouse.phone,
       pickupEmail: warehouse.email || undefined,
@@ -659,29 +674,22 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       pickupPincode: warehouse.pincode,
       pickupCountry: 'India',
 
-      // Product details
       productName: order.productName,
       productDescription: order.productName,
       productValue: Number(order.productValue),
       quantity: order.quantity,
 
-      // Package dimensions
       weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
       length: order.length ? Number(order.length) : undefined,
       breadth: order.breadth ? Number(order.breadth) : undefined,
       height: order.height ? Number(order.height) : undefined,
 
-      // Payment
       paymentMode: order.paymentMode as 'PREPAID' | 'COD',
       codAmount: order.codAmount ? Number(order.codAmount) : undefined,
       totalAmount: Number(order.productValue),
 
-      // Optional metadata
       channelId: order.channel || undefined,
-
-      // Ekart-specific: preferred pickup date
       preferredDispatchDate: preferredDispatchDate || undefined,
-      // Optional service selection (used by Delhivery/Xpressbees/Innofulfill)
       serviceId: serviceId,
       shippingMode: shippingMode,
       deliveryPromise: deliveryPromise,
@@ -693,91 +701,77 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     const shipmentResponse = await courierService.createShipment(shipmentRequest);
     console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
 
-    // Check for success
-    if (shipmentResponse.success && shipmentResponse.awbNumber) {
-      // --- PRICING ENGINE: calculate vendor charge ---
-      // Get user account type for rate card lookup
-      const user = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { accountType: true },
-      });
-      const accountType = user?.accountType || 'B2C';
-
-      // Calculate pricing (courierCost from courier response or use productValue as fallback)
-      const courierCost = shipmentResponse.rawResponse?.freight
-        || shipmentResponse.rawResponse?.total_charge
-        || shipmentResponse.rawResponse?.total
-        || 0;
-
-      const pricing = await calculateVendorPrice({
-        courierCost,
-        userAccountType: accountType,
-        courierName: selectedCourier,
-        weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
-      });
-
-      // --- WALLET: debit vendor wallet ---
-      // TODO: PayU payment gateway integration will be added here
-      // For now, deduct from internal wallet balance
-      let walletResult = null;
-      if (pricing.vendorCharge > 0) {
-        walletResult = await WalletService.debit(
-          req.user!.merchantId,
-          pricing.vendorCharge,
-          order.id,
-          `Shipment charge for ${order.orderNumber} via ${selectedCourier}`
-        );
-        if (!walletResult.success) {
-          console.warn(`Wallet debit failed for order ${order.orderNumber}: ${walletResult.error}`);
-          // Don't block shipment — wallet debit is best-effort for now
-          // When PayU is integrated, this will become a hard requirement
-        }
-      }
-
-      // Resolve shipping mode (Air/Surface/Express) for display
-      const deliveryTypeLabel =
-        deliveryPromise === 'AIR' ? 'Air'
-          : deliveryPromise === 'SURFACE' ? 'Surface'
-            : shippingMode === 'Express' ? 'Express'
-              : shippingMode === 'Surface' ? 'Surface'
-                : bodyDeliveryType || null;
-
-      // Update order with AWB + pricing data + shipping mode
-      const updated = await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          awbNumber: shipmentResponse.awbNumber,
-          courierName: shipmentResponse.courierName,
-          labelUrl: shipmentResponse.labelUrl,
-          status: 'READY_TO_SHIP',
-          courierCost: pricing.courierCost,
-          vendorCharge: pricing.vendorCharge,
-          margin: pricing.margin,
-          ...(deliveryTypeLabel && { deliveryType: deliveryTypeLabel }),
-        },
-      });
-
-      return res.json({
-        success: true,
-        awbNumber: shipmentResponse.awbNumber,
-        courierName: shipmentResponse.courierName,
-        labelUrl: shipmentResponse.labelUrl,
-        pricing: {
-          courierCost: pricing.courierCost,
-          vendorCharge: pricing.vendorCharge,
-          margin: pricing.margin,
-        },
-        wallet: walletResult ? {
-          debited: walletResult.success,
-          balanceAfter: walletResult.balanceAfter,
-        } : null,
-        order: updated,
-      });
-    } else {
-      // Handle courier error
+    if (!shipmentResponse.success || !shipmentResponse.awbNumber) {
       console.error(`${selectedCourier} shipment failed:`, shipmentResponse.error);
       throw new AppError(400, `${selectedCourier} Error: ${shipmentResponse.error || 'Failed to create shipment'}`);
     }
+
+    // --- PRICING ENGINE: calculate vendor charge ---
+    const courierCost = shipmentResponse.rawResponse?.freight
+      || shipmentResponse.rawResponse?.total_charge
+      || shipmentResponse.rawResponse?.total
+      || 0;
+
+    const pricing = await calculateVendorPrice({
+      courierCost,
+      userAccountType: accountType,
+      courierName: selectedCourier,
+      weight: Number(order.chargeableWeight) || Number(order.weight) || 0.5,
+    });
+
+    // --- WALLET: hard debit requirement ---
+    let walletResult = null;
+    if (pricing.vendorCharge > 0) {
+      walletResult = await WalletService.debit(
+        req.user!.merchantId,
+        pricing.vendorCharge,
+        order.id,
+        `Shipment charge for ${order.orderNumber} via ${selectedCourier}`
+      );
+      if (!walletResult.success) {
+        throw new AppError(402, walletResult.error || 'Insufficient wallet balance. Please recharge your wallet.');
+      }
+    }
+
+    // Resolve shipping mode (Air/Surface/Express) for display
+    const deliveryTypeLabel =
+      deliveryPromise === 'AIR' ? 'Air'
+        : deliveryPromise === 'SURFACE' ? 'Surface'
+          : shippingMode === 'Express' ? 'Express'
+            : shippingMode === 'Surface' ? 'Surface'
+              : bodyDeliveryType || null;
+
+    // Update order with AWB + pricing data + shipping mode
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        awbNumber: shipmentResponse.awbNumber,
+        courierName: shipmentResponse.courierName,
+        labelUrl: shipmentResponse.labelUrl,
+        status: 'READY_TO_SHIP',
+        courierCost: pricing.courierCost,
+        vendorCharge: pricing.vendorCharge,
+        margin: pricing.margin,
+        ...(deliveryTypeLabel && { deliveryType: deliveryTypeLabel }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      awbNumber: shipmentResponse.awbNumber,
+      courierName: shipmentResponse.courierName,
+      labelUrl: shipmentResponse.labelUrl,
+      pricing: {
+        courierCost: pricing.courierCost,
+        vendorCharge: pricing.vendorCharge,
+        margin: pricing.margin,
+      },
+      wallet: walletResult ? {
+        debited: walletResult.success,
+        balanceAfter: walletResult.balanceAfter,
+      } : null,
+      order: updated,
+    });
   } catch (error: any) {
     console.error('=== SHIP ORDER ERROR ===');
     console.error('Error:', error.message);

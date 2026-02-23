@@ -17,6 +17,8 @@ import { warehousesRouter } from './routes/warehouses.js';
 import { integrationsRouter } from './routes/integrations.js';
 import { adminRouter } from './routes/admin.js';
 import { ticketsRouter } from './routes/tickets.js';
+import { billingRouter } from './routes/billing.js';
+import { paymentsRouter } from './routes/payments.js';
 
 dotenv.config();
 
@@ -160,6 +162,8 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/tickets', ticketsRouter);
+app.use('/api/billing', billingRouter);
+app.use('/api/payments', paymentsRouter);
 
 // ============================================================
 // SERVE FRONTEND STATIC FILES (SPA)

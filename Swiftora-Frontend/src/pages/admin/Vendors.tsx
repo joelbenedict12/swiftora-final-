@@ -8,6 +8,7 @@ interface Vendor {
   email: string;
   phone: string;
   walletBalance: number;
+  isPaused: boolean;
   orderCount: number;
   userCount: number;
   warehouseCount: number;
@@ -19,21 +20,22 @@ export default function Vendors() {
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const loadVendors = async () => {
+    try {
+      setIsLoading(true);
+      const response = await adminApi.getVendors();
+      setVendors(response.data);
+      setFilteredVendors(response.data);
+    } catch (error) {
+      console.error("Failed to load vendors:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadVendors = async () => {
-      try {
-        setIsLoading(true);
-        const response = await adminApi.getVendors();
-        setVendors(response.data);
-        setFilteredVendors(response.data);
-      } catch (error) {
-        console.error("Failed to load vendors:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadVendors();
   }, []);
 
@@ -53,6 +55,25 @@ export default function Vendors() {
     return `₹${Number(value || 0).toLocaleString()}`;
   };
 
+  const handleTogglePause = async (vendor: Vendor) => {
+    const newPaused = !vendor.isPaused;
+    const action = newPaused ? "pause" : "unpause";
+    if (!confirm(`Are you sure you want to ${action} ${vendor.companyName || vendor.email}?`)) return;
+
+    setTogglingId(vendor.id);
+    try {
+      await adminApi.toggleVendorPause(vendor.id, newPaused);
+      setVendors(prev =>
+        prev.map(v => v.id === vendor.id ? { ...v, isPaused: newPaused } : v)
+      );
+    } catch (err) {
+      console.error("Failed to toggle pause:", err);
+      alert("Failed to update vendor status");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="page-container">
@@ -64,7 +85,7 @@ export default function Vendors() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>🏪 Vendors</h2>
+        <h2>Vendors</h2>
         <span className="user-count">{filteredVendors.length} vendors</span>
       </div>
 
@@ -84,12 +105,11 @@ export default function Vendors() {
             <tr>
               <th>Company Name</th>
               <th>Email</th>
-              <th>Phone</th>
               <th>Wallet Balance</th>
+              <th>Status</th>
               <th>Orders</th>
-              <th>Users</th>
-              <th>Warehouses</th>
               <th>Joined</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -98,17 +118,39 @@ export default function Vendors() {
                 <tr key={vendor.id}>
                   <td className="fw-medium">{vendor.companyName || '-'}</td>
                   <td>{vendor.email || '-'}</td>
-                  <td>{vendor.phone || '-'}</td>
                   <td className="wallet-balance">{formatCurrency(vendor.walletBalance)}</td>
+                  <td>
+                    {vendor.isPaused ? (
+                      <span className="status-badge" style={{ background: "#fee2e2", color: "#991b1b" }}>
+                        Paused
+                      </span>
+                    ) : (
+                      <span className="status-badge" style={{ background: "#dcfce7", color: "#166534" }}>
+                        Active
+                      </span>
+                    )}
+                  </td>
                   <td>{vendor.orderCount}</td>
-                  <td>{vendor.userCount}</td>
-                  <td>{vendor.warehouseCount}</td>
                   <td>{new Date(vendor.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <button
+                      className={`action-btn ${vendor.isPaused ? "btn-view" : "btn-delete"}`}
+                      style={{ padding: "4px 12px", fontSize: "12px" }}
+                      onClick={() => handleTogglePause(vendor)}
+                      disabled={togglingId === vendor.id}
+                    >
+                      {togglingId === vendor.id
+                        ? "..."
+                        : vendor.isPaused
+                          ? "Unpause"
+                          : "Pause"}
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="no-data-cell">
+                <td colSpan={7} className="no-data-cell">
                   {searchTerm ? "No vendors match your search" : "No vendors found"}
                 </td>
               </tr>

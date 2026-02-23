@@ -250,7 +250,7 @@ export async function refund(
  */
 export async function getTransactions(
     merchantId: string,
-    options?: { page?: number; limit?: number; type?: string }
+    options?: { page?: number; limit?: number; type?: string; status?: string }
 ) {
     const page = options?.page || 1;
     const limit = options?.limit || 20;
@@ -259,6 +259,9 @@ export async function getTransactions(
     const where: any = { merchantId };
     if (options?.type) {
         where.type = options.type;
+    }
+    if (options?.status) {
+        where.status = options.status;
     }
 
     const [transactions, total] = await Promise.all([
@@ -284,5 +287,161 @@ export async function getTransactions(
             limit,
             totalPages: Math.ceil(total / limit),
         },
+    };
+}
+
+/**
+ * Create a pending QR payment transaction (not yet approved by admin).
+ * Balance is NOT updated until admin approves.
+ */
+export async function createPendingQrTransaction(
+    merchantId: string,
+    amount: number,
+    utrReference: string,
+    description?: string,
+): Promise<WalletTransactionResult> {
+    try {
+        const merchant = await prisma.merchant.findUnique({
+            where: { id: merchantId },
+            select: { walletBalance: true },
+        });
+
+        if (!merchant) {
+            return { success: false, balanceBefore: 0, balanceAfter: 0, error: 'Merchant not found' };
+        }
+
+        const currentBalance = Number(merchant.walletBalance);
+
+        const transaction = await prisma.walletTransaction.create({
+            data: {
+                merchantId,
+                amount,
+                type: 'QR_CREDIT',
+                status: 'PENDING',
+                reference: utrReference,
+                description: description || `QR payment - UTR: ${utrReference}`,
+                balanceBefore: currentBalance,
+                balanceAfter: currentBalance,
+            },
+        });
+
+        return {
+            success: true,
+            transactionId: transaction.id,
+            balanceBefore: currentBalance,
+            balanceAfter: currentBalance,
+        };
+    } catch (error: any) {
+        return { success: false, balanceBefore: 0, balanceAfter: 0, error: error.message };
+    }
+}
+
+/**
+ * Admin approves a pending QR transaction -> credits wallet.
+ */
+export async function approvePendingTransaction(transactionId: string): Promise<WalletTransactionResult> {
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const txn = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
+            if (!txn) throw new Error('Transaction not found');
+            if (txn.status !== 'PENDING') throw new Error(`Transaction is already ${txn.status}`);
+
+            const merchant = await tx.merchant.findUnique({
+                where: { id: txn.merchantId },
+                select: { walletBalance: true },
+            });
+            if (!merchant) throw new Error('Merchant not found');
+
+            const currentBalance = Number(merchant.walletBalance);
+            const newBalance = currentBalance + Number(txn.amount);
+
+            await tx.merchant.update({
+                where: { id: txn.merchantId },
+                data: { walletBalance: newBalance },
+            });
+
+            await tx.walletTransaction.update({
+                where: { id: transactionId },
+                data: {
+                    status: 'COMPLETED',
+                    balanceBefore: currentBalance,
+                    balanceAfter: newBalance,
+                },
+            });
+
+            return {
+                success: true,
+                transactionId,
+                balanceBefore: currentBalance,
+                balanceAfter: newBalance,
+            };
+        });
+        return result;
+    } catch (error: any) {
+        return { success: false, balanceBefore: 0, balanceAfter: 0, error: error.message };
+    }
+}
+
+/**
+ * Admin rejects a pending QR transaction.
+ */
+export async function rejectPendingTransaction(transactionId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const txn = await prisma.walletTransaction.findUnique({ where: { id: transactionId } });
+        if (!txn) return { success: false, error: 'Transaction not found' };
+        if (txn.status !== 'PENDING') return { success: false, error: `Transaction is already ${txn.status}` };
+
+        await prisma.walletTransaction.update({
+            where: { id: transactionId },
+            data: { status: 'CANCELLED' },
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Reconciliation: verify stored balance matches SUM of transactions.
+ */
+export async function verifyBalance(merchantId: string): Promise<{
+    storedBalance: number;
+    calculatedBalance: number;
+    match: boolean;
+}> {
+    const merchant = await prisma.merchant.findUnique({
+        where: { id: merchantId },
+        select: { walletBalance: true },
+    });
+
+    const storedBalance = merchant ? Number(merchant.walletBalance) : 0;
+
+    const credits = await prisma.walletTransaction.aggregate({
+        where: {
+            merchantId,
+            status: 'COMPLETED',
+            type: { in: ['RECHARGE', 'REFUND', 'COD_REMITTANCE', 'QR_CREDIT', 'ADJUSTMENT'] },
+        },
+        _sum: { amount: true },
+    });
+
+    const debits = await prisma.walletTransaction.aggregate({
+        where: {
+            merchantId,
+            status: 'COMPLETED',
+            type: 'DEBIT',
+        },
+        _sum: { amount: true },
+    });
+
+    const totalCredits = Number(credits._sum.amount || 0);
+    const totalDebits = Number(debits._sum.amount || 0);
+    const calculatedBalance = Math.round((totalCredits - totalDebits) * 100) / 100;
+
+    return {
+        storedBalance,
+        calculatedBalance,
+        match: Math.abs(storedBalance - calculatedBalance) < 0.01,
     };
 }

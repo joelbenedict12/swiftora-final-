@@ -368,6 +368,19 @@ export const kycApi = {
   createSession: () => api.post('/kyc/session', {}, { timeout: 60000 }),
 };
 
+// Billing / Wallet API (user-facing)
+export const billingApi = {
+  getWallet: () => api.get('/billing/wallet'),
+  getTransactions: (params?: { page?: number; limit?: number; type?: string }) =>
+    api.get('/billing/transactions', { params }),
+  recharge: (amount: number) => api.post('/billing/recharge', { amount }),
+  submitQrPayment: (data: { amount: number; utrReference: string }) =>
+    api.post('/billing/qr-payment', data),
+  getQrCode: () => api.get('/billing/qr-code'),
+  checkPaymentStatus: (orderId: string) =>
+    api.get(`/billing/payment-status/${orderId}`),
+};
+
 // Admin API
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
@@ -422,6 +435,8 @@ export const adminApi = {
     api.post('/admin/wallet/credit', data),
   getWalletTransactions: (merchantId: string) =>
     api.get(`/admin/wallet/${merchantId}/transactions`),
+  verifyWalletBalance: (merchantId: string) =>
+    api.get(`/admin/wallet/${merchantId}/verify`),
 
   // Invoices
   getInvoices: (params?: { merchantId?: string; status?: string }) =>
@@ -430,4 +445,23 @@ export const adminApi = {
     api.post('/admin/invoices/generate', data),
   updateInvoiceStatus: (id: string, data: { status: string }) =>
     api.patch(`/admin/invoices/${id}`, data),
+
+  // Platform Settings
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (data: {
+    platform_commission_percent?: number;
+    min_recharge_amount?: number;
+    platform_qr_url?: string;
+  }) => api.put('/admin/settings', data),
+
+  // Vendor Pause
+  toggleVendorPause: (merchantId: string, isPaused: boolean) =>
+    api.put(`/admin/vendors/${merchantId}/pause`, { isPaused }),
+
+  // Pending QR Payments
+  getPendingPayments: () => api.get('/admin/pending-payments'),
+  approvePayment: (transactionId: string) =>
+    api.post(`/admin/pending-payments/${transactionId}/approve`),
+  rejectPayment: (transactionId: string) =>
+    api.post(`/admin/pending-payments/${transactionId}/reject`),
 };
