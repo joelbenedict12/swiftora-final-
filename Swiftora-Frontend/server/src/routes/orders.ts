@@ -272,12 +272,12 @@ router.get('/wallet-check', async (req: AuthRequest, res, next) => {
 
     if (!merchant) throw new AppError(404, 'Merchant not found');
 
-    const available = (merchant.walletBalance || 0) + (merchant.creditLimit || 0);
+    const available = Number(merchant.walletBalance || 0) + Number(merchant.creditLimit || 0);
 
     res.json({
       success: true,
-      walletBalance: merchant.walletBalance || 0,
-      creditLimit: merchant.creditLimit || 0,
+      walletBalance: Number(merchant.walletBalance || 0),
+      creditLimit: Number(merchant.creditLimit || 0),
       available,
       isPaused: merchant.isPaused,
       canShip: !merchant.isPaused && available > 0,
@@ -648,7 +648,9 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
       select: { walletBalance: true, creditLimit: true, isPaused: true },
     });
 
-    const available = (merchant?.walletBalance || 0) + (merchant?.creditLimit || 0);
+    const walletBal = Number(merchant?.walletBalance || 0);
+    const creditLim = Number(merchant?.creditLimit || 0);
+    const available = walletBal + creditLim;
 
     res.json({
       success: true,
@@ -658,8 +660,8 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
         courier,
       },
       wallet: {
-        balance: merchant?.walletBalance || 0,
-        creditLimit: merchant?.creditLimit || 0,
+        balance: walletBal,
+        creditLimit: creditLim,
         available,
         isPaused: merchant?.isPaused || false,
         canShip: !merchant?.isPaused && available > 0,
@@ -751,7 +753,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     }
 
     // 2. Hard-block if wallet balance + credit limit <= 0
-    const availableBalance = (merchant?.walletBalance || 0) + (merchant?.creditLimit || 0);
+    const availableBalance = Number(merchant?.walletBalance || 0) + Number(merchant?.creditLimit || 0);
     if (availableBalance <= 0) {
       throw new AppError(402, 'Insufficient wallet balance. Please recharge your wallet before shipping.');
     }
