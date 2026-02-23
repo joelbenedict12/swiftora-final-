@@ -20,7 +20,6 @@ import {
   BarChart3,
   Truck,
   Wallet,
-  Settings,
   Users,
   Bell,
   HelpCircle,
@@ -30,7 +29,6 @@ import {
   FileText,
   ShoppingCart,
   MapPin,
-  Zap,
   Plug,
   Shield,
   TrendingUp,
@@ -188,23 +186,6 @@ const DashboardLayout = () => {
     },
   ];
 
-  const settingsNav = [
-    { name: "Users & Roles", href: "/dashboard/settings/users", icon: Users },
-    {
-      name: "Courier Management",
-      href: "/dashboard/settings/courier",
-      icon: Truck,
-    },
-    {
-      name: "Notifications",
-      href: "/dashboard/settings/notifications",
-      icon: Bell,
-    },
-    { name: "Automation", href: "/dashboard/settings/automation", icon: Zap },
-    { name: "Security", href: "/dashboard/settings/security", icon: Shield },
-    { name: "General Settings", href: "/dashboard/settings", icon: Settings },
-  ];
-
   // Wallet Balance (live from API)
   const [walletBalance, setWalletBalance] = useState({
     available: "₹0.00",
@@ -348,38 +329,6 @@ const DashboardLayout = () => {
                 Tools
               </p>
               {toolsNav.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1.5 group",
-                      isActive(item.href)
-                        ? "bg-blue-50 text-blue-600 border-l-4 border-blue-600"
-                        : "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        "w-5 h-5",
-                        isActive(item.href)
-                          ? "text-blue-600"
-                          : "text-gray-500 group-hover:text-blue-600"
-                      )}
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </div>
-
-            <div className="mb-6">
-              <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Settings
-              </p>
-              {settingsNav.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
