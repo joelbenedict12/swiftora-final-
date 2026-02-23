@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const WARNING_BEFORE = 60 * 1000; // Show warning 60s before logout
+
 const DashboardLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -50,7 +53,13 @@ const DashboardLayout = () => {
   const [rechargeDialogOpen, setRechargeDialogOpen] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [showB2BOnboarding, setShowB2BOnboarding] = useState(false);
+  const [sessionWarningOpen, setSessionWarningOpen] = useState(false);
+  const [sessionCountdown, setSessionCountdown] = useState(60);
   const location = useLocation();
+
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleLogout = async () => {
     try {
@@ -62,6 +71,50 @@ const DashboardLayout = () => {
       toast.error(message);
     }
   };
+
+  const clearAllTimers = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    if (countdownInterval.current) clearInterval(countdownInterval.current);
+  }, []);
+
+  const resetInactivityTimer = useCallback(() => {
+    clearAllTimers();
+    setSessionWarningOpen(false);
+
+    warningTimer.current = setTimeout(() => {
+      setSessionWarningOpen(true);
+      setSessionCountdown(60);
+      countdownInterval.current = setInterval(() => {
+        setSessionCountdown((prev) => {
+          if (prev <= 1) {
+            if (countdownInterval.current) clearInterval(countdownInterval.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, INACTIVITY_TIMEOUT - WARNING_BEFORE);
+
+    inactivityTimer.current = setTimeout(() => {
+      setSessionWarningOpen(false);
+      handleLogout();
+      toast.error("Session expired due to inactivity");
+    }, INACTIVITY_TIMEOUT);
+  }, [clearAllTimers]);
+
+  useEffect(() => {
+    const events = ["mousedown", "keydown", "touchstart", "scroll"];
+    const onActivity = () => {
+      if (!sessionWarningOpen) resetInactivityTimer();
+    };
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    resetInactivityTimer();
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, onActivity));
+      clearAllTimers();
+    };
+  }, [resetInactivityTimer, clearAllTimers, sessionWarningOpen]);
 
   // Read user profile metadata from localStorage
   const storedProfile =
@@ -572,6 +625,27 @@ const DashboardLayout = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        {/* Session Expiring Warning */}
+        <AlertDialog open={sessionWarningOpen} onOpenChange={(open) => {
+          if (!open) {
+            resetInactivityTimer();
+          }
+        }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Session Expiring</AlertDialogTitle>
+              <AlertDialogDescription>
+                You will be logged out in {sessionCountdown} seconds due to inactivity.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => resetInactivityTimer()}>
+                Stay Logged In
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <Toaster richColors />
       </div>
     </div>

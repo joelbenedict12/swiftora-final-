@@ -71,11 +71,20 @@ type Order = {
 
 type Pickup = {
   id: string;
+  pickupNumber?: string;
   warehouseId: string;
   scheduledDate: string;
+  scheduledTime?: string;
+  timeSlot?: string;
+  courierName?: string;
   status: string;
+  orderCount: number;
   expectedPickups: number;
   pickedOrders?: number;
+  warehouse?: {
+    name: string;
+    address?: string;
+  };
 };
 
 type AnalyticsData = {
@@ -448,18 +457,32 @@ const Dashboard = () => {
             <CardTitle>Upcoming Pickups</CardTitle>
             <CardDescription>Scheduled pickups from your warehouses</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard/pickup")}
-            className="gap-2"
-          >
-            Manage Pickups <ArrowRight className="w-4 h-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="default"
+              onClick={() => navigate("/dashboard/pickup")}
+              className="gap-2"
+              size="sm"
+            >
+              <Calendar className="w-4 h-4" />
+              Schedule Pickup
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/dashboard/pickup")}
+              className="gap-2"
+              size="sm"
+            >
+              Manage <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {pickups.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No pickups scheduled. Schedule a pickup.
+            <div className="text-center py-8">
+              <Truck className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+              <p className="text-muted-foreground font-medium">No pickups scheduled</p>
+              <p className="text-xs text-muted-foreground mt-1">Schedule a pickup to get your orders moving</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -468,20 +491,40 @@ const Dashboard = () => {
                   key={pickup.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition"
                 >
-                  <div>
-                    <div className="font-medium">Pickup {pickup.id.slice(0, 8)}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {pickup.scheduledDate
-                        ? new Date(pickup.scheduledDate).toLocaleDateString()
-                        : "-"}
+                  <div className="space-y-1">
+                    <div className="font-medium text-sm">
+                      {pickup.warehouse?.name || `Pickup ${pickup.pickupNumber || pickup.id.slice(0, 8)}`}
+                    </div>
+                    {pickup.warehouse?.address && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {pickup.warehouse.address}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {pickup.scheduledDate
+                          ? new Date(pickup.scheduledDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+                          : "-"}
+                      </span>
+                      {pickup.scheduledTime && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {pickup.scheduledTime}
+                        </span>
+                      )}
+                      {pickup.courierName && (
+                        <span className="flex items-center gap-1">
+                          <Truck className="w-3 h-3" /> {pickup.courierName}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="font-bold">
-                        {pickup.pickedOrders || 0} / {pickup.expectedPickups}
+                      <div className="font-bold text-sm">
+                        {pickup.orderCount || pickup.pickedOrders || 0} / {pickup.expectedPickups || pickup.orderCount || 0}
                       </div>
-                      <div className="text-xs text-muted-foreground">Picked</div>
+                      <div className="text-xs text-muted-foreground">Orders</div>
                     </div>
                     <Badge variant={getStatusBadgeVariant(pickup.status)}>
                       {formatStatus(pickup.status)}

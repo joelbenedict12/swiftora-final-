@@ -3,6 +3,7 @@ import {
     Home, Calendar, User, Phone, ArrowRight, Copy, Info
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import HorizontalTimeline, { type TimelineEvent } from "./HorizontalTimeline";
 
 interface DelhiveryTrackerProps {
     data: any;
@@ -164,39 +165,17 @@ export default function DelhiveryTracker({ data, awb, onCopyAWB }: DelhiveryTrac
 
             {/* Shipment Timeline */}
             {scans.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                        <Clock className="w-4 h-4" /> Shipment Timeline
-                    </h3>
-                    <div className="space-y-0">
-                        {scans.map((scan: any, idx: number) => {
-                            const detail = scan.ScanDetail;
-                            const isFirst = idx === 0;
-                            return (
-                                <div key={idx} className="flex gap-4">
-                                    <div className="flex flex-col items-center">
-                                        <div className={`w-3 h-3 rounded-full ${isFirst ? "bg-blue-500 ring-4 ring-blue-100" : "bg-gray-300"}`} />
-                                        {idx < scans.length - 1 && <div className="w-0.5 h-full bg-gray-200 min-h-[40px]" />}
-                                    </div>
-                                    <div className="pb-4 flex-1">
-                                        <div className={`font-medium text-sm ${isFirst ? "text-blue-700" : "text-gray-700"}`}>
-                                            {detail?.Scan || "Update"}
-                                        </div>
-                                        {detail?.ScannedLocation && (
-                                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                                <MapPin className="w-3 h-3" /> {detail.ScannedLocation}
-                                            </div>
-                                        )}
-                                        {detail?.Instructions && (
-                                            <div className="text-xs text-gray-400 mt-0.5">{detail.Instructions}</div>
-                                        )}
-                                        <div className="text-xs text-gray-400 mt-1">{formatDateTime(detail?.ScanDateTime)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                <HorizontalTimeline
+                    events={scans.map((scan: any) => {
+                        const detail = scan.ScanDetail;
+                        return {
+                            status: detail?.Scan || "Update",
+                            location: detail?.ScannedLocation,
+                            detail: detail?.Instructions,
+                            timestamp: detail?.ScanDateTime || "",
+                        } as TimelineEvent;
+                    })}
+                />
             )}
         </div>
     );

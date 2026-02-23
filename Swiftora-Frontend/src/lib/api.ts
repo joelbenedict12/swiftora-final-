@@ -152,6 +152,8 @@ export const ordersApi = {
 
   bulkImport: (orders: any[]) => api.post('/orders/bulk/import', { orders }),
 
+  syncStatus: () => api.post('/orders/sync-status'),
+
   // Get available couriers
   getCouriers: () => api.get('/orders/couriers'),
 

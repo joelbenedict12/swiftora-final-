@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -25,17 +24,14 @@ import {
 } from "@/components/ui/table";
 import {
   Download,
-  TrendingUp,
-  TrendingDown,
   CheckCircle2,
-  Clock,
-  XCircle,
-  DollarSign,
-  ShoppingCart,
+  RefreshCw,
+  Loader2,
+  Package,
+  Truck,
+  AlertTriangle,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -47,207 +43,91 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from "recharts";
+import { dashboardApi } from "@/lib/api";
+import { toast } from "sonner";
+
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+
+type TrendEntry = {
+  date: string;
+  totalOrders: number;
+  delivered: number;
+  inTransit: number;
+  rto: number;
+  revenue: number;
+};
 
 const AnalyticsReports = () => {
-  // Mock Data
-  const orderVolumeData = [
-    { week: "Week 1", totalOrders: 3200, delivered: 2800, rto: 200 },
-    { week: "Week 2", totalOrders: 3100, delivered: 2700, rto: 150 },
-    { week: "Week 3", totalOrders: 3400, delivered: 2900, rto: 250 },
-    { week: "Week 4", totalOrders: 3300, delivered: 2850, rto: 180 },
-    { week: "Week 5", totalOrders: 3500, delivered: 3000, rto: 220 },
-    { week: "Week 6", totalOrders: 3600, delivered: 3100, rto: 300 },
-  ];
+  const [period, setPeriod] = useState<"7d" | "30d" | "90d">("30d");
+  const [loading, setLoading] = useState(true);
+  const [trends, setTrends] = useState<TrendEntry[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [total, setTotal] = useState(0);
 
-  const revenueOverviewData = [
-    { name: "Jan", revenue: 100000, cost: 60000, profit: 40000 },
-    { name: "Feb", revenue: 120000, cost: 70000, profit: 50000 },
-    { name: "Mar", revenue: 140000, cost: 80000, profit: 60000 },
-  ];
-
-  const deliveryPerformanceData = [
-    { name: "Delhivery", delivered: 400, rto: 24, delayed: 12 },
-    { name: "BlueDart", delivered: 300, rto: 13, delayed: 8 },
-    { name: "XpressBees", delivered: 200, rto: 9, delayed: 5 },
-  ];
-
-  const deliveryTimeData = [
-    { days: "1-2", count: 120 },
-    { days: "2-3", count: 300 },
-    { days: "3-5", count: 200 },
-    { days: "5+", count: 50 },
-  ];
-
-  const delayAnalysisData = [
-    { reason: "Incorrect Address", count: 25 },
-    { reason: "Customer Not Available", count: 40 },
-    { reason: "Weather Conditions", count: 10 },
-  ];
-
-  const revenueCostData = [
-    { name: "Jan", revenue: 4000, cost: 2400 },
-    { name: "Feb", revenue: 3000, cost: 1398 },
-    { name: "Mar", revenue: 2000, cost: 9800 },
-    { name: "Apr", revenue: 2780, cost: 3908 },
-    { name: "May", revenue: 1890, cost: 4800 },
-    { name: "Jun", revenue: 2390, cost: 3800 },
-  ];
-
-  const codRemittanceData = [
-    { orderId: "123", amount: 1500, status: "Remitted" },
-    { orderId: "124", amount: 2500, status: "Pending" },
-    { orderId: "125", amount: 1000, status: "Remitted" },
-    { orderId: "126", amount: 1070, status: "Remitted" },
-  ];
-
-  const courierComparisonData = [
-    { courier: "Delhivery", onTime: "95%", avgCost: "₹50", rtoRate: "1.2%" },
-    { courier: "BlueDart", onTime: "98%", avgCost: "₹55", rtoRate: "0.8%" },
-    { courier: "XpressBees", onTime: "92%", avgCost: "₹48", rtoRate: "1.5%" },
-  ];
-
-  const weightDiscrepancyData = [
-    { orderId: "123", declared: "1kg", actual: "1.2kg", difference: "0.2kg" },
-    { orderId: "124", declared: "0.5kg", actual: "0.5kg", difference: "0kg" },
-    { orderId: "125", declared: "2kg", actual: "2.5kg", difference: "0.5kg" },
-    { orderId: "126", declared: "1.4kg", actual: "2.0kg", difference: "0.6kg" },
-  ];
-
-  const ndrReasonsData = [
-    { name: "Incorrect Address", value: 400 },
-    { name: "Customer Not Available", value: 300 },
-    { name: "Refused Delivery", value: 300 },
-    { name: "Other", value: 200 },
-  ];
-
-  const rtoTrendsData = [
-    { name: "Jan", rto: 1.5 },
-    { name: "Feb", rto: 1.2 },
-    { name: "Mar", rto: 1.8 },
-    { name: "Apr", rto: 1.6 },
-    { name: "May", rto: 1.4 },
-    { name: "Jun", rto: 1.1 },
-  ];
-
-  const revenueByProductData = [
-    { name: "cloths", revenue: 12000 },
-    { name: "Apparel", revenue: 9000 },
-    { name: "Home Goods", revenue: 7500 },
-    { name: "Books", revenue: 4000 },
-    { name: "Beauty", revenue: 6000 },
-  ];
-
-  const [loading, setLoading] = useState(false);
-
-  const handleExportCSV = () => {
+  const loadData = async () => {
     setLoading(true);
-
-    const allData = [
-      ["Order Volume Trends"],
-      ["Week", "Total Orders", "Delivered", "RTO"],
-      ...orderVolumeData.map((d) => [
-        d.week,
-        d.totalOrders,
-        d.delivered,
-        d.rto,
-      ]),
-      [],
-      ["Revenue Overview"],
-      ...revenueOverviewData.map((d) => [d.name, d.revenue]),
-      [],
-      ["Delivery Performance by Courier"],
-      ["Name", "Delivered", "RTO", "Delayed"],
-      ...deliveryPerformanceData.map((d) => [
-        d.name,
-        d.delivered,
-        d.rto,
-        d.delayed,
-      ]),
-      [],
-      ["Delivery Time Distribution"],
-      ["Days", "Count"],
-      ...deliveryTimeData.map((d) => [d.days, d.count]),
-      [],
-      ["Delay Analysis"],
-      ["Reason", "Count"],
-      ...delayAnalysisData.map((d) => [d.reason, d.count]),
-      [],
-      ["Revenue & Cost Trends"],
-      ["Name", "Revenue", "Cost"],
-      ...revenueCostData.map((d) => [d.name, d.revenue, d.cost]),
-      [],
-      ["COD Remittance Tracking"],
-      ["Order ID", "Amount", "Status"],
-      ...codRemittanceData.map((d) => [d.orderId, d.amount, d.status]),
-      [],
-      ["Courier Performance Comparison"],
-      ["Courier", "On-time %", "Avg. Cost", "RTO Rate"],
-      ...courierComparisonData.map((d) => [
-        d.courier,
-        d.onTime,
-        d.avgCost,
-        d.rtoRate,
-      ]),
-      [],
-      ["Weight Discrepancy Analysis"],
-      ["Order ID", "Declared", "Actual", "Difference"],
-      ...weightDiscrepancyData.map((d) => [
-        d.orderId,
-        d.declared,
-        d.actual,
-        d.difference,
-      ]),
-      [],
-      ["NDR Reasons Distribution"],
-      ["Reason", "Count"],
-      ...ndrReasonsData.map((d) => [d.name, d.value]),
-      [],
-      ["RTO Trends"],
-      ["Name", "RTO"],
-      ...rtoTrendsData.map((d) => [d.name, d.rto]),
-    ];
-
-    const csvContent = allData.map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "analytics_reports.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setLoading(false);
+    try {
+      const res = await dashboardApi.analytics({ period });
+      setTrends(res.data.orderTrends || []);
+      setStatusCounts(res.data.statusCounts || {});
+      setTotal(res.data.total || 0);
+    } catch (e: any) {
+      toast.error("Failed to load report data");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+  useEffect(() => {
+    loadData();
+  }, [period]);
 
-  const codRemittanceChartData = codRemittanceData.reduce((acc, curr) => {
-    const existing = acc.find((item) => item.status === curr.status);
-    if (existing) {
-      existing.amount += curr.amount;
-    } else {
-      acc.push({ status: curr.status, amount: curr.amount });
-    }
-    return acc;
-  }, [] as { status: string; amount: number }[]);
+  const totalDelivered = statusCounts["DELIVERED"] || 0;
+  const totalRTO = (statusCounts["RTO"] || 0) + (statusCounts["RTO_DELIVERED"] || 0);
+  const totalInTransit = (statusCounts["IN_TRANSIT"] || 0) + (statusCounts["OUT_FOR_DELIVERY"] || 0);
+  const totalRevenue = trends.reduce((s, t) => s + t.revenue, 0);
+
+  const statusPieData = Object.entries(statusCounts).map(([name, value]) => ({
+    name: name.replace(/_/g, " "),
+    value,
+  }));
+
+  const handleExport = () => {
+    const csvRows = ["Date,Total Orders,Delivered,In Transit,RTO,Revenue"];
+    trends.forEach((t) =>
+      csvRows.push(`${t.date},${t.totalOrders},${t.delivered},${t.inTransit},${t.rto},${t.revenue}`)
+    );
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `report-${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Report downloaded");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 ">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">
-            Analytics & Reports
-          </h2>
+          <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+          <p className="text-muted-foreground mt-1">Detailed shipping performance reports</p>
         </div>
         <div className="flex items-center gap-3">
-          <Select defaultValue="30d">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Last 30 days" />
+          <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="7d">Last 7 days</SelectItem>
@@ -255,451 +135,161 @@ const AnalyticsReports = () => {
               <SelectItem value="90d">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            onClick={handleExportCSV}
-            disabled={loading}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {loading ? "Exporting..." : "Export Reports"}
+          <Button variant="outline" size="icon" onClick={loadData}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              On-time delivery
-            </CardTitle>
-            <CheckCircle2 className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">95.2%</div>
-            <p className="text-xs text-green-600 flex items-center">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              +2.1% from last month
-            </p>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <Package className="w-3.5 h-3.5" /> Total Orders
+            </div>
+            <div className="text-2xl font-bold">{total}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Avg delivery time
-            </CardTitle>
-            <Clock className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">2.1 days</div>
-            <p className="text-xs text-green-600 flex items-center">
-              <TrendingDown className="w-3 h-3 mr-1" />
-              -0.3 days from last month
-            </p>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Delivered
+            </div>
+            <div className="text-2xl font-bold text-green-600">{totalDelivered}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">RTO Rate</CardTitle>
-            <TrendingDown className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1.2%</div>
-            <p className="text-xs text-green-600 flex items-center">
-              <TrendingDown className="w-3 h-3 mr-1" />
-              -0.1% from last month
-            </p>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <Truck className="w-3.5 h-3.5 text-orange-500" /> In Transit
+            </div>
+            <div className="text-2xl font-bold text-orange-600">{totalInTransit}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">NDR Rate</CardTitle>
-            <XCircle className="w-4 h-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1.8%</div>
-            <p className="text-xs text-green-600 flex items-center">
-              <TrendingDown className="w-3 h-3 mr-1" />
-              -0.3% from last month
-            </p>
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-500" /> RTO
+            </div>
+            <div className="text-2xl font-bold text-red-600">{totalRTO}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="text-xs text-muted-foreground mb-1">COD Revenue</div>
+            <div className="text-2xl font-bold text-purple-600">
+              ₹{totalRevenue.toLocaleString("en-IN")}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="delivery-performance">
-            Delivery performance
-          </TabsTrigger>
-          <TabsTrigger value="financial-analytics">
-            Financial analytics
-          </TabsTrigger>
-          <TabsTrigger value="courier-performances">
-            Courier performances
-          </TabsTrigger>
-          <TabsTrigger value="ndr-rto-analysis">NDR & RTO analysis</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Volume Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={orderVolumeData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="week" />
-                    <YAxis domain={[0, 3600]} />
-                    <Tooltip />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="totalOrders"
-                      stackId="1"
-                      stroke="#0000FF"
-                      fill="#0000FF"
-                      name="Total Orders"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="delivered"
-                      stackId="1"
-                      stroke="#00FF00"
-                      fill="#00FF00"
-                      name="Delivered"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="rto"
-                      stackId="1"
-                      stroke="#FF0000"
-                      fill="#FF0000"
-                      name="RTO"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue Overview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={revenueOverviewData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis domain={[0, 320000]} />
-                    <Tooltip />
-                    <Legend iconType="circle" />
-                    <Bar dataKey="revenue" fill="#0000FF" name="Revenue" />
-                    <Bar dataKey="cost" fill="#FFA500" name="Cost" />
-                    <Bar dataKey="profit" fill="#00FF00" name="Profit" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="delivery-performance">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
-            <Card className="col-span-2">
-              <CardHeader>
-                <CardTitle>Delivery Performance by Courier</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={deliveryPerformanceData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="delivered" fill="#82ca9d" />
-                    <Bar dataKey="rto" fill="#ffc658" />
-                    <Bar dataKey="delayed" fill="#ff8042" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Delivery Time Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={deliveryTimeData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="days" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card className="col-span-3">
-              <CardHeader>
-                <CardTitle>Delay Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Count</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {delayAnalysisData.map((data, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{data.reason}</TableCell>
-                        <TableCell>{data.count}</TableCell>
-                      </TableRow>
+      {/* Charts */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Daily Order Volume</CardTitle>
+            <CardDescription>Orders per day in the selected period</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {trends.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={trends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="totalOrders" fill="#3b82f6" name="Total" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="delivered" fill="#10b981" name="Delivered" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="rto" fill="#ef4444" name="RTO" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Status Distribution</CardTitle>
+            <CardDescription>Overall order status breakdown</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {statusPieData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={statusPieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {statusPieData.map((_: any, idx: number) => (
+                      <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                     ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="financial-analytics">
-          <div className="space-y-6 mt-6">
-            <div className="grid gap-6 md:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Total Revenue</CardTitle>
-                  <DollarSign className="w-5 h-5 text-gray-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">₹1,25,000</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Total Costs</CardTitle>
-                  <DollarSign className="w-5 h-5 text-gray-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">₹85,000</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Net Profit</CardTitle>
-                  <DollarSign className="w-5 h-5 text-gray-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">₹40,000</div>
-                </CardContent>
-              </Card>
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue & Cost Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={revenueCostData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="revenue" stroke="#82ca9d" />
-                    <Line type="monotone" dataKey="cost" stroke="#ff8042" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <div className="grid grid-cols-2 space-x-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue by Product Category</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={revenueByProductData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="revenue" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>COD Remittance Tracking</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={codRemittanceChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="status" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="amount" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {codRemittanceData.map((data, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{data.orderId}</TableCell>
-                          <TableCell>{data.amount}</TableCell>
-                          <TableCell>{data.status}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-        <TabsContent value="courier-performances">
-          <div className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Courier Performance Comparison</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Courier</TableHead>
-                      <TableHead>On-time %</TableHead>
-                      <TableHead>Avg. Cost</TableHead>
-                      <TableHead>RTO Rate</TableHead>
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Data Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Breakdown</CardTitle>
+          <CardDescription>Detailed day-by-day performance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-xs">
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                  <TableHead className="text-right">Delivered</TableHead>
+                  <TableHead className="text-right">In Transit</TableHead>
+                  <TableHead className="text-right">RTO</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trends.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
+                      No data for this period
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  trends.map((row) => (
+                    <TableRow key={row.date} className="text-xs">
+                      <TableCell className="font-medium">{row.date}</TableCell>
+                      <TableCell className="text-right">{row.totalOrders}</TableCell>
+                      <TableCell className="text-right text-green-600">{row.delivered}</TableCell>
+                      <TableCell className="text-right text-orange-600">{row.inTransit}</TableCell>
+                      <TableCell className="text-right text-red-600">{row.rto}</TableCell>
+                      <TableCell className="text-right">₹{row.revenue.toLocaleString("en-IN")}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {courierComparisonData.map((data, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{data.courier}</TableCell>
-                        <TableCell>{data.onTime}</TableCell>
-                        <TableCell>{data.avgCost}</TableCell>
-                        <TableCell>{data.rtoRate}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Weight Discrepancy Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Declared</TableHead>
-                      <TableHead>Actual</TableHead>
-                      <TableHead>Difference</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {weightDiscrepancyData.map((data, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{data.orderId}</TableCell>
-                        <TableCell>{data.declared}</TableCell>
-                        <TableCell>{data.actual}</TableCell>
-                        <TableCell>{data.difference}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </TabsContent>
-        <TabsContent value="ndr-rto-analysis">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>NDR Reasons Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={ndrReasonsData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label
-                    >
-                      {ndrReasonsData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>RTO Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={rtoTrendsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="rto" stroke="#ff8042" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card className="col-span-2">
-              <CardHeader>
-                <CardTitle>NDR Reasons Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Count</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ndrReasonsData.map((data, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{data.name}</TableCell>
-                        <TableCell>{data.value}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

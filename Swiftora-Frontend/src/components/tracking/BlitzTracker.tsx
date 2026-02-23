@@ -3,6 +3,7 @@ import {
     Home, Calendar, Copy, CreditCard, Hash
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import HorizontalTimeline, { type TimelineEvent } from "./HorizontalTimeline";
 
 interface BlitzTrackerProps {
     data: any;
@@ -137,38 +138,14 @@ export default function BlitzTracker({ data, awb, onCopyAWB }: BlitzTrackerProps
 
             {/* Shipment Timeline */}
             {events.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                        <Clock className="w-4 h-4" /> Shipment Timeline
-                    </h3>
-                    <div className="space-y-0">
-                        {events.map((event: any, idx: number) => {
-                            const isFirst = idx === 0;
-                            return (
-                                <div key={idx} className="flex gap-4">
-                                    <div className="flex flex-col items-center">
-                                        <div className={`w-3 h-3 rounded-full ${isFirst ? "bg-orange-500 ring-4 ring-orange-100" : "bg-gray-300"}`} />
-                                        {idx < events.length - 1 && <div className="w-0.5 h-full bg-gray-200 min-h-[40px]" />}
-                                    </div>
-                                    <div className="pb-4 flex-1">
-                                        <div className={`font-medium text-sm ${isFirst ? "text-orange-700" : "text-gray-700"}`}>
-                                            {event.status || "Update"}
-                                        </div>
-                                        {event.location && (
-                                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                                <MapPin className="w-3 h-3" /> {event.location}
-                                            </div>
-                                        )}
-                                        {event.remarks && (
-                                            <div className="text-xs text-gray-400 mt-0.5">{event.remarks}</div>
-                                        )}
-                                        <div className="text-xs text-gray-400 mt-1">{formatDateTime(event.timestamp)}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                <HorizontalTimeline
+                    events={events.map((e: any) => ({
+                        status: e.status || "Update",
+                        location: e.location,
+                        detail: e.remarks,
+                        timestamp: e.timestamp || "",
+                    } as TimelineEvent))}
+                />
             )}
         </div>
     );

@@ -27,6 +27,10 @@ const OUT_FOR_PICKUP_ALIASES = [
   'pickup scheduled',
   'out for collection',
   'pickup pending',
+  'pickup assigned',
+  'pickup generated',
+  'pickup requested',
+  'pp', // Xpressbees status code
 ];
 
 const PICKED_UP_ALIASES = [
@@ -36,6 +40,10 @@ const PICKED_UP_ALIASES = [
   'picked',
   'collected',
   'pickup done',
+  'pickup complete',
+  'pickup completed',
+  'shipment picked up',
+  'pk', // Xpressbees status code
 ];
 
 const IN_TRANSIT_ALIASES = [
@@ -45,18 +53,40 @@ const IN_TRANSIT_ALIASES = [
   'dispatched',
   'shipped',
   'moving',
+  'in_transit',
+  'forwarded',
+  'received at hub',
+  'reached at destination hub',
+  'arrived at hub',
+  'in hub',
+  'hub scan',
+  'bag scan',
+  'added to bag',
+  'received at origin hub',
+  'connection allocated',
+  'further connected',
+  'sl', // Xpressbees status code for "Soft Loaded"
+  'it', // Xpressbees status code
+  'ot', // Xpressbees status code for "On the way"
+  'rac', // Ekart: Reached at center
 ];
 
 const OUT_FOR_DELIVERY_ALIASES = [
   'out for delivery',
-  'out for delivery',
   'ofd',
+  'out_for_delivery',
+  'dispatched to customer',
+  'last mile',
+  'dl', // Xpressbees status code for "Out for Delivery"
 ];
 
 const DELIVERED_ALIASES = [
   'delivered',
   'delivery completed',
   'completed',
+  'shipment delivered',
+  'del', // Xpressbees status code
+  'ok', // Ekart delivered status
 ];
 
 const RTO_ALIASES = [
@@ -64,12 +94,28 @@ const RTO_ALIASES = [
   'return to origin',
   'returned',
   'return in transit',
+  'rto in transit',
+  'rto_in_transit',
+  'rto initiated',
+  'returning',
+  'rt', // Xpressbees status code
 ];
 
 const RTO_DELIVERED_ALIASES = [
   'rto delivered',
   'rto-delivered',
   'return delivered',
+  'rto_delivered',
+  'returned to shipper',
+  'returned to origin',
+  'rd', // Xpressbees status code
+];
+
+const CANCELLED_ALIASES = [
+  'cancelled',
+  'canceled',
+  'shipment cancelled',
+  'cancel',
 ];
 
 const MANIFESTED_ALIASES = [
@@ -77,6 +123,12 @@ const MANIFESTED_ALIASES = [
   'manifest',
   'created',
   'registered',
+  'data received',
+  'booked',
+  'order placed',
+  'pending pickup',
+  'not picked',
+  'np', // Xpressbees status code
 ];
 
 function normalize(s: string): string {
@@ -103,10 +155,10 @@ export function courierStatusToOrderStatus(raw: string | null | undefined): Orde
   if (matchesAny(n, PICKED_UP_ALIASES)) return 'PICKED_UP';
   if (matchesAny(n, MANIFESTED_ALIASES)) return 'MANIFESTED';
 
-  // Explicit known strings (case-insensitive)
+  if (matchesAny(n, CANCELLED_ALIASES)) return 'CANCELLED';
+
   if (n === 'ready to ship' || n === 'ready_to_ship') return 'READY_TO_SHIP';
-  if (n === 'cancelled' || n === 'canceled') return 'CANCELLED';
-  if (n === 'failed') return 'FAILED';
+  if (n === 'failed' || n === 'delivery failed' || n === 'undelivered') return 'FAILED';
 
   return null;
 }

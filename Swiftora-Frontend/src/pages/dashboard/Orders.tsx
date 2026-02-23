@@ -60,6 +60,8 @@ import {
   FileDown,
   Pencil,
   Wallet,
+  Copy,
+  Upload,
 } from "lucide-react";
 import { ordersApi, warehousesApi, ticketsApi, trackingApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
@@ -228,6 +230,12 @@ const Orders = () => {
   const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<Order | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [generatingLabelId, setGeneratingLabelId] = useState<string | null>(null);
+
+  // Bulk upload state
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [bulkCsvData, setBulkCsvData] = useState<Record<string, string>[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<any>(null);
 
   // Per-row order details (accordion)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -505,23 +513,79 @@ const Orders = () => {
 
   /** Fetch tracking from couriers for all orders with AWB so status (e.g. Out for Pickup) updates in DB and shows here. */
   const syncStatusFromCouriers = async () => {
-    const withAwb = orders.filter((o) => o.awbNumber?.trim());
-    if (withAwb.length === 0) {
-      toast.info("No orders with AWB to sync. Ship orders first.");
-      return;
-    }
     try {
       setIsSyncingStatus(true);
-      await Promise.allSettled(
-        withAwb.map((o) => trackingApi.track({ awb: o.awbNumber! }))
-      );
+      const res = await ordersApi.syncStatus();
+      const data = res.data;
       await loadOrders();
-      toast.success(`Status synced for ${withAwb.length} order(s).`);
+      if (data.synced > 0) {
+        toast.success(`Updated ${data.synced} of ${data.total} order(s).`);
+      } else if (data.total === 0) {
+        toast.info("No active shipped orders to sync.");
+      } else {
+        toast.info(`All ${data.total} order(s) already up to date.`);
+      }
     } catch (e: any) {
       toast.error(e?.response?.data?.error || e?.message || "Sync failed");
     } finally {
       setIsSyncingStatus(false);
     }
+  };
+
+  const handleBulkFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        toast.error("CSV must have a header row and at least one data row");
+        return;
+      }
+      const headers = lines[0].split(",").map((h) => h.trim());
+      const rows = lines.slice(1).map((line) => {
+        const vals = line.split(",").map((v) => v.trim());
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = vals[i] || ""; });
+        return obj;
+      });
+      setBulkCsvData(rows);
+      setBulkResults(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkSubmit = async () => {
+    if (bulkCsvData.length === 0) return;
+    setBulkUploading(true);
+    try {
+      const res = await ordersApi.bulkImport(bulkCsvData);
+      setBulkResults(res.data);
+      if (res.data.imported > 0) {
+        toast.success(`${res.data.imported} order(s) imported successfully`);
+        loadOrders();
+      }
+      if (res.data.failed > 0) {
+        toast.error(`${res.data.failed} order(s) failed`);
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Bulk import failed");
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const header = "customerName,customerPhone,shippingAddress,shippingCity,shippingState,shippingPincode,productName,weight,productValue,paymentMode,codAmount,quantity";
+    const sample = "John Doe,9876543210,123 Main St,Mumbai,Maharashtra,400001,T-Shirt,0.5,500,PREPAID,,1";
+    const blob = new Blob([header + "\n" + sample], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sample_orders.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const loadWarehouses = async () => {
@@ -598,10 +662,12 @@ const Orders = () => {
       const response = await ordersApi.assignPickupLocation(selectedOrderForPickup.id, warehouseId);
 
       if (response.data.success) {
-        toast.success(response.data.message || "Pickup location assigned!");
+        toast.success(
+          `Pickup location assigned for ${selectedOrderForPickup.orderNumber}. You can now ship this order.`
+        );
         setShowPickupModal(false);
         setSelectedOrderForPickup(null);
-        loadOrders();
+        await loadOrders();
       } else {
         toast.error(response.data.error || "Failed to assign pickup location");
       }
@@ -852,6 +918,10 @@ const Orders = () => {
             <RefreshCw className="w-4 h-4" />
             Refresh
           </Button>
+          <Button variant="outline" className="gap-2" onClick={() => setShowBulkUpload(true)}>
+            <Upload className="w-4 h-4" />
+            Bulk Upload
+          </Button>
           <Button className="gap-2" onClick={() => navigate("/dashboard/orders/new")}>
             <Plus className="w-4 h-4" />
             Create Order
@@ -956,29 +1026,29 @@ const Orders = () => {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[140px]">Order #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Courier</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>AWB</TableHead>
-                <TableHead>COD</TableHead>
-                <TableHead className="text-right">Created</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+              <TableRow className="text-xs">
+                <TableHead className="w-[120px] py-2">Order #</TableHead>
+                <TableHead className="py-2">Customer</TableHead>
+                <TableHead className="py-2">Destination</TableHead>
+                <TableHead className="py-2">Courier</TableHead>
+                <TableHead className="py-2">Status</TableHead>
+                <TableHead className="py-2">AWB</TableHead>
+                <TableHead className="py-2">COD</TableHead>
+                <TableHead className="text-right py-2">Created</TableHead>
+                <TableHead className="w-[60px] py-2">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-6 text-muted-foreground text-sm">
                     Loading orders...
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-6 text-muted-foreground text-sm">
                     No orders found. Create your first order.
                   </TableCell>
                 </TableRow>
@@ -991,47 +1061,47 @@ const Orders = () => {
                   return [
                     <TableRow
                       key={order.id}
-                      className="hover:bg-muted/50 cursor-pointer align-top"
+                      className="hover:bg-muted/50 cursor-pointer align-top text-xs"
                       onClick={() => toggleOrderDetails(order)}
                     >
-                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
-                    <TableCell>
-                      <div className="font-medium">{order.customerName || "-"}</div>
-                      <div className="text-sm text-muted-foreground">{order.customerPhone || "-"}</div>
+                    <TableCell className="font-medium py-2 text-xs">{order.orderNumber || order.id}</TableCell>
+                    <TableCell className="py-2">
+                      <div className="font-medium text-xs leading-tight">{order.customerName || "-"}</div>
+                      <div className="text-[11px] text-muted-foreground leading-tight">{order.customerPhone || "-"}</div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>
+                    <TableCell className="py-2">
+                      <div className="flex items-center gap-1 text-xs">
+                        <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate max-w-[180px]">
                           {[order.shippingCity, order.shippingState, order.shippingPincode]
                             .filter(Boolean)
                             .join(", ") || "-"}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       {order.courierName ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
                           {COURIER_CONFIG[order.courierName]?.label || order.courierName}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
+                    <TableCell className="py-2">
+                      <Badge variant={statusBadgeVariant(order.status)} className="capitalize text-[11px] px-1.5 py-0">
                         {formatStatus(order.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell>{order.awbNumber || "-"}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 text-xs font-mono">{order.awbNumber || "-"}</TableCell>
+                    <TableCell className="py-2 text-xs">
                       {order.paymentMode === "COD"
-                        ? `₹${Number(order.codAmount || 0).toFixed(2)}`
+                        ? `₹${Number(order.codAmount || 0).toFixed(0)}`
                         : "-"}
                     </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">
+                    <TableCell className="text-right text-[11px] text-muted-foreground py-2">
                       {order.createdAt
-                        ? new Date(order.createdAt).toLocaleString()
+                        ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
                         : "-"}
                     </TableCell>
                     <TableCell>
@@ -1165,6 +1235,29 @@ const Orders = () => {
                               Cancel Order
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem
+                            onClick={() => {
+                              navigate("/dashboard/create-order", {
+                                state: {
+                                  cloneFrom: {
+                                    customerName: order.customerName,
+                                    customerPhone: order.customerPhone,
+                                    shippingAddress: order.shippingAddress,
+                                    shippingCity: order.shippingCity,
+                                    shippingState: order.shippingState,
+                                    shippingPincode: order.shippingPincode,
+                                    paymentMode: order.paymentMode,
+                                    codAmount: order.codAmount,
+                                    warehouseId: order.warehouseId,
+                                  },
+                                },
+                              });
+                            }}
+                            className="gap-2"
+                          >
+                            <Copy className="h-4 w-4" />
+                            Clone Order
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => openTicketModal(order)}
                             className="gap-2 text-amber-600"
@@ -2136,6 +2229,105 @@ const Orders = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Upload Dialog */}
+      <Dialog open={showBulkUpload} onOpenChange={(open) => {
+        if (!open) { setBulkCsvData([]); setBulkResults(null); }
+        setShowBulkUpload(open);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Order Upload</DialogTitle>
+            <DialogDescription>Upload a CSV file to create multiple orders at once</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={downloadSampleCsv}>
+                <FileDown className="w-4 h-4 mr-2" /> Download Sample CSV
+              </Button>
+              <span className="text-xs text-muted-foreground">Max 500 orders per upload</span>
+            </div>
+
+            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground mb-2">Choose a CSV file</p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleBulkFileUpload}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+            </div>
+
+            {bulkCsvData.length > 0 && !bulkResults && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">{bulkCsvData.length} order(s) parsed from CSV</p>
+                <div className="max-h-[200px] overflow-auto border rounded">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-2 py-1 text-left">#</th>
+                        <th className="px-2 py-1 text-left">Customer</th>
+                        <th className="px-2 py-1 text-left">Phone</th>
+                        <th className="px-2 py-1 text-left">City</th>
+                        <th className="px-2 py-1 text-left">Pincode</th>
+                        <th className="px-2 py-1 text-left">Product</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkCsvData.slice(0, 20).map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-2 py-1">{i + 1}</td>
+                          <td className="px-2 py-1">{row.customerName}</td>
+                          <td className="px-2 py-1">{row.customerPhone}</td>
+                          <td className="px-2 py-1">{row.shippingCity}</td>
+                          <td className="px-2 py-1">{row.shippingPincode}</td>
+                          <td className="px-2 py-1">{row.productName}</td>
+                        </tr>
+                      ))}
+                      {bulkCsvData.length > 20 && (
+                        <tr className="border-t">
+                          <td colSpan={6} className="px-2 py-1 text-center text-muted-foreground">
+                            ...and {bulkCsvData.length - 20} more
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <Button onClick={handleBulkSubmit} disabled={bulkUploading} className="w-full gap-2">
+                  {bulkUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {bulkUploading ? "Importing..." : `Import ${bulkCsvData.length} Order(s)`}
+                </Button>
+              </div>
+            )}
+
+            {bulkResults && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <div className="text-green-600 font-medium">Imported: {bulkResults.imported}</div>
+                  <div className="text-red-600 font-medium">Failed: {bulkResults.failed}</div>
+                  <div className="text-muted-foreground">Total: {bulkResults.total}</div>
+                </div>
+                {bulkResults.results?.filter((r: any) => !r.success).length > 0 && (
+                  <div className="max-h-[150px] overflow-auto border rounded p-2">
+                    <p className="text-xs font-medium text-red-600 mb-1">Failed rows:</p>
+                    {bulkResults.results.filter((r: any) => !r.success).map((r: any) => (
+                      <div key={r.row} className="text-xs text-red-600">
+                        Row {r.row}: {r.error}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button variant="outline" onClick={() => { setBulkCsvData([]); setBulkResults(null); }} className="w-full">
+                  Upload Another File
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

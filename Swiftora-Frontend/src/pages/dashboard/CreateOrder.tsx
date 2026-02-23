@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
@@ -2533,6 +2533,9 @@ const B2BStructuredForm = ({
 // Main CreateOrder Component
 const CreateOrder = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const cloneFrom = (location.state as any)?.cloneFrom;
+
   const [orderType, setOrderType] = useState<"b2c" | "b2b">(() => {
     const saved = localStorage.getItem("createOrderMode");
     return (saved === "b2c" || saved === "b2b" ? saved : "b2c") as "b2c" | "b2b";
@@ -2544,29 +2547,30 @@ const CreateOrder = () => {
 
   // B2C Form Data
   const [b2cData, setB2CData] = useState<B2CFormData>({
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
-    shippingAddress: "",
-    shippingCity: "",
-    shippingState: "",
-    shippingPincode: "",
-    productName: "",
+    customerName: cloneFrom?.customerName || "",
+    customerPhone: cloneFrom?.customerPhone || "",
+    customerEmail: cloneFrom?.customerEmail || "",
+    shippingAddress: cloneFrom?.shippingAddress || "",
+    shippingCity: cloneFrom?.shippingCity || "",
+    shippingState: cloneFrom?.shippingState || "",
+    shippingPincode: cloneFrom?.shippingPincode || "",
+    productName: cloneFrom?.productName || "",
     boxes: [
       {
         id: `box-${Date.now()}`,
-        weight: "",
-        length: "",
-        breadth: "",
-        height: "",
+        weight: cloneFrom?.weight ? String(cloneFrom.weight) : "",
+        length: cloneFrom?.length ? String(cloneFrom.length) : "",
+        breadth: cloneFrom?.breadth ? String(cloneFrom.breadth) : "",
+        height: cloneFrom?.height ? String(cloneFrom.height) : "",
         productReference: "",
       },
     ],
-    totalWeight: "",
-    declaredValue: "",
-    paymentMode: "prepaid",
-    codAmount: "",
+    totalWeight: cloneFrom?.weight ? String(cloneFrom.weight) : "",
+    declaredValue: cloneFrom?.productValue ? String(cloneFrom.productValue) : "",
+    paymentMode: cloneFrom?.paymentMode?.toLowerCase() === "cod" ? "cod" : "prepaid",
+    codAmount: cloneFrom?.codAmount ? String(cloneFrom.codAmount) : "",
     giftWrap: false,
+    ...(cloneFrom?.warehouseId ? { warehouseId: cloneFrom.warehouseId } : {}),
   });
 
   // B2B Form Data

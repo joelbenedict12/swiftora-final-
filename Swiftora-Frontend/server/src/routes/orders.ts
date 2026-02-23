@@ -287,6 +287,92 @@ router.get('/wallet-check', async (req: AuthRequest, res, next) => {
   }
 });
 
+// Bulk sync order statuses from courier tracking APIs
+router.post('/sync-status', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+
+    const activeOrders = await prisma.order.findMany({
+      where: {
+        merchantId: req.user.merchantId,
+        awbNumber: { not: null },
+        status: {
+          notIn: ['DELIVERED', 'CANCELLED', 'RTO_DELIVERED', 'FAILED'],
+        },
+      },
+      select: { id: true, awbNumber: true, courierName: true, orderNumber: true, status: true },
+    });
+
+    if (activeOrders.length === 0) {
+      return res.json({ success: true, synced: 0, total: 0, results: [] });
+    }
+
+    const { courierStatusToOrderStatus } = await import('../lib/orderStatus.js');
+    const { blitzService } = await import('../services/courier/BlitzService.js');
+    const { xpressbeesService } = await import('../services/courier/XpressbeesService.js');
+    const { ekartService } = await import('../services/courier/EkartService.js');
+    const { innofulfillService } = await import('../services/courier/InnofulfillService.js');
+
+    const results: Array<{ orderNumber: string; oldStatus: string; newStatus: string | null; error?: string }> = [];
+    let synced = 0;
+
+    const batchSize = 5;
+    for (let i = 0; i < activeOrders.length; i += batchSize) {
+      const batch = activeOrders.slice(i, i + batchSize);
+      await Promise.allSettled(batch.map(async (order) => {
+        try {
+          const awb = order.awbNumber!;
+          const courier = (order.courierName || '').toUpperCase();
+          let rawStatus: string | null = null;
+
+          if (courier === 'DELHIVERY') {
+            const trackData = await delhivery.trackShipment({ waybill: awb });
+            rawStatus = trackData?.ShipmentData?.[0]?.Shipment?.Status?.Status || null;
+          } else if (courier === 'BLITZ') {
+            const r = await blitzService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'XPRESSBEES') {
+            const r = await xpressbeesService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'EKART') {
+            const r = await ekartService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'INNOFULFILL') {
+            const r = await innofulfillService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          }
+
+          if (rawStatus) {
+            const newStatus = courierStatusToOrderStatus(rawStatus);
+            if (newStatus && newStatus !== order.status) {
+              await prisma.order.update({
+                where: { id: order.id },
+                data: {
+                  status: newStatus,
+                  trackingStatus: rawStatus,
+                  ...(newStatus === 'DELIVERED' ? { actualDelivery: new Date() } : {}),
+                },
+              });
+              synced++;
+              results.push({ orderNumber: order.orderNumber, oldStatus: order.status, newStatus });
+            } else {
+              results.push({ orderNumber: order.orderNumber, oldStatus: order.status, newStatus: newStatus || order.status });
+            }
+          } else {
+            results.push({ orderNumber: order.orderNumber, oldStatus: order.status, newStatus: null, error: 'No status returned' });
+          }
+        } catch (e: any) {
+          results.push({ orderNumber: order.orderNumber, oldStatus: order.status, newStatus: null, error: e.message });
+        }
+      }));
+    }
+
+    res.json({ success: true, synced, total: activeOrders.length, results });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single order
 router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
@@ -596,18 +682,103 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
 // Bulk import orders
 router.post('/bulk/import', async (req: AuthRequest, res, next) => {
   try {
-    const { orders } = req.body;
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
 
+    const { orders } = req.body;
     if (!Array.isArray(orders) || orders.length === 0) {
-      throw new AppError(400, 'Invalid orders data');
+      throw new AppError(400, 'No orders provided');
+    }
+    if (orders.length > 500) {
+      throw new AppError(400, 'Maximum 500 orders per upload');
     }
 
-    // TODO: Implement bulk import with job queue
-    // For now, return placeholder
+    const merchantId = req.user.merchantId;
+
+    let defaultWarehouse = await prisma.warehouse.findFirst({
+      where: { merchantId, isActive: true, isDefault: true },
+    });
+    if (!defaultWarehouse) {
+      defaultWarehouse = await prisma.warehouse.findFirst({
+        where: { merchantId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    const results: Array<{ row: number; success: boolean; orderNumber?: string; error?: string }> = [];
+    let successCount = 0;
+    const baseCount = await prisma.order.count({ where: { merchantId } });
+
+    for (let i = 0; i < orders.length; i++) {
+      const row = orders[i];
+      try {
+        const customerName = String(row.customerName || '').trim();
+        const customerPhone = String(row.customerPhone || '').trim();
+        const shippingAddress = String(row.shippingAddress || '').trim();
+        const shippingCity = String(row.shippingCity || '').trim();
+        const shippingState = String(row.shippingState || '').trim();
+        const shippingPincode = String(row.shippingPincode || '').trim();
+        const productName = String(row.productName || 'Product').trim();
+        const weight = parseFloat(row.weight) || 0.5;
+        const productValue = parseFloat(row.productValue || row.declaredValue) || 0;
+        const paymentMode = String(row.paymentMode || 'PREPAID').toUpperCase() === 'COD' ? 'COD' : 'PREPAID';
+        const codAmount = paymentMode === 'COD' ? (parseFloat(row.codAmount) || productValue || 0) : null;
+
+        if (!customerName || !customerPhone || !shippingAddress || !shippingCity || !shippingState || !shippingPincode) {
+          results.push({ row: i + 1, success: false, error: 'Missing required fields (name, phone, address, city, state, pincode)' });
+          continue;
+        }
+
+        const orderNumber = `ORD${Date.now()}${baseCount + successCount + 1}`;
+        let volumetricWeight = 0;
+        const length = parseFloat(row.length) || undefined;
+        const breadth = parseFloat(row.breadth) || undefined;
+        const height = parseFloat(row.height) || undefined;
+        if (length && breadth && height) {
+          volumetricWeight = (length * breadth * height) / 5000;
+        }
+
+        await prisma.order.create({
+          data: {
+            merchantId,
+            orderNumber,
+            customerName,
+            customerPhone,
+            customerEmail: row.customerEmail || undefined,
+            shippingAddress,
+            shippingCity,
+            shippingState,
+            shippingPincode,
+            productName,
+            productValue,
+            quantity: parseInt(row.quantity) || 1,
+            paymentMode,
+            codAmount,
+            weight,
+            length,
+            breadth,
+            height,
+            volumetricWeight,
+            chargeableWeight: Math.max(weight, volumetricWeight),
+            status: 'PENDING',
+            warehouseId: defaultWarehouse?.id || undefined,
+            channel: 'MANUAL',
+            notes: row.notes || undefined,
+          },
+        });
+
+        successCount++;
+        results.push({ row: i + 1, success: true, orderNumber });
+      } catch (e: any) {
+        results.push({ row: i + 1, success: false, error: e.message || 'Unknown error' });
+      }
+    }
+
     res.json({
-      message: 'Bulk import started',
-      jobId: `job_${Date.now()}`,
+      success: true,
       total: orders.length,
+      imported: successCount,
+      failed: orders.length - successCount,
+      results,
     });
   } catch (error) {
     next(error);
