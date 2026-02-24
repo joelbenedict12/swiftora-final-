@@ -186,17 +186,23 @@ const DashboardLayout = () => {
     },
   ];
 
-  // Wallet Balance (live from API)
+  // Wallet / Credit info (live from API)
   const [walletBalance, setWalletBalance] = useState({
     available: "₹0.00",
     pending: "₹0.00",
     total: "₹0.00",
   });
+  const [customerType, setCustomerType] = useState<'CASH' | 'CREDIT'>('CASH');
+  const [availableCredit, setAvailableCredit] = useState("₹0.00");
 
   useEffect(() => {
     billingApi.getWallet().then((res) => {
       const d = res.data;
       const fmt = (v: number) => `₹${Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+      setCustomerType(d.customerType || 'CASH');
+      if (d.customerType === 'CREDIT') {
+        setAvailableCredit(fmt(d.availableCredit ?? 0));
+      }
       setWalletBalance({
         available: fmt(d.balance),
         pending: fmt(d.creditLimit),
@@ -446,23 +452,25 @@ const DashboardLayout = () => {
                   <div className="flex items-center gap-3">
                     <div>
                       <div className="text-xs text-gray-500 mb-0.5">
-                        Wallet Balance
+                        {customerType === 'CREDIT' ? 'Available Credit' : 'Wallet Balance'}
                       </div>
                       <div className="text-lg font-bold text-gray-900">
-                        {walletBalance.available}
+                        {customerType === 'CREDIT' ? availableCredit : walletBalance.available}
                       </div>
                     </div>
                   </div>
                 </div>
               </Link>
             </div>
-            <Button
-              onClick={() => setRechargeDialogOpen(true)}
-              className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg"
-            >
-              <CreditCard className="w-8 h-4 mr-2" />
-              Wallet Recharge
-            </Button>
+            {customerType !== 'CREDIT' && (
+              <Button
+                onClick={() => setRechargeDialogOpen(true)}
+                className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg"
+              >
+                <CreditCard className="w-8 h-4 mr-2" />
+                Wallet Recharge
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
