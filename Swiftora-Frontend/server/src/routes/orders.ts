@@ -614,10 +614,15 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       throw new AppError(404, 'Order not found');
     }
 
-    // Already cancelled
     if (order.status === 'CANCELLED') {
       throw new AppError(400, 'Order is already cancelled');
     }
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { customerType: true },
+    });
+    const isCreditCustomer = merchant?.customerType === 'CREDIT';
 
     // If order has been shipped (has AWB), call courier cancellation API
     if (order.awbNumber && order.courierName) {
@@ -643,27 +648,30 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
         });
       }
 
-      // Courier cancel succeeded — update DB
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: { status: 'CANCELLED' },
       });
 
-      // Refund wallet if this order had a vendor charge
-      if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+      let refunded = 0;
+      if (isCreditCustomer) {
+        await CreditService.removeCreditShipment(merchantId, order.id);
+        console.log(`[CANCEL] Removed credit ledger entry for cancelled order ${order.orderNumber}`);
+      } else if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+        refunded = Number(order.vendorCharge);
         await WalletService.credit(
           merchantId,
-          Number(order.vendorCharge),
+          refunded,
           `Refund: Order ${order.orderNumber || order.id} cancelled (${courierName})`,
           order.id
         );
-        console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
+        console.log(`[CANCEL] Refunded ₹${refunded} for cancelled order ${order.orderNumber}`);
       }
 
       return res.json({
         success: true,
         message: cancelResult.message || `Shipment cancelled on ${courierName}`,
-        refunded: order.vendorCharge ? Number(order.vendorCharge) : 0,
+        refunded,
         order: updated,
       });
     }
@@ -673,15 +681,19 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       throw new AppError(400, 'Cannot cancel order in current status');
     }
 
-    // Refund wallet if a pending/ready order had been charged
-    if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+    let refunded = 0;
+    if (isCreditCustomer) {
+      await CreditService.removeCreditShipment(merchantId, order.id);
+      console.log(`[CANCEL] Removed credit ledger entry for cancelled order ${order.orderNumber}`);
+    } else if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+      refunded = Number(order.vendorCharge);
       await WalletService.credit(
         merchantId,
-        Number(order.vendorCharge),
+        refunded,
         `Refund: Order ${order.orderNumber || order.id} cancelled`,
         order.id
       );
-      console.log(`[CANCEL] Refunded ₹${order.vendorCharge} for cancelled order ${order.orderNumber}`);
+      console.log(`[CANCEL] Refunded ₹${refunded} for cancelled order ${order.orderNumber}`);
     }
 
     const updated = await prisma.order.update({
@@ -689,7 +701,7 @@ router.post('/:id/cancel', async (req: AuthRequest, res, next) => {
       data: { status: 'CANCELLED' },
     });
 
-    res.json({ success: true, message: 'Order cancelled', order: updated });
+    res.json({ success: true, message: 'Order cancelled', refunded, order: updated });
   } catch (error) {
     next(error);
   }
@@ -1703,11 +1715,12 @@ router.post('/:id/delhivery/cancel', async (req: AuthRequest, res, next) => {
     if (!req.user?.merchantId) {
       throw new AppError(400, 'Merchant account required');
     }
+    const merchantId = req.user.merchantId;
 
     const order = await prisma.order.findFirst({
       where: {
         id: req.params.id,
-        merchantId: req.user.merchantId,
+        merchantId,
       },
     });
 
@@ -1729,6 +1742,22 @@ router.post('/:id/delhivery/cancel', async (req: AuthRequest, res, next) => {
         where: { id: order.id },
         data: { status: 'CANCELLED' },
       });
+
+      const merchant = await prisma.merchant.findUnique({
+        where: { id: merchantId },
+        select: { customerType: true },
+      });
+
+      if (merchant?.customerType === 'CREDIT') {
+        await CreditService.removeCreditShipment(merchantId, order.id);
+      } else if (order.vendorCharge && Number(order.vendorCharge) > 0) {
+        await WalletService.credit(
+          merchantId,
+          Number(order.vendorCharge),
+          `Refund: Order ${order.orderNumber || order.id} cancelled (Delhivery)`,
+          order.id
+        );
+      }
     }
 
     res.json({

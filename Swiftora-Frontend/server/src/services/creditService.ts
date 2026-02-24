@@ -63,3 +63,9 @@ export async function recordCreditShipment(
         data: { merchantId, orderId, shippingCost },
     });
 }
+
+export async function removeCreditShipment(merchantId: string, orderId: string) {
+    return prisma.creditLedger.deleteMany({
+        where: { merchantId, orderId },
+    });
+}
