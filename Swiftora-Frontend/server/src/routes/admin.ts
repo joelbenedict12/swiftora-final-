@@ -6,6 +6,7 @@ import * as InvoiceService from '../services/InvoiceService.js';
 import * as AnalyticsService from '../services/analyticsService.js';
 import * as WalletService from '../services/WalletService.js';
 import * as CommissionService from '../services/commissionService.js';
+import * as BillingService from '../services/billingService.js';
 
 const router = Router();
 
@@ -194,6 +195,8 @@ router.get('/vendors', authenticate, requireAdmin, async (req, res, next) => {
             phone: m.phone,
             walletBalance: m.walletBalance,
             isPaused: m.isPaused,
+            customerType: m.customerType,
+            creditLimit: m.creditLimit,
             orderCount: m._count.orders,
             userCount: m._count.users,
             warehouseCount: m._count.warehouses,
@@ -781,6 +784,105 @@ router.get('/wallet/:merchantId/verify', authenticate, requireAdmin, async (req,
     try {
         const result = await WalletService.verifyBalance(req.params.merchantId);
         res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// CUSTOMER TYPE MANAGEMENT
+// ============================================================
+
+router.put('/vendors/:id/customer-type', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { customerType, creditLimit } = req.body;
+        if (!customerType || !['CASH', 'CREDIT'].includes(customerType)) {
+            throw new AppError(400, 'customerType must be CASH or CREDIT');
+        }
+
+        const data: any = { customerType };
+
+        if (customerType === 'CREDIT') {
+            if (creditLimit === undefined || creditLimit === null || Number(creditLimit) < 0) {
+                throw new AppError(400, 'creditLimit (>= 0) is required for CREDIT customers');
+            }
+            data.creditLimit = Number(creditLimit);
+        } else {
+            data.creditLimit = 0;
+        }
+
+        const merchant = await prisma.merchant.update({
+            where: { id: req.params.id },
+            data,
+            select: { id: true, companyName: true, customerType: true, creditLimit: true },
+        });
+
+        res.json({ success: true, merchant });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// MONTHLY INVOICE GENERATION
+// ============================================================
+
+router.post('/billing/generate-invoices', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { month } = req.body;
+        const result = await BillingService.generateMonthlyInvoices(month || undefined);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// List all monthly invoices (admin view)
+router.get('/billing/invoices', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const { merchantId, isPaid } = req.query;
+        const where: any = {};
+        if (merchantId) where.merchantId = String(merchantId);
+        if (isPaid !== undefined) where.isPaid = isPaid === 'true';
+
+        const invoices = await prisma.monthlyInvoice.findMany({
+            where,
+            include: { merchant: { select: { companyName: true } } },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.json({
+            success: true,
+            invoices: invoices.map(inv => ({
+                id: inv.id,
+                invoiceNumber: inv.invoiceNumber,
+                merchantId: inv.merchantId,
+                companyName: inv.merchant.companyName,
+                month: inv.month,
+                totalShipping: Number(inv.totalShipping),
+                platformFee: Number(inv.platformFee),
+                tax: Number(inv.tax),
+                totalPayable: Number(inv.totalPayable),
+                isPaid: inv.isPaid,
+                paidAt: inv.paidAt,
+                dueDate: inv.dueDate,
+                pdfUrl: inv.pdfUrl,
+                createdAt: inv.createdAt,
+            })),
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Mark invoice as paid manually (admin)
+router.put('/billing/invoices/:id/mark-paid', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const invoice = await prisma.monthlyInvoice.update({
+            where: { id: req.params.id },
+            data: { isPaid: true, paidAt: new Date() },
+        });
+        res.json({ success: true, invoice });
     } catch (error) {
         next(error);
     }

@@ -82,6 +82,7 @@ model Merchant {
   monthlyVolume     String?
   b2bEnabled        Boolean  @default(false)
   
+  customerType      CustomerType @default(CASH)
   walletBalance     Decimal  @default(0) @db.Decimal(12, 2)
   creditLimit       Decimal  @default(0) @db.Decimal(12, 2)
   
@@ -106,6 +107,8 @@ model Merchant {
   rateCaches        RateCache[]
   tickets           Ticket[]
   kycVerification   KycVerification?
+  creditLedgerEntries CreditLedger[]
+  monthlyInvoices   MonthlyInvoice[]
   
   @@index([email])
 }
@@ -113,6 +116,11 @@ model Merchant {
 enum ShippingType {
   B2C
   B2B
+}
+
+enum CustomerType {
+  CASH
+  CREDIT
 }
 
 model Warehouse {
@@ -231,6 +239,7 @@ model Order {
   trackingEvents    TrackingEvent[]
   tickets           Ticket[]
   walletTransactions WalletTransaction[]
+  creditLedgerEntries CreditLedger[]
   
   @@index([merchantId])
   @@index([userId])
@@ -588,4 +597,38 @@ enum PaymentOrderStatus {
 enum PaymentOrderType {
   CASHFREE_RECHARGE
   QR_PAYMENT
+}
+
+model CreditLedger {
+  id           String   @id @default(cuid())
+  merchantId   String
+  merchant     Merchant @relation(fields: [merchantId], references: [id])
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id])
+  shippingCost Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+
+  @@index([merchantId])
+  @@index([merchantId, createdAt])
+}
+
+model MonthlyInvoice {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  month           String
+  totalShipping   Decimal  @db.Decimal(12, 2)
+  platformFee     Decimal  @db.Decimal(12, 2)
+  tax             Decimal  @default(0) @db.Decimal(12, 2)
+  totalPayable    Decimal  @db.Decimal(12, 2)
+  isPaid          Boolean  @default(false)
+  paidAt          DateTime?
+  dueDate         DateTime?
+  pdfUrl          String?
+  createdAt       DateTime @default(now())
+
+  @@index([merchantId])
+  @@index([month])
+  @@index([isPaid])
 }

@@ -16,6 +16,7 @@ import {
 } from '../services/courier/index.js';
 import { calculateVendorPrice, estimateVendorCharge } from '../services/PricingEngine.js';
 import * as WalletService from '../services/WalletService.js';
+import * as CreditService from '../services/creditService.js';
 import { A4LabelService, A4LabelData } from '../services/A4LabelService.js';
 
 const BASE_URL = process.env.FRONTEND_URL || process.env.APP_URL || 'https://swiftora.co';
@@ -267,21 +268,36 @@ router.get('/wallet-check', async (req: AuthRequest, res, next) => {
 
     const merchant = await prisma.merchant.findUnique({
       where: { id: req.user.merchantId },
-      select: { isPaused: true, walletBalance: true, creditLimit: true },
+      select: { isPaused: true, walletBalance: true, creditLimit: true, customerType: true },
     });
 
     if (!merchant) throw new AppError(404, 'Merchant not found');
 
-    const available = Number(merchant.walletBalance || 0) + Number(merchant.creditLimit || 0);
-
-    res.json({
-      success: true,
-      walletBalance: Number(merchant.walletBalance || 0),
-      creditLimit: Number(merchant.creditLimit || 0),
-      available,
-      isPaused: merchant.isPaused,
-      canShip: !merchant.isPaused && available > 0,
-    });
+    if (merchant.customerType === 'CREDIT') {
+      const outstanding = await CreditService.calculateOutstanding(req.user.merchantId);
+      const unpaid = await CreditService.hasUnpaidInvoice(req.user.merchantId);
+      res.json({
+        success: true,
+        customerType: 'CREDIT',
+        creditLimit: outstanding.creditLimit,
+        totalOutstanding: outstanding.totalOutstanding,
+        availableCredit: outstanding.availableCredit,
+        hasUnpaidInvoice: unpaid,
+        isPaused: merchant.isPaused,
+        canShip: !merchant.isPaused && !unpaid && outstanding.availableCredit > 0,
+      });
+    } else {
+      const available = Number(merchant.walletBalance || 0) + Number(merchant.creditLimit || 0);
+      res.json({
+        success: true,
+        customerType: 'CASH',
+        walletBalance: Number(merchant.walletBalance || 0),
+        creditLimit: Number(merchant.creditLimit || 0),
+        available,
+        isPaused: merchant.isPaused,
+        canShip: !merchant.isPaused && available > 0,
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -853,30 +869,55 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
     // Get wallet info
     const merchant = await prisma.merchant.findUnique({
       where: { id: req.user.merchantId },
-      select: { walletBalance: true, creditLimit: true, isPaused: true },
+      select: { walletBalance: true, creditLimit: true, isPaused: true, customerType: true },
     });
 
-    const walletBal = Number(merchant?.walletBalance || 0);
-    const creditLim = Number(merchant?.creditLimit || 0);
-    const available = walletBal + creditLim;
+    if (merchant?.customerType === 'CREDIT') {
+      const outstanding = await CreditService.calculateOutstanding(req.user.merchantId);
+      const unpaid = await CreditService.hasUnpaidInvoice(req.user.merchantId);
+      res.json({
+        success: true,
+        estimate: {
+          vendorCharge: pricing.vendorCharge,
+          estimateAvailable,
+          courier,
+          note: estimateNote,
+        },
+        wallet: {
+          customerType: 'CREDIT',
+          creditLimit: outstanding.creditLimit,
+          totalOutstanding: outstanding.totalOutstanding,
+          availableCredit: outstanding.availableCredit,
+          hasUnpaidInvoice: unpaid,
+          isPaused: merchant?.isPaused || false,
+          canShip: !merchant?.isPaused && !unpaid && outstanding.availableCredit >= pricing.vendorCharge,
+          sufficientBalance: outstanding.availableCredit >= pricing.vendorCharge,
+        },
+      });
+    } else {
+      const walletBal = Number(merchant?.walletBalance || 0);
+      const creditLim = Number(merchant?.creditLimit || 0);
+      const available = walletBal + creditLim;
 
-    res.json({
-      success: true,
-      estimate: {
-        vendorCharge: pricing.vendorCharge,
-        estimateAvailable,
-        courier,
-        note: estimateNote,
-      },
-      wallet: {
-        balance: walletBal,
-        creditLimit: creditLim,
-        available,
-        isPaused: merchant?.isPaused || false,
-        canShip: !merchant?.isPaused && available > 0,
-        sufficientBalance: available >= pricing.vendorCharge,
-      },
-    });
+      res.json({
+        success: true,
+        estimate: {
+          vendorCharge: pricing.vendorCharge,
+          estimateAvailable,
+          courier,
+          note: estimateNote,
+        },
+        wallet: {
+          customerType: 'CASH',
+          balance: walletBal,
+          creditLimit: creditLim,
+          available,
+          isPaused: merchant?.isPaused || false,
+          canShip: !merchant?.isPaused && available > 0,
+          sufficientBalance: available >= pricing.vendorCharge,
+        },
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -952,19 +993,26 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     console.log(`Shipping order ${order.orderNumber} with courier: ${selectedCourier}`);
 
     // --- PRE-FLIGHT CHECKS ---
-    // 1. Check if merchant account is paused
     const merchant = await prisma.merchant.findUnique({
       where: { id: req.user!.merchantId },
-      select: { isPaused: true, walletBalance: true, creditLimit: true },
+      select: { isPaused: true, walletBalance: true, creditLimit: true, customerType: true },
     });
     if (merchant?.isPaused) {
       throw new AppError(403, 'Your account is paused. Please contact support to resume shipping.');
     }
 
-    // 2. Hard-block if wallet balance + credit limit <= 0
-    const availableBalance = Number(merchant?.walletBalance || 0) + Number(merchant?.creditLimit || 0);
-    if (availableBalance <= 0) {
-      throw new AppError(402, 'Insufficient wallet balance. Please recharge your wallet before shipping.');
+    const isCreditCustomer = merchant?.customerType === 'CREDIT';
+
+    if (isCreditCustomer) {
+      const unpaid = await CreditService.hasUnpaidInvoice(req.user!.merchantId);
+      if (unpaid) {
+        throw new AppError(403, 'You have an unpaid invoice. Please pay your outstanding invoice before shipping.');
+      }
+    } else {
+      const availableBalance = Number(merchant?.walletBalance || 0) + Number(merchant?.creditLimit || 0);
+      if (availableBalance <= 0) {
+        throw new AppError(402, 'Insufficient wallet balance. Please recharge your wallet before shipping.');
+      }
     }
 
     // 3. Get pricing estimate for wallet check
@@ -1050,21 +1098,31 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
 
     console.log(`[SHIP] ${selectedCourier} pricing: courierCost=${courierCost}, vendorCharge=${pricing.vendorCharge}, margin=${pricing.margin}`);
 
-    // --- STEP 2: Debit wallet BEFORE creating shipment ---
+    // --- STEP 2: Charge customer (wallet debit for CASH, credit check for CREDIT) ---
     let walletResult = null;
-    if (pricing.vendorCharge > 0) {
-      walletResult = await WalletService.debit(
-        req.user!.merchantId,
-        pricing.vendorCharge,
-        order.id,
-        `Shipment charge for ${order.orderNumber} via ${selectedCourier}`
-      );
-      if (!walletResult.success) {
-        throw new AppError(402, walletResult.error || 'Insufficient wallet balance. Please recharge your wallet.');
+
+    if (isCreditCustomer) {
+      if (pricing.vendorCharge > 0) {
+        const outstanding = await CreditService.calculateOutstanding(req.user!.merchantId);
+        if (outstanding.totalOutstanding + pricing.vendorCharge > outstanding.creditLimit) {
+          throw new AppError(402, `Credit limit exceeded. Available credit: ₹${outstanding.availableCredit.toFixed(2)}, Required: ₹${pricing.vendorCharge.toFixed(2)}`);
+        }
+      }
+    } else {
+      if (pricing.vendorCharge > 0) {
+        walletResult = await WalletService.debit(
+          req.user!.merchantId,
+          pricing.vendorCharge,
+          order.id,
+          `Shipment charge for ${order.orderNumber} via ${selectedCourier}`
+        );
+        if (!walletResult.success) {
+          throw new AppError(402, walletResult.error || 'Insufficient wallet balance. Please recharge your wallet.');
+        }
       }
     }
 
-    // --- STEP 3: Create shipment (wallet already debited) ---
+    // --- STEP 3: Create shipment ---
     console.log(`${selectedCourier} shipment request:`, JSON.stringify(shipmentRequest, null, 2));
 
     let shipmentResponse;
@@ -1072,7 +1130,6 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       shipmentResponse = await courierService.createShipment(shipmentRequest);
       console.log(`${selectedCourier} response:`, JSON.stringify(shipmentResponse, null, 2));
     } catch (shipError: any) {
-      // Shipment failed -- refund the wallet
       if (walletResult?.success && pricing.vendorCharge > 0) {
         console.log(`[SHIP] Refunding ₹${pricing.vendorCharge} due to courier failure`);
         await WalletService.credit(req.user!.merchantId, pricing.vendorCharge, `Refund: ${selectedCourier} shipment failed for ${order.orderNumber}`, order.id);
@@ -1081,13 +1138,17 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
     }
 
     if (!shipmentResponse.success || !shipmentResponse.awbNumber) {
-      // Shipment failed -- refund the wallet
       if (walletResult?.success && pricing.vendorCharge > 0) {
         console.log(`[SHIP] Refunding ₹${pricing.vendorCharge} due to courier rejection`);
         await WalletService.credit(req.user!.merchantId, pricing.vendorCharge, `Refund: ${selectedCourier} rejected shipment for ${order.orderNumber}`, order.id);
       }
       console.error(`${selectedCourier} shipment failed:`, shipmentResponse.error);
       throw new AppError(400, `${selectedCourier} Error: ${shipmentResponse.error || 'Failed to create shipment'}`);
+    }
+
+    // CREDIT customer: record shipment in ledger (no wallet debit)
+    if (isCreditCustomer && pricing.vendorCharge > 0) {
+      await CreditService.recordCreditShipment(req.user!.merchantId, order.id, pricing.vendorCharge);
     }
 
     // Resolve shipping mode (Air/Surface/Express) for display
@@ -1128,6 +1189,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         debited: walletResult.success,
         balanceAfter: walletResult.balanceAfter,
       } : null,
+      billingType: isCreditCustomer ? 'CREDIT' : 'CASH',
       order: updated,
     });
   } catch (error: any) {

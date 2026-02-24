@@ -39,6 +39,9 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  FileText,
+  Download,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import { billingApi } from "@/lib/api";
@@ -55,6 +58,26 @@ interface WalletData {
   availableBalance: number;
   isPaused: boolean;
   companyName: string;
+  customerType?: "CASH" | "CREDIT";
+  outstanding?: number;
+  unpaidInvoiceTotal?: number;
+  currentMonthLedgerTotal?: number;
+  availableCredit?: number;
+}
+
+interface MonthlyInvoice {
+  id: string;
+  invoiceNumber: string;
+  month: string;
+  totalShipping: number;
+  platformFee: number;
+  tax: number;
+  totalPayable: number;
+  isPaid: boolean;
+  paidAt: string | null;
+  dueDate: string | null;
+  pdfUrl: string | null;
+  createdAt: string;
 }
 
 interface Transaction {
@@ -84,6 +107,17 @@ const Billing = () => {
   const [isRecharging, setIsRecharging] = useState(false);
   const [isSubmittingQr, setIsSubmittingQr] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [monthlyInvoices, setMonthlyInvoices] = useState<MonthlyInvoice[]>([]);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
+
+  const loadInvoices = useCallback(async () => {
+    try {
+      const res = await billingApi.getInvoicesList();
+      setMonthlyInvoices(res.data.invoices || []);
+    } catch {
+      // CREDIT-only; ignore for CASH
+    }
+  }, []);
 
   const loadWallet = useCallback(async () => {
     try {
@@ -117,11 +151,11 @@ const Billing = () => {
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
-      await Promise.all([loadWallet(), loadTransactions(), loadQrInfo()]);
+      await Promise.all([loadWallet(), loadTransactions(), loadQrInfo(), loadInvoices()]);
       setIsLoading(false);
     };
     init();
-  }, [loadWallet, loadTransactions, loadQrInfo]);
+  }, [loadWallet, loadTransactions, loadQrInfo, loadInvoices]);
 
   // Handle return from Cashfree payment
   useEffect(() => {
@@ -219,6 +253,49 @@ const Billing = () => {
     }
   };
 
+  const handlePayInvoice = async (invoiceId: string) => {
+    setPayingInvoiceId(invoiceId);
+    try {
+      const res = await billingApi.payInvoice(invoiceId);
+      const { paymentSessionId, env } = res.data;
+      if (!paymentSessionId) {
+        toast.error("Failed to initiate payment");
+        return;
+      }
+      const cashfreeMode = env === "production" ? "production" : "sandbox";
+      if (!window.Cashfree) {
+        const script = document.createElement("script");
+        script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+        script.async = true;
+        document.body.appendChild(script);
+        await new Promise((resolve) => { script.onload = resolve; });
+      }
+      const cashfree = window.Cashfree({ mode: cashfreeMode });
+      const result = await cashfree.checkout({ paymentSessionId });
+      if (result.error) {
+        toast.error(result.error.message || "Payment failed");
+      } else if (result.paymentDetails) {
+        toast.success("Payment successful! Invoice will be marked as paid shortly.");
+        setTimeout(() => { loadWallet(); loadInvoices(); }, 2000);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to initiate payment");
+    } finally {
+      setPayingInvoiceId(null);
+    }
+  };
+
+  const handleDownloadInvoice = async (invoiceId: string) => {
+    try {
+      const res = await billingApi.downloadInvoice(invoiceId);
+      if (res.data.pdfUrl) {
+        window.open(res.data.pdfUrl, "_blank");
+      }
+    } catch {
+      toast.error("Invoice PDF not available yet");
+    }
+  };
+
   const formatCurrency = (val: number) =>
     `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
@@ -278,45 +355,198 @@ const Billing = () => {
         </div>
       )}
 
-      {/* Wallet Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-primary via-primary/90 to-[hsl(207,97%,45%)] text-white border-0 shadow-xl shadow-primary/20">
-          <CardHeader>
-            <CardDescription className="text-white/80">Wallet Balance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold mb-2">{formatCurrency(wallet?.balance || 0)}</div>
-            <div className="flex items-center gap-2 text-sm text-white/80">
-              <TrendingUp className="w-4 h-4" />
-              <span>Available for shipping</span>
+      {wallet?.customerType === "CREDIT" ? (
+        <>
+          {/* CREDIT CUSTOMER VIEW */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+            <DollarSign className="w-5 h-5 text-blue-600" />
+            <div>
+              <p className="font-semibold text-blue-800">Monthly Billing Enabled</p>
+              <p className="text-sm text-blue-600">
+                Your shipments are billed monthly. Pay invoices before the due date to keep shipping active.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Credit Limit
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600 mb-2">{formatCurrency(wallet?.creditLimit || 0)}</div>
-            <div className="text-sm text-gray-600">Extra spending allowance</div>
-          </CardContent>
-        </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700 text-white border-0 shadow-xl shadow-blue-500/20">
+              <CardHeader>
+                <CardDescription className="text-white/80">Credit Limit</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold mb-2">{formatCurrency(wallet?.creditLimit || 0)}</div>
+                <div className="flex items-center gap-2 text-sm text-white/80">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Monthly spending cap</span>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Total Available
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600 mb-2">{formatCurrency(wallet?.availableBalance || 0)}</div>
-            <div className="text-sm text-gray-600">Balance + credit limit</div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Outstanding
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-orange-600 mb-2">
+                  {formatCurrency(wallet?.outstanding || 0)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Invoices: {formatCurrency(wallet?.unpaidInvoiceTotal || 0)} +
+                  This month: {formatCurrency(wallet?.currentMonthLedgerTotal || 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Available Credit
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600 mb-2">
+                  {formatCurrency(wallet?.availableCredit || 0)}
+                </div>
+                <div className="text-sm text-gray-600">Remaining this month</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Monthly Invoices Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Monthly Invoices
+              </CardTitle>
+              <CardDescription>Your billing history and payment status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {monthlyInvoices.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <FileText className="w-12 h-12 mx-auto mb-3" />
+                  <p>No invoices yet</p>
+                  <p className="text-sm">Invoices are generated at the start of each month</p>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Month</TableHead>
+                        <TableHead className="text-right">Shipping</TableHead>
+                        <TableHead className="text-right">Platform Fee</TableHead>
+                        <TableHead className="text-right">Tax</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Due Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthlyInvoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-medium text-sm">{inv.invoiceNumber}</TableCell>
+                          <TableCell className="text-sm">{inv.month}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(inv.totalShipping)}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(inv.platformFee)}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(inv.tax)}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatCurrency(inv.totalPayable)}</TableCell>
+                          <TableCell>
+                            {inv.isPaid ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                <CheckCircle2 className="w-3 h-3 mr-1" /> Paid
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                <Clock className="w-3 h-3 mr-1" /> Unpaid
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {inv.dueDate ? formatDate(inv.dueDate) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              {inv.pdfUrl && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadInvoice(inv.id)}
+                                >
+                                  <Download className="w-3 h-3 mr-1" /> PDF
+                                </Button>
+                              )}
+                              {!inv.isPaid && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePayInvoice(inv.id)}
+                                  disabled={payingInvoiceId === inv.id}
+                                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white"
+                                >
+                                  {payingInvoiceId === inv.id ? (
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <CreditCard className="w-3 h-3 mr-1" />
+                                  )}
+                                  Pay
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <>
+          {/* CASH CUSTOMER VIEW (existing) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="bg-gradient-to-br from-primary via-primary/90 to-[hsl(207,97%,45%)] text-white border-0 shadow-xl shadow-primary/20">
+              <CardHeader>
+                <CardDescription className="text-white/80">Wallet Balance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold mb-2">{formatCurrency(wallet?.balance || 0)}</div>
+                <div className="flex items-center gap-2 text-sm text-white/80">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Available for shipping</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Credit Limit
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600 mb-2">{formatCurrency(wallet?.creditLimit || 0)}</div>
+                <div className="text-sm text-gray-600">Extra spending allowance</div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-200/80 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardDescription className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Total Available
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600 mb-2">{formatCurrency(wallet?.availableBalance || 0)}</div>
+                <div className="text-sm text-gray-600">Balance + credit limit</div>
+              </CardContent>
+            </Card>
+          </div>
 
       <Tabs defaultValue="wallet" className="w-full">
         <TabsList>
@@ -592,6 +822,8 @@ const Billing = () => {
           </Card>
         </TabsContent>
       </Tabs>
+        </>
+      )}
 
       {/* QR Payment Dialog */}
       <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>

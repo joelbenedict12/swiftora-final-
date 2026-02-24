@@ -386,6 +386,12 @@ export const billingApi = {
   getQrCode: () => api.get('/billing/qr-code'),
   checkPaymentStatus: (orderId: string) =>
     api.get(`/billing/payment-status/${orderId}`),
+  getOutstanding: () => api.get('/billing/outstanding'),
+  getInvoicesList: () => api.get('/billing/invoices'),
+  downloadInvoice: (id: string) => api.get(`/billing/invoices/${id}/download`),
+  payInvoice: (id: string) => api.post(`/billing/invoices/${id}/pay`),
+  checkInvoicePaymentStatus: (id: string, orderId: string) =>
+    api.get(`/billing/invoices/${id}/payment-status`, { params: { order_id: orderId } }),
 };
 
 // Admin API
@@ -464,6 +470,18 @@ export const adminApi = {
   // Vendor Pause
   toggleVendorPause: (merchantId: string, isPaused: boolean) =>
     api.put(`/admin/vendors/${merchantId}/pause`, { isPaused }),
+
+  // Customer Type
+  updateCustomerType: (merchantId: string, data: { customerType: 'CASH' | 'CREDIT'; creditLimit?: number }) =>
+    api.put(`/admin/vendors/${merchantId}/customer-type`, data),
+
+  // Monthly Billing
+  generateMonthlyInvoices: (month?: string) =>
+    api.post('/admin/billing/generate-invoices', { month }),
+  getMonthlyInvoices: (params?: { merchantId?: string; isPaid?: string }) =>
+    api.get('/admin/billing/invoices', { params }),
+  markInvoicePaid: (id: string) =>
+    api.put(`/admin/billing/invoices/${id}/mark-paid`),
 
   // Pending QR Payments
   getPendingPayments: () => api.get('/admin/pending-payments'),

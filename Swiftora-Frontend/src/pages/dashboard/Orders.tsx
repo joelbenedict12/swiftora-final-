@@ -263,8 +263,10 @@ const Orders = () => {
   // Wallet confirmation dialog state
   const [showWalletConfirm, setShowWalletConfirm] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{
-    balance: number; creditLimit: number; available: number;
-    isPaused: boolean; canShip: boolean; sufficientBalance: boolean;
+    customerType?: string;
+    balance?: number; creditLimit?: number; available?: number;
+    totalOutstanding?: number; availableCredit?: number; hasUnpaidInvoice?: boolean;
+    isPaused: boolean; canShip: boolean; sufficientBalance?: boolean;
   } | null>(null);
   const [shippingEstimate, setShippingEstimate] = useState<{
     vendorCharge: number; estimateAvailable: boolean; courier: string; note?: string;
@@ -2058,35 +2060,76 @@ const Orders = () => {
                     <p className="text-sm text-blue-700">{shippingEstimate.note}</p>
                   </div>
                 ) : null}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                  <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-2" />
-                  <p className="font-semibold text-amber-700">Insufficient Balance</p>
-                  <p className="text-sm text-amber-600 mt-1">
-                    Your wallet balance is too low to ship this order. Please recharge first.
-                  </p>
-                </div>
-                <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Wallet Balance</span>
-                    <span className="font-semibold">₹{(walletInfo.balance || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Credit Limit</span>
-                    <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="text-muted-foreground">Available</span>
-                    <span className="font-bold text-red-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1" onClick={() => setShowWalletConfirm(false)}>
-                    Cancel
-                  </Button>
-                  <Button className="flex-1" onClick={() => { setShowWalletConfirm(false); navigate('/dashboard/billing'); }}>
-                    Recharge Wallet
-                  </Button>
-                </div>
+
+                {walletInfo.customerType === 'CREDIT' ? (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                      <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                      <p className="font-semibold text-amber-700">
+                        {walletInfo.hasUnpaidInvoice ? 'Unpaid Invoice' : 'Credit Limit Exceeded'}
+                      </p>
+                      <p className="text-sm text-amber-600 mt-1">
+                        {walletInfo.hasUnpaidInvoice
+                          ? 'You have an unpaid invoice. Please pay it before shipping.'
+                          : 'Your outstanding balance exceeds your credit limit.'}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Credit Limit</span>
+                        <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Outstanding</span>
+                        <span className="font-semibold text-orange-600">₹{(walletInfo.totalOutstanding || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-t pt-2">
+                        <span className="text-muted-foreground">Available Credit</span>
+                        <span className="font-bold text-red-600">₹{(walletInfo.availableCredit || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={() => setShowWalletConfirm(false)}>
+                        Cancel
+                      </Button>
+                      <Button className="flex-1" onClick={() => { setShowWalletConfirm(false); navigate('/dashboard/billing'); }}>
+                        View Invoices
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                      <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                      <p className="font-semibold text-amber-700">Insufficient Balance</p>
+                      <p className="text-sm text-amber-600 mt-1">
+                        Your wallet balance is too low to ship this order. Please recharge first.
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Wallet Balance</span>
+                        <span className="font-semibold">₹{(walletInfo.balance || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Credit Limit</span>
+                        <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-t pt-2">
+                        <span className="text-muted-foreground">Available</span>
+                        <span className="font-bold text-red-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={() => setShowWalletConfirm(false)}>
+                        Cancel
+                      </Button>
+                      <Button className="flex-1" onClick={() => { setShowWalletConfirm(false); navigate('/dashboard/billing'); }}>
+                        Recharge Wallet
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : walletInfo ? (
               <div className="space-y-4">
@@ -2111,37 +2154,64 @@ const Orders = () => {
                   </div>
                 )}
 
-                {/* Wallet balance */}
-                <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Wallet Balance</span>
-                    <span className="font-semibold">₹{(walletInfo.balance || 0).toFixed(2)}</span>
-                  </div>
-                  {(walletInfo.creditLimit || 0) > 0 && (
+                {walletInfo.customerType === 'CREDIT' ? (
+                  <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Credit Limit</span>
                       <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="text-muted-foreground">Available Balance</span>
-                    <span className="font-bold text-green-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
-                  </div>
-                  {shippingEstimate && shippingEstimate.vendorCharge > 0 && (
-                    <div className="flex justify-between text-sm border-t pt-2">
-                      <span className="text-muted-foreground">After Shipping</span>
-                      <span className={`font-bold ${(walletInfo.available - shippingEstimate.vendorCharge) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ₹{(walletInfo.available - shippingEstimate.vendorCharge).toFixed(2)}
-                      </span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Outstanding</span>
+                      <span className="font-semibold text-orange-600">₹{(walletInfo.totalOutstanding || 0).toFixed(2)}</span>
                     </div>
-                  )}
-                </div>
+                    <div className="flex justify-between text-sm border-t pt-2">
+                      <span className="text-muted-foreground">Available Credit</span>
+                      <span className="font-bold text-green-600">₹{(walletInfo.availableCredit || 0).toFixed(2)}</span>
+                    </div>
+                    {shippingEstimate && shippingEstimate.vendorCharge > 0 && (
+                      <div className="flex justify-between text-sm border-t pt-2">
+                        <span className="text-muted-foreground">After Shipping</span>
+                        <span className={`font-bold ${((walletInfo.availableCredit || 0) - shippingEstimate.vendorCharge) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{((walletInfo.availableCredit || 0) - shippingEstimate.vendorCharge).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-blue-600 pt-1">Billed monthly — no wallet deduction</p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border rounded-xl p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Wallet Balance</span>
+                      <span className="font-semibold">₹{(walletInfo.balance || 0).toFixed(2)}</span>
+                    </div>
+                    {(walletInfo.creditLimit || 0) > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Credit Limit</span>
+                        <span className="font-semibold">₹{(walletInfo.creditLimit || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm border-t pt-2">
+                      <span className="text-muted-foreground">Available Balance</span>
+                      <span className="font-bold text-green-600">₹{(walletInfo.available || 0).toFixed(2)}</span>
+                    </div>
+                    {shippingEstimate && shippingEstimate.vendorCharge > 0 && (
+                      <div className="flex justify-between text-sm border-t pt-2">
+                        <span className="text-muted-foreground">After Shipping</span>
+                        <span className={`font-bold ${((walletInfo.available || 0) - shippingEstimate.vendorCharge) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹{((walletInfo.available || 0) - shippingEstimate.vendorCharge).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Insufficient for this specific shipment */}
                 {shippingEstimate && shippingEstimate.vendorCharge > 0 && !walletInfo.sufficientBalance && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
                     <AlertTriangle className="h-4 w-4 inline mr-1" />
-                    Your balance is lower than the estimated shipping cost. You may need to recharge.
+                    {walletInfo.customerType === 'CREDIT'
+                      ? 'This shipment may exceed your available credit.'
+                      : 'Your balance is lower than the estimated shipping cost. You may need to recharge.'}
                   </div>
                 )}
 
