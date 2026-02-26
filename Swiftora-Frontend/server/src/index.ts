@@ -19,6 +19,7 @@ import { adminRouter } from './routes/admin.js';
 import { ticketsRouter } from './routes/tickets.js';
 import { billingRouter } from './routes/billing.js';
 import { paymentsRouter } from './routes/payments.js';
+import { shopifyRouter } from './routes/shopify.js';
 
 dotenv.config();
 
@@ -51,7 +52,14 @@ app.use(cors({
 // Handle preflight requests explicitly
 app.options('*', cors());
 
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    // Store raw body for Shopify webhook HMAC verification
+    if (req.url === '/api/shopify/webhook') {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging
@@ -164,6 +172,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/shopify', shopifyRouter);
 
 // ============================================================
 // SERVE FRONTEND STATIC FILES (SPA)

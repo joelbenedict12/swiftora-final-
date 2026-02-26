@@ -109,6 +109,7 @@ model Merchant {
   kycVerification   KycVerification?
   creditLedgerEntries CreditLedger[]
   monthlyInvoices   MonthlyInvoice[]
+  shopifyConnections ShopifyConnection[]
   
   @@index([email])
 }
@@ -231,6 +232,10 @@ model Order {
   channel           String?
   notes             String?
   tags              String[]
+  
+  // Shopify integration
+  shopifyOrderId    String?
+  shopifyShop       String?
   
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
@@ -631,4 +636,25 @@ model MonthlyInvoice {
   @@index([merchantId])
   @@index([month])
   @@index([isPaid])
+}
+
+model ShopifyConnection {
+  id              String   @id @default(cuid())
+  merchantId      String
+  merchant        Merchant @relation(fields: [merchantId], references: [id])
+  shopDomain      String
+  accessToken     String
+  scope           String
+  installedAt     DateTime @default(now())
+  isActive        Boolean  @default(true)
+  autoFulfill     Boolean  @default(true)
+  lastSyncAt      DateTime?
+  ordersSynced    Int      @default(0)
+  webhookSecret   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([merchantId, shopDomain])
+  @@index([merchantId])
+  @@index([shopDomain])
 }

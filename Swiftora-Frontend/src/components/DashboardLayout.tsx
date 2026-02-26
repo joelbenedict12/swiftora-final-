@@ -160,6 +160,11 @@ const DashboardLayout = () => {
       href: "/dashboard/support",
       icon: HelpCircle,
     },
+    {
+      name: "Channel Integration",
+      href: "/dashboard/channel-integration",
+      icon: Plug,
+    },
   ];
 
   const toolsNav = [
@@ -208,7 +213,7 @@ const DashboardLayout = () => {
         pending: fmt(d.creditLimit),
         total: fmt(d.availableBalance),
       });
-    }).catch(() => {});
+    }).catch(() => { });
   }, [location.pathname]);
 
   const isActive = (path: string) =>
@@ -426,8 +431,8 @@ const DashboardLayout = () => {
                   type="button"
                   onClick={() => handleDashboardSwitch("b2c")}
                   className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1 transition-all ${activeDashboard === "b2c"
-                      ? "bg-white text-blue-700 shadow-sm"
-                      : "text-gray-600 hover:text-blue-700"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-600 hover:text-blue-700"
                     }`}
                 >
                   <Package className="w-3 h-3" />
@@ -437,8 +442,8 @@ const DashboardLayout = () => {
                   type="button"
                   onClick={() => handleDashboardSwitch("b2b")}
                   className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1 transition-all ${activeDashboard === "b2b"
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-gray-600 hover:text-slate-900"
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "text-gray-600 hover:text-slate-900"
                     }`}
                 >
                   <Building2 className="w-3 h-3" />

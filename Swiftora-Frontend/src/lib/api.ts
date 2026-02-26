@@ -502,3 +502,15 @@ export const adminApi = {
   getAdminOrders: (params?: Record<string, any>) =>
     api.get('/admin/orders', { params }),
 };
+
+// ============================================================
+// SHOPIFY API
+// ============================================================
+
+export const shopifyApi = {
+  getStatus: () => api.get('/shopify/status'),
+  connect: (shop: string) => api.get('/shopify/connect', { params: { shop } }),
+  disconnect: () => api.post('/shopify/disconnect'),
+  syncOrders: () => api.post('/shopify/sync'),
+  updateSettings: (data: { autoFulfill: boolean }) => api.put('/shopify/settings', data),
+};

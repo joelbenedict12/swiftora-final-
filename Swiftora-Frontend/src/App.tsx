@@ -30,6 +30,7 @@ import PincodeServiceability from "./pages/dashboard/PincodeServiceability";
 import RestrictedItems from "./pages/dashboard/RestrictedItems";
 import RTOPredictor from "./pages/dashboard/RTOPredictor";
 import TermsAndConditions from "./pages/dashboard/TermsAndConditions";
+import ChannelIntegration from "./pages/dashboard/ChannelIntegration";
 
 import AnalyticsReports from "./pages/dashboard/AnalyticsReports";
 import BusinessSuccessRate from "./pages/dashboard/BusinessSuccessRate";
@@ -80,6 +81,7 @@ const App = () => (
             <Route path="tracking" element={<TrackingDashboard />} />
             <Route path="pickup" element={<Pickup />} />
             <Route path="support" element={<Support />} />
+            <Route path="channel-integration" element={<ChannelIntegration />} />
             <Route path="settings" element={<Settings />} />
             <Route path="services" element={<Services />} />
             <Route path="settings/users" element={<Settings />} />

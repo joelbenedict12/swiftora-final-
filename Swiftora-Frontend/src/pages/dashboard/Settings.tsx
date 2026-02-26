@@ -69,9 +69,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { integrationsApi, kycApi } from "@/lib/api";
+import { integrationsApi, kycApi, shopifyApi } from "@/lib/api";
 
-const SETTINGS_TABS = ["general", "users", "courier", "notifications", "automation", "security", "tax", "bank", "invoices"] as const;
+const SETTINGS_TABS = ["general", "users", "courier", "channels", "notifications", "automation", "security", "tax", "bank", "invoices"] as const;
 
 const Settings = () => {
   const location = useLocation();
@@ -104,6 +104,20 @@ const Settings = () => {
   }>({ connected: false });
   const [isConnecting, setIsConnecting] = useState(false);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+
+  // ── Shopify state ──
+  const [shopifyStatus, setShopifyStatus] = useState<{
+    connected: boolean;
+    shopDomain?: string;
+    autoFulfill?: boolean;
+    lastSyncAt?: string;
+    ordersSynced?: number;
+  }>({ connected: false });
+  const [shopifyLoading, setShopifyLoading] = useState(false);
+  const [shopifyStoreDomain, setShopifyStoreDomain] = useState("");
+  const [shopifyConnecting, setShopifyConnecting] = useState(false);
+  const [shopifySyncing, setShopifySyncing] = useState(false);
+  const [shopifyDisconnecting, setShopifyDisconnecting] = useState(false);
   const [companyInfo, setCompanyInfo] = useState({
     name: "Swiftora Logistics",
     gstin: "27ABCDE1234F1Z5",
@@ -189,6 +203,63 @@ const Settings = () => {
     toast.info(`Connect ${channelName} - Feature coming soon`);
   };
 
+  // ── Shopify Handlers ──
+  const handleConnectShopify = async () => {
+    if (!shopifyStoreDomain.trim()) {
+      toast.error('Please enter your Shopify store domain');
+      return;
+    }
+    try {
+      setShopifyConnecting(true);
+      const res = await shopifyApi.connect(shopifyStoreDomain.trim());
+      if (res.data?.authUrl) {
+        window.location.href = res.data.authUrl;
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to connect Shopify');
+    } finally {
+      setShopifyConnecting(false);
+    }
+  };
+
+  const handleDisconnectShopify = async () => {
+    if (!confirm('Disconnect Shopify? This will stop syncing orders.')) return;
+    try {
+      setShopifyDisconnecting(true);
+      await shopifyApi.disconnect();
+      setShopifyStatus({ connected: false });
+      toast.success('Shopify disconnected');
+    } catch {
+      toast.error('Failed to disconnect');
+    } finally {
+      setShopifyDisconnecting(false);
+    }
+  };
+
+  const handleSyncShopify = async () => {
+    try {
+      setShopifySyncing(true);
+      const res = await shopifyApi.syncOrders();
+      toast.success(res.data?.message || 'Sync complete');
+      const statusRes = await shopifyApi.getStatus();
+      setShopifyStatus(statusRes.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Sync failed');
+    } finally {
+      setShopifySyncing(false);
+    }
+  };
+
+  const handleToggleAutoFulfill = async (checked: boolean) => {
+    try {
+      await shopifyApi.updateSettings({ autoFulfill: checked });
+      setShopifyStatus(prev => ({ ...prev, autoFulfill: checked }));
+      toast.success(`Auto-fulfillment ${checked ? 'enabled' : 'disabled'}`);
+    } catch {
+      toast.error('Failed to update setting');
+    }
+  };
+
   const handleSaveNotifications = () => {
     toast.success("Notification preferences saved successfully");
   };
@@ -246,6 +317,33 @@ const Settings = () => {
     fetchDelhiveryStatus();
   }, []);
 
+  // Fetch Shopify connection status
+  useEffect(() => {
+    const fetchShopifyStatus = async () => {
+      try {
+        setShopifyLoading(true);
+        const res = await shopifyApi.getStatus();
+        setShopifyStatus(res.data);
+      } catch {
+        console.log('Shopify not connected');
+      } finally {
+        setShopifyLoading(false);
+      }
+    };
+    fetchShopifyStatus();
+
+    // Check for callback params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('shopify') === 'connected') {
+      toast.success('Shopify connected successfully! 🎉');
+      fetchShopifyStatus();
+      navigate('/dashboard/settings/channels', { replace: true });
+    } else if (params.get('error')) {
+      toast.error(`Shopify connection failed: ${params.get('error')}`);
+      navigate('/dashboard/settings/channels', { replace: true });
+    }
+  }, []);
+
   // Load KYC status when on Security tab
   const loadKycStatus = async () => {
     try {
@@ -289,9 +387,9 @@ const Settings = () => {
       const msg: string = isTimeout
         ? "Request timed out. Try again in a moment (first load can be slow)."
         : (d && (typeof d.error === "string" ? d.error : d.message)) ||
-          (typeof status === "number" ? `Request failed (${status})` : null) ||
-          (typeof err?.message === "string" ? err.message : null) ||
-          "Failed to start KYC verification";
+        (typeof status === "number" ? `Request failed (${status})` : null) ||
+        (typeof err?.message === "string" ? err.message : null) ||
+        "Failed to start KYC verification";
       console.error("KYC session error:", { status, data: d, code, message: err?.message });
       const displayMsg = typeof msg === "string" ? msg : "Failed to start KYC verification";
       toast.error(displayMsg, { duration: 8000 });
@@ -2120,6 +2218,160 @@ const Settings = () => {
                   <li>Footer information</li>
                 </ul>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Channel Integration */}
+        <TabsContent value="channels" className="mt-6 space-y-6">
+          <Card className="bg-white border border-gray-200 shadow-lg">
+            <CardHeader className="border-b border-gray-200">
+              <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Plug className="w-5 h-5 text-[blue-600]" />
+                Channel Integration
+              </CardTitle>
+              <CardDescription className="text-foreground/70">
+                Connect your online store to automatically sync orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {shopifyLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-[blue-600]" />
+                  <span className="ml-2 text-foreground/70">Loading...</span>
+                </div>
+              ) : shopifyStatus.connected ? (
+                <div className="space-y-6">
+                  {/* Connected header */}
+                  <div className="flex items-start justify-between p-5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-xl border border-gray-200 flex items-center justify-center shadow-sm">
+                        <svg viewBox="0 0 24 24" className="w-7 h-7" fill="#96bf48">
+                          <path d="M20.893 7.21l-1.2 7.46s-2.37-.73-3.21-.73c-.96 0-1.01.48-1.01.6 0 .93 4.09 1.29 4.09 4.44 0 2.19-1.39 3.61-3.27 3.61-2.25 0-3.4-1.4-3.4-1.4l.63-2.08s1.18 1.02 2.18 1.02c.66 0 .93-.52.93-.9 0-1.22-3.36-1.27-3.36-4.18 0-2.15 1.54-4.23 4.66-4.23 1.2 0 1.8.35 1.8.35l-.83 2.14zM14.37 6.66l-1.92.05s-.19-1.02-.72-1.56c-.53-.53-1.26-.38-1.26-.38l-.56-2.23S12 2 13.27 3.23c1.27 1.23 1.1 3.43 1.1 3.43z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-green-800">Shopify Connected</h3>
+                        <p className="text-sm text-green-700 font-medium">{shopifyStatus.shopDomain}</p>
+                      </div>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 border-green-300">
+                      <CheckCircle2 className="w-3 h-3 mr-1" /> Active
+                    </Badge>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                      <div className="text-xs font-semibold text-foreground/60 uppercase tracking-wide">Orders Synced</div>
+                      <div className="text-2xl font-bold text-foreground mt-1">{shopifyStatus.ordersSynced || 0}</div>
+                    </div>
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                      <div className="text-xs font-semibold text-foreground/60 uppercase tracking-wide">Last Sync</div>
+                      <div className="text-sm font-semibold text-foreground mt-2">
+                        {shopifyStatus.lastSyncAt
+                          ? new Date(shopifyStatus.lastSyncAt).toLocaleString()
+                          : 'Never'}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                      <div className="text-xs font-semibold text-foreground/60 uppercase tracking-wide">Status</div>
+                      <Badge className="mt-2 bg-green-100 text-green-700 border-green-200">Connected</Badge>
+                    </div>
+                  </div>
+
+                  {/* Auto-fulfill toggle */}
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl bg-white">
+                    <div className="flex items-center gap-3">
+                      <Zap className="w-5 h-5 text-amber-500" />
+                      <div>
+                        <div className="font-semibold text-foreground">Auto-Fulfill Orders</div>
+                        <div className="text-sm text-foreground/60">
+                          Automatically create orders when Shopify sends them
+                        </div>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={shopifyStatus.autoFulfill ?? true}
+                      onCheckedChange={handleToggleAutoFulfill}
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleSyncShopify}
+                      disabled={shopifySyncing}
+                      className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-600/90 hover:to-blue-500/90 text-white shadow-lg"
+                    >
+                      {shopifySyncing ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Syncing...</>
+                      ) : (
+                        <>Sync Orders Now</>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleDisconnectShopify}
+                      disabled={shopifyDisconnecting}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                    >
+                      {shopifyDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* ── Not Connected ── */
+                <div className="space-y-6">
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-r from-green-100 to-emerald-100 rounded-2xl flex items-center justify-center mb-4">
+                      <svg viewBox="0 0 24 24" className="w-9 h-9" fill="#96bf48">
+                        <path d="M20.893 7.21l-1.2 7.46s-2.37-.73-3.21-.73c-.96 0-1.01.48-1.01.6 0 .93 4.09 1.29 4.09 4.44 0 2.19-1.39 3.61-3.27 3.61-2.25 0-3.4-1.4-3.4-1.4l.63-2.08s1.18 1.02 2.18 1.02c.66 0 .93-.52.93-.9 0-1.22-3.36-1.27-3.36-4.18 0-2.15 1.54-4.23 4.66-4.23 1.2 0 1.8.35 1.8.35l-.83 2.14zM14.37 6.66l-1.92.05s-.19-1.02-.72-1.56c-.53-.53-1.26-.38-1.26-.38l-.56-2.23S12 2 13.27 3.23c1.27 1.23 1.1 3.43 1.1 3.43z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-foreground">Connect Your Shopify Store</h3>
+                    <p className="text-foreground/60 mt-2 max-w-md mx-auto">
+                      Automatically sync orders from your Shopify store. We'll create shipments and push tracking back.
+                    </p>
+                  </div>
+
+                  <div className="max-w-md mx-auto space-y-4">
+                    <div>
+                      <Label className="text-foreground font-medium">Shopify Store Domain *</Label>
+                      <Input
+                        value={shopifyStoreDomain}
+                        onChange={(e) => setShopifyStoreDomain(e.target.value)}
+                        placeholder="mystore.myshopify.com"
+                        className="mt-1 bg-background/50 border-gray-200"
+                      />
+                      <p className="text-xs text-foreground/50 mt-1">
+                        Enter your .myshopify.com domain (not your custom domain)
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-600/90 hover:to-green-500/90 text-white shadow-lg text-lg py-6 font-semibold"
+                      onClick={handleConnectShopify}
+                      disabled={shopifyConnecting || !shopifyStoreDomain.trim()}
+                    >
+                      {shopifyConnecting ? (
+                        <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Connecting...</>
+                      ) : (
+                        <>Connect Shopify</>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mt-6">
+                    <h4 className="font-semibold text-blue-900 mb-2">How it works:</h4>
+                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Enter your Shopify store domain above</li>
+                      <li>You'll be redirected to Shopify to authorize our app</li>
+                      <li>Once authorized, orders will automatically sync</li>
+                      <li>Shipments are booked and tracking is pushed back to Shopify</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
