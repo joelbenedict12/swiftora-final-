@@ -129,17 +129,18 @@ export const ordersApi = {
     api.post(`/orders/${orderId}/shipping-estimate`, { courierName }),
 
   // Generic ship method - pass courier name
-  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL') =>
-    api.post(`/orders/${id}/ship`, { courierName }),
+  ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL', extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName, ...(extra || {}) }),
 
   // Convenience methods for each courier
   shipToDelhivery: (id: string, extra?: Record<string, any>) =>
     api.post(`/orders/${id}/ship`, { courierName: 'DELHIVERY', ...(extra || {}) }),
 
-  shipToBlitz: (id: string) => api.post(`/orders/${id}/ship`, { courierName: 'BLITZ' }),
+  shipToBlitz: (id: string, extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'BLITZ', ...(extra || {}) }),
 
-  shipToEkart: (id: string, preferredDispatchDate?: string) =>
-    api.post(`/orders/${id}/ship`, { courierName: 'EKART', preferredDispatchDate }),
+  shipToEkart: (id: string, preferredDispatchDate?: string, extra?: Record<string, any>) =>
+    api.post(`/orders/${id}/ship`, { courierName: 'EKART', preferredDispatchDate, ...(extra || {}) }),
 
   shipToXpressbees: (id: string, extra?: Record<string, any>) =>
     api.post(`/orders/${id}/ship`, { courierName: 'XPRESSBEES', ...(extra || {}) }),

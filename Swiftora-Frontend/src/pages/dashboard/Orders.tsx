@@ -460,16 +460,14 @@ const Orders = () => {
     try {
       setShippingOrderId(orderId);
       const order = orders.find(o => o.id === orderId);
-      const apiCall = {
-        'DELHIVERY': ordersApi.shipToDelhivery,
-        'BLITZ': ordersApi.shipToBlitz,
-        'EKART': ordersApi.shipToEkart,
-        'INNOFULFILL': ordersApi.shipToInnofulfill,
-      }[courierName];
+      const estimatedCharge = shippingEstimate?.vendorCharge;
+      const extraParams = estimatedCharge ? { estimatedVendorCharge: estimatedCharge } : {};
 
-      if (!apiCall) return; // Xpressbees/Delhivery options handled separately
-
-      const response = await apiCall(orderId);
+      const response = await ordersApi.ship(
+        orderId,
+        courierName as 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL',
+        extraParams,
+      );
       if (response.data.success) {
         toast.success(`Shipped via ${courierName}! AWB: ${response.data.awbNumber}`);
         loadOrders();

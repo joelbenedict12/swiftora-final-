@@ -481,12 +481,12 @@ router.post('/', async (req: AuthRequest, res, next) => {
     // Resolve warehouse: use provided ID if valid, else default warehouse, else first active; only create "Default Warehouse" if merchant has none
     let warehouse = data.warehouseId
       ? await prisma.warehouse.findFirst({
-          where: {
-            id: data.warehouseId,
-            merchantId: req.user!.merchantId,
-            isActive: true,
-          },
-        })
+        where: {
+          id: data.warehouseId,
+          merchantId: req.user!.merchantId,
+          isActive: true,
+        },
+      })
       : null;
 
     if (!warehouse) {
@@ -943,7 +943,6 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       throw new AppError(400, 'Merchant account required');
     }
 
-    // Get courier from request body (optional, defaults to order's courierName or DELHIVERY)
     const {
       courierName: requestedCourier,
       preferredDispatchDate,
@@ -951,6 +950,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       shippingMode,
       deliveryPromise,
       deliveryType: bodyDeliveryType,
+      estimatedVendorCharge,
     } = req.body;
 
     const order = await prisma.order.findFirst({
@@ -1080,35 +1080,47 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       deliveryPromise: deliveryPromise,
     };
 
-    // --- STEP 1: Get shipping rate estimate BEFORE creating shipment ---
-    let courierCost = 0;
+    // --- STEP 1: Determine pricing (use pre-approved estimate or calculate fresh) ---
     const shipWeight = Number(order.chargeableWeight) || Number(order.weight) || 0.5;
+    let pricing;
 
-    try {
-      if (courierService.calculateRate && warehouse.pincode && order.shippingPincode) {
-        const rateResult = await courierService.calculateRate({
-          originPincode: warehouse.pincode,
-          destinationPincode: order.shippingPincode,
-          weight: shipWeight,
-          paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
-          codAmount: Number(order.codAmount || order.productValue || 500),
-        });
-        if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
-          courierCost = rateResult.rate;
+    if (estimatedVendorCharge && Number(estimatedVendorCharge) > 0) {
+      const approvedCharge = Number(estimatedVendorCharge);
+      pricing = {
+        vendorCharge: approvedCharge,
+        courierCost: 0,
+        margin: 0,
+        marginType: 'pre-approved' as const,
+        marginValue: 0,
+      };
+      console.log(`[SHIP] Using pre-approved estimate: vendorCharge=${approvedCharge}`);
+    } else {
+      let courierCost = 0;
+      try {
+        if (courierService.calculateRate && warehouse.pincode && order.shippingPincode) {
+          const rateResult = await courierService.calculateRate({
+            originPincode: warehouse.pincode,
+            destinationPincode: order.shippingPincode,
+            weight: shipWeight,
+            paymentMode: (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID',
+            codAmount: Number(order.codAmount || order.productValue || 500),
+          });
+          if (rateResult.success && rateResult.rate && rateResult.rate > 0) {
+            courierCost = rateResult.rate;
+          }
         }
+      } catch (e: any) {
+        console.log(`[SHIP] Rate API failed for ${selectedCourier}, will use fallback:`, e.message);
       }
-    } catch (e: any) {
-      console.log(`[SHIP] Rate API failed for ${selectedCourier}, will use fallback:`, e.message);
+
+      pricing = await calculateVendorPrice({
+        courierCost,
+        userAccountType: accountType,
+        courierName: selectedCourier,
+        weight: shipWeight,
+      });
+      console.log(`[SHIP] ${selectedCourier} fresh pricing: courierCost=${courierCost}, vendorCharge=${pricing.vendorCharge}, margin=${pricing.margin}`);
     }
-
-    const pricing = await calculateVendorPrice({
-      courierCost,
-      userAccountType: accountType,
-      courierName: selectedCourier,
-      weight: shipWeight,
-    });
-
-    console.log(`[SHIP] ${selectedCourier} pricing: courierCost=${courierCost}, vendorCharge=${pricing.vendorCharge}, margin=${pricing.margin}`);
 
     // --- STEP 2: Charge customer (wallet debit for CASH, credit check for CREDIT) ---
     let walletResult = null;
@@ -1558,11 +1570,11 @@ router.get('/:id/shipping-label', authenticate, async (req: AuthRequest, res, ne
     // Prefer pickup location (warehouse) for seller + return on the label when available.
     const warehouseAddressParts = warehouse
       ? [
-          warehouse.address,
-          warehouse.city,
-          warehouse.state,
-          warehouse.pincode,
-        ].filter((part) => part && String(part).toLowerCase() !== 'null')
+        warehouse.address,
+        warehouse.city,
+        warehouse.state,
+        warehouse.pincode,
+      ].filter((part) => part && String(part).toLowerCase() !== 'null')
       : [];
 
     const merchantAddressParts = [

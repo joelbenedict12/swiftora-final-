@@ -837,7 +837,7 @@ const B2CFastForm = ({
                 {/* Cost Breakdown */}
                 <div className="space-y-2 pt-2 border-t border-blue-100">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Shipping</span>
+                    <span className="text-slate-600">Shipping (est.)</span>
                     <span className="font-semibold text-blue-600">₹{costs.shipping.toFixed(2)}</span>
                   </div>
                   {formData.paymentMode === "cod" && (
@@ -854,9 +854,10 @@ const B2CFastForm = ({
                   )}
                   <div className="border-t border-blue-100 pt-2">
                     <div className="flex justify-between font-semibold text-base">
-                      <span>Total</span>
+                      <span>Total (est.)</span>
                       <span className="text-blue-600">₹{costs.total.toFixed(2)}</span>
                     </div>
+                    <p className="text-xs text-slate-400 mt-1">Final cost shown when you ship</p>
                   </div>
                 </div>
 
@@ -2401,7 +2402,7 @@ const B2BStructuredForm = ({
                 {/* Cost Breakdown */}
                 <div className="space-y-2 pt-2 border-t border-slate-200">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Shipping</span>
+                    <span className="text-slate-600">Shipping (est.)</span>
                     <span className="font-semibold text-slate-800">₹{costs.shipping.toFixed(2)}</span>
                   </div>
                   {formData.paymentMode === "cod" && (
@@ -2412,9 +2413,10 @@ const B2BStructuredForm = ({
                   )}
                   <div className="border-t border-slate-200 pt-2">
                     <div className="flex justify-between font-semibold text-base">
-                      <span className="text-slate-900">Total</span>
+                      <span className="text-slate-900">Total (est.)</span>
                       <span className="text-slate-900">₹{costs.total.toFixed(2)}</span>
                     </div>
+                    <p className="text-xs text-slate-400 mt-1">Final cost shown when you ship</p>
                   </div>
                 </div>
 
