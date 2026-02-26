@@ -6,7 +6,7 @@ import { ShopifyService } from '../services/ShopifyService.js';
 
 const router = Router();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://swiftora-final.onrender.com';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://swiftora.co';
 
 // ============================================================
 // GET /connect — Start OAuth flow
