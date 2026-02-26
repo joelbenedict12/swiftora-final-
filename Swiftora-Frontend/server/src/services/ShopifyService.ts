@@ -18,7 +18,8 @@ export class ShopifyService {
         const scopes = SHOPIFY_SCOPES;
         const redirectUri = SHOPIFY_REDIRECT_URI;
 
-        return `https://${shop}/admin/oauth/authorize?` +
+        // Custom distribution apps use install_custom_app endpoint
+        return `https://admin.shopify.com/oauth/install_custom_app?` +
             `client_id=${SHOPIFY_CLIENT_ID}` +
             `&scope=${scopes}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
