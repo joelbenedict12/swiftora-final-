@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || '';
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET || '';
 const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES || 'read_orders,write_orders,read_fulfillments,write_fulfillments';
-const SHOPIFY_REDIRECT_URI = process.env.SHOPIFY_REDIRECT_URI || '';
+const SHOPIFY_REDIRECT_URI = process.env.SHOPIFY_REDIRECT_URI || 'https://swiftora-final.onrender.com/api/shopify/callback';
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET || '';
 const SHOPIFY_API_VERSION = '2024-01';
 
@@ -42,7 +42,7 @@ export class ShopifyService {
     // ── Webhooks ───────────────────────────────────────────────
 
     static async registerWebhooks(shop: string, accessToken: string): Promise<void> {
-        const baseUrl = SHOPIFY_REDIRECT_URI.replace('/api/shopify/callback', '');
+        const baseUrl = process.env.BACKEND_URL || 'https://swiftora-final.onrender.com';
         const webhookUrl = `${baseUrl}/api/shopify/webhook`;
 
         const topics = ['orders/create', 'orders/updated', 'app/uninstalled'];
