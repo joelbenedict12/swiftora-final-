@@ -18,7 +18,7 @@ const requireAdmin = async (req: AuthRequest, res: any, next: any) => {
     next();
 };
 
-// Get dashboard stats
+// Get dashboard stats (legacy — kept for backward compat)
 router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
     try {
         const [usersCount, merchantsCount, ordersCount, revenueResult] = await Promise.all([
@@ -36,6 +36,287 @@ router.get('/stats', authenticate, requireAdmin, async (req, res, next) => {
             activeVendors: merchantsCount,
             totalOrders: ordersCount,
             totalRevenue: Number(revenueResult._sum?.vendorCharge) || 0,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// ENHANCED DASHBOARD STATS
+// ============================================================
+
+router.get('/dashboard-stats', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const shippedStatuses: any = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+
+        const [
+            totalUsers,
+            totalVendors,
+            shipmentsToday,
+            shipmentsThisMonth,
+            revenueThisMonth,
+            totalRevenue,
+            commissionResult,
+            walletAgg,
+            creditOutstanding,
+        ] = await Promise.all([
+            prisma.user.count({ where: { isActive: true } }),
+            prisma.merchant.count(),
+            prisma.order.count({
+                where: { shippedAt: { gte: todayStart }, status: { in: shippedStatuses } },
+            }),
+            prisma.order.count({
+                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } },
+            }),
+            prisma.order.aggregate({
+                _sum: { vendorCharge: true },
+                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } },
+            }),
+            prisma.order.aggregate({
+                _sum: { vendorCharge: true, margin: true },
+                where: { status: { in: shippedStatuses } },
+            }),
+            prisma.order.aggregate({
+                _sum: { margin: true },
+                where: { status: { in: shippedStatuses } },
+            }),
+            prisma.merchant.aggregate({
+                _sum: { walletBalance: true },
+            } as any),
+            prisma.creditLedger.aggregate({
+                _sum: { shippingCost: true },
+            } as any),
+        ]);
+
+        // Calculate paid credit to get net outstanding
+        const paidCredit = await (prisma as any).monthlyInvoice.aggregate({
+            _sum: { totalPayable: true },
+            where: { isPaid: true },
+        });
+
+        const totalOutstanding = Math.max(0,
+            (Number(creditOutstanding._sum?.shippingCost) || 0) -
+            (Number(paidCredit._sum?.totalPayable) || 0)
+        );
+
+        res.json({
+            totalUsers,
+            totalVendors,
+            shipmentsToday,
+            shipmentsThisMonth,
+            revenueThisMonth: Number(revenueThisMonth._sum?.vendorCharge) || 0,
+            totalRevenue: Number(totalRevenue._sum?.vendorCharge) || 0,
+            totalCommission: Number(commissionResult._sum?.margin) || 0,
+            totalWalletBalance: Number(walletAgg._sum?.walletBalance) || 0,
+            totalOutstandingCredit: totalOutstanding,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Shipments by courier (for pie chart)
+router.get('/courier-distribution', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const orders = await prisma.order.groupBy({
+            by: ['courierName'],
+            where: {
+                courierName: { not: null },
+                status: { in: shippedStatuses },
+            },
+            _count: { id: true },
+            _sum: { vendorCharge: true },
+        });
+
+        const data = orders
+            .filter((o: any) => o.courierName)
+            .map((o: any) => ({
+                courier: o.courierName!,
+                count: o._count?.id || 0,
+                revenue: Number(o._sum?.vendorCharge) || 0,
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        res.json(data);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Top 5 customers by revenue (for bar chart)
+router.get('/top-customers', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const topMerchants = await prisma.order.groupBy({
+            by: ['merchantId'],
+            where: { status: { in: shippedStatuses } },
+            _sum: { vendorCharge: true },
+            _count: { id: true },
+            orderBy: { _sum: { vendorCharge: 'desc' } },
+            take: 5,
+        });
+
+        const merchantIds = topMerchants.map(m => m.merchantId);
+        const merchants = await prisma.merchant.findMany({
+            where: { id: { in: merchantIds } },
+            select: { id: true, companyName: true },
+        });
+
+        const nameMap = new Map(merchants.map(m => [m.id, m.companyName]));
+
+        const data = topMerchants.map((m: any) => ({
+            name: nameMap.get(m.merchantId) || 'Unknown',
+            revenue: Number(m._sum?.vendorCharge) || 0,
+            orders: m._count?.id || 0,
+        }));
+
+        res.json(data);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Per-vendor analytics deep-dive
+router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res, next) => {
+    try {
+        const merchantId = req.params.id;
+
+        const merchant = await prisma.merchant.findUnique({
+            where: { id: merchantId },
+            select: {
+                id: true, companyName: true, email: true, phone: true,
+                walletBalance: true, creditLimit: true,
+                isPaused: true, createdAt: true,
+            } as any,
+        });
+
+        if (!merchant) throw new AppError(404, 'Vendor not found');
+
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+
+        const [
+            totalOrders,
+            ordersThisMonth,
+            revenueAgg,
+            commissionAgg,
+            deliveredCount,
+            cancelledCount,
+            pendingCount,
+            courierBreakdown,
+            creditUsed,
+            transactions,
+        ] = await Promise.all([
+            prisma.order.count({ where: { merchantId } }),
+            prisma.order.count({ where: { merchantId, createdAt: { gte: monthStart } } }),
+            prisma.order.aggregate({
+                _sum: { vendorCharge: true },
+                where: { merchantId, status: { in: shippedStatuses } },
+            }),
+            prisma.order.aggregate({
+                _sum: { margin: true },
+                _avg: { vendorCharge: true },
+                where: { merchantId, status: { in: shippedStatuses } },
+            }),
+            prisma.order.count({ where: { merchantId, status: 'DELIVERED' } }),
+            prisma.order.count({ where: { merchantId, status: 'CANCELLED' } }),
+            prisma.order.count({ where: { merchantId, status: { in: ['PENDING', 'READY_TO_SHIP'] } } }),
+            prisma.order.groupBy({
+                by: ['courierName'],
+                where: { merchantId, courierName: { not: null }, status: { in: shippedStatuses } },
+                _count: { id: true },
+                orderBy: { _count: { id: 'desc' } },
+                take: 5,
+            }),
+            (prisma as any).creditLedger.aggregate({
+                _sum: { shippingCost: true },
+                where: { merchantId },
+            }),
+            prisma.walletTransaction.findMany({
+                where: { merchantId },
+                orderBy: { createdAt: 'desc' },
+                take: 50,
+                select: {
+                    id: true, amount: true, type: true, status: true,
+                    description: true, reference: true,
+                    balanceBefore: true, balanceAfter: true, createdAt: true,
+                },
+            }),
+        ]);
+
+        const totalRevenue = Number(revenueAgg._sum?.vendorCharge) || 0;
+        const totalCommission = Number(commissionAgg._sum?.margin) || 0;
+        const avgShippingCost = Number(commissionAgg._avg?.vendorCharge) || 0;
+        const usedCredit = Number(creditUsed._sum?.shippingCost) || 0;
+        const customerType = (merchant as any).customerType || 'CASH';
+        // Determine health status
+        let healthStatus: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';
+        if (merchant.isPaused) {
+            healthStatus = 'CRITICAL';
+        } else if (customerType === 'CREDIT') {
+            const creditLimit = Number(merchant.creditLimit) || 0;
+            if (creditLimit > 0 && usedCredit >= creditLimit) {
+                healthStatus = 'CRITICAL';
+            } else if (creditLimit > 0 && usedCredit >= creditLimit * 0.8) {
+                healthStatus = 'WARNING';
+            }
+        } else {
+            const balance = Number(merchant.walletBalance) || 0;
+            if (balance <= 0) healthStatus = 'CRITICAL';
+            else if (balance < 100) healthStatus = 'WARNING';
+        }
+
+        const topCourier = courierBreakdown.length > 0
+            ? courierBreakdown[0].courierName
+            : null;
+
+        res.json({
+            merchant: {
+                ...merchant,
+                customerType,
+                walletBalance: Number(merchant.walletBalance),
+                creditLimit: Number(merchant.creditLimit),
+            },
+            financial: {
+                walletBalance: Number(merchant.walletBalance),
+                creditLimit: Number(merchant.creditLimit),
+                usedCredit,
+                outstandingAmount: Math.max(0, usedCredit),
+                totalRevenue,
+                totalCommission,
+                healthStatus,
+            },
+            shipments: {
+                totalOrders,
+                ordersThisMonth,
+                topCourier,
+                totalShippingValue: totalRevenue,
+                avgShippingCost: Math.round(avgShippingCost * 100) / 100,
+                delivered: deliveredCount,
+                cancelled: cancelledCount,
+                pending: pendingCount,
+                courierBreakdown: courierBreakdown.map((c: any) => ({
+                    courier: c.courierName,
+                    count: c._count.id,
+                })),
+            },
+            transactions: transactions.map((t: any) => ({
+                id: t.id,
+                date: t.createdAt,
+                type: t.type,
+                status: t.status,
+                amount: Number(t.amount),
+                balanceAfter: Number(t.balanceAfter),
+                description: t.description,
+                reference: t.reference,
+            })),
         });
     } catch (error) {
         next(error);

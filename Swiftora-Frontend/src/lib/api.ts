@@ -490,4 +490,15 @@ export const adminApi = {
     api.post(`/admin/pending-payments/${transactionId}/approve`),
   rejectPayment: (transactionId: string) =>
     api.post(`/admin/pending-payments/${transactionId}/reject`),
+
+  // Enhanced Dashboard
+  getDashboardStats: () => api.get('/admin/dashboard-stats'),
+  getCourierDistribution: () => api.get('/admin/courier-distribution'),
+  getTopCustomers: () => api.get('/admin/top-customers'),
+  getVendorAnalytics: (merchantId: string) =>
+    api.get(`/admin/vendors/${merchantId}/analytics`),
+
+  // Admin Orders
+  getAdminOrders: (params?: Record<string, any>) =>
+    api.get('/admin/orders', { params }),
 };
