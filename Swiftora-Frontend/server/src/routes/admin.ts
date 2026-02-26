@@ -68,22 +68,22 @@ router.get('/dashboard-stats', authenticate, requireAdmin, async (_req, res, nex
             prisma.user.count({ where: { isActive: true } }),
             prisma.merchant.count(),
             prisma.order.count({
-                where: { shippedAt: { gte: todayStart }, status: { in: shippedStatuses } },
+                where: { shippedAt: { gte: todayStart }, status: { in: shippedStatuses } } as any,
             }),
             prisma.order.count({
-                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } },
+                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } } as any,
             }),
             prisma.order.aggregate({
                 _sum: { vendorCharge: true },
-                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } },
+                where: { shippedAt: { gte: monthStart }, status: { in: shippedStatuses } } as any,
             }),
             prisma.order.aggregate({
                 _sum: { vendorCharge: true, margin: true },
-                where: { status: { in: shippedStatuses } },
+                where: { status: { in: shippedStatuses } } as any,
             }),
             prisma.order.aggregate({
                 _sum: { margin: true },
-                where: { status: { in: shippedStatuses } },
+                where: { status: { in: shippedStatuses } } as any,
             }),
             prisma.merchant.aggregate({
                 _sum: { walletBalance: true },
@@ -123,7 +123,7 @@ router.get('/dashboard-stats', authenticate, requireAdmin, async (_req, res, nex
 // Shipments by courier (for pie chart)
 router.get('/courier-distribution', authenticate, requireAdmin, async (_req, res, next) => {
     try {
-        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const shippedStatuses: any = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
         const orders = await prisma.order.groupBy({
             by: ['courierName'],
             where: {
@@ -152,7 +152,7 @@ router.get('/courier-distribution', authenticate, requireAdmin, async (_req, res
 // Top 5 customers by revenue (for bar chart)
 router.get('/top-customers', authenticate, requireAdmin, async (_req, res, next) => {
     try {
-        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const shippedStatuses: any = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
         const topMerchants = await prisma.order.groupBy({
             by: ['merchantId'],
             where: { status: { in: shippedStatuses } },
@@ -200,7 +200,7 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
 
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const shippedStatuses = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const shippedStatuses: any = ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 
         const [
             totalOrders,
@@ -218,19 +218,19 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
             prisma.order.count({ where: { merchantId, createdAt: { gte: monthStart } } }),
             prisma.order.aggregate({
                 _sum: { vendorCharge: true },
-                where: { merchantId, status: { in: shippedStatuses } },
+                where: { merchantId, status: { in: shippedStatuses } } as any,
             }),
             prisma.order.aggregate({
                 _sum: { margin: true },
                 _avg: { vendorCharge: true },
-                where: { merchantId, status: { in: shippedStatuses } },
+                where: { merchantId, status: { in: shippedStatuses } } as any,
             }),
             prisma.order.count({ where: { merchantId, status: 'DELIVERED' } }),
             prisma.order.count({ where: { merchantId, status: 'CANCELLED' } }),
             prisma.order.count({ where: { merchantId, status: { in: ['PENDING', 'READY_TO_SHIP'] } } }),
             prisma.order.groupBy({
                 by: ['courierName'],
-                where: { merchantId, courierName: { not: null }, status: { in: shippedStatuses } },
+                where: { merchantId, courierName: { not: null }, status: { in: shippedStatuses } } as any,
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
                 take: 5,
