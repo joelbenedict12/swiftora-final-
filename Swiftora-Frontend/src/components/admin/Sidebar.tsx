@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -13,8 +13,12 @@ import {
   Wallet,
   FileText,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function Sidebar() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
   const navItems = [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/admin/users", icon: Users, label: "Users" },
@@ -30,6 +34,11 @@ export default function Sidebar() {
     { to: "/admin/integrations", icon: Plug, label: "Integrations" },
     { to: "/admin/settings", icon: Settings, label: "Settings" },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <aside className="sidebar">
@@ -63,10 +72,10 @@ export default function Sidebar() {
               </li>
             ))}
             <li>
-              <NavLink to="/" className="exit-link">
+              <a href="#" className="exit-link" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
                 <LogOut size={20} />
                 <span>Exit Admin</span>
-              </NavLink>
+              </a>
             </li>
           </ul>
         </div>
