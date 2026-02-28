@@ -370,6 +370,31 @@ export const ticketsApi = {
   }) => api.put(`/tickets/${id}`, data),
 };
 
+// Support API (for SUPPORT role users)
+export const supportApi = {
+  getDashboardStats: () => api.get('/support/dashboard-stats'),
+
+  getTickets: (params?: {
+    status?: string;
+    priority?: string;
+  }) => api.get('/support/tickets', { params }),
+
+  getTicket: (id: string) => api.get(`/support/tickets/${id}`),
+
+  updateTicket: (id: string, data: {
+    status?: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+    resolution?: string;
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  }) => api.put(`/support/tickets/${id}`, data),
+
+  addNote: (ticketId: string, data: {
+    content: string;
+    isInternal?: boolean;
+  }) => api.post(`/support/tickets/${ticketId}/notes`, data),
+
+  getNotes: (ticketId: string) => api.get(`/support/tickets/${ticketId}/notes`),
+};
+
 // KYC (Didit) API — 60s for createSession (cold start + Didit can be slow). Must redeploy frontend for change to apply.
 export const kycApi = {
   getStatus: () => api.get('/kyc', { timeout: 15000 }),
@@ -501,6 +526,15 @@ export const adminApi = {
   // Admin Orders
   getAdminOrders: (params?: Record<string, any>) =>
     api.get('/admin/orders', { params }),
+
+  // User role management
+  updateUserRole: (userId: string, role: string) =>
+    api.put(`/admin/users/${userId}/role`, { role }),
+
+  // Ticket assignment
+  getSupportUsers: () => api.get('/admin/support-users'),
+  assignTicket: (ticketId: string, assignedTo: string | null) =>
+    api.put(`/admin/tickets/${ticketId}/assign`, { assignedTo }),
 };
 
 // ============================================================

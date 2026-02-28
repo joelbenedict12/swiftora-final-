@@ -12,7 +12,7 @@ const router = Router();
 
 // Middleware to check if user is admin
 const requireAdmin = async (req: AuthRequest, res: any, next: any) => {
-    if (!req.user || req.user.email !== 'admin@admin.com') {
+    if (!req.user || (req.user.email !== 'admin@admin.com' && req.user.role !== 'ADMIN')) {
         throw new AppError(403, 'Admin access required');
     }
     next();
@@ -459,6 +459,64 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
     }
 });
 
+// Update user role (admin)
+router.put('/users/:id/role', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { role } = req.body;
+        const validRoles = ['USER', 'MANAGER', 'SUPPORT', 'ADMIN', 'VIEWER'];
+
+        if (!role || !validRoles.includes(role)) {
+            throw new AppError(400, `role must be one of: ${validRoles.join(', ')}`);
+        }
+
+        // Prevent changing own role
+        if (req.params.id === req.user!.id) {
+            throw new AppError(400, 'Cannot change your own role');
+        }
+
+        const user = await prisma.user.update({
+            where: { id: req.params.id },
+            data: { role: role as any },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+            },
+        });
+
+        res.json({ success: true, user });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get all SUPPORT users (for ticket assignment dropdown)
+router.get('/support-users', authenticate, requireAdmin, async (_req, res, next) => {
+    try {
+        const supportUsers = await prisma.user.findMany({
+            where: { role: 'SUPPORT', isActive: true },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                _count: {
+                    select: {
+                        assignedTickets: {
+                            where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+                        },
+                    },
+                },
+            },
+            orderBy: { name: 'asc' },
+        });
+
+        res.json({ users: supportUsers });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Get all vendors/merchants (admin)
 router.get('/vendors', authenticate, requireAdmin, async (req, res, next) => {
     try {
@@ -530,6 +588,21 @@ router.get('/tickets', authenticate, requireAdmin, async (req, res, next) => {
                         customerName: true,
                         status: true,
                     },
+                },
+                assignedUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                notes: {
+                    include: {
+                        user: {
+                            select: { name: true, email: true, role: true },
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' as const },
                 },
             },
             orderBy: { createdAt: 'desc' },
@@ -610,6 +683,42 @@ router.put('/tickets/:id', authenticate, requireAdmin, async (req: AuthRequest, 
             success: true,
             ticket,
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Assign ticket to a SUPPORT user (admin only)
+router.put('/tickets/:id/assign', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { assignedTo } = req.body;
+
+        // Allow unassigning (null)
+        if (assignedTo !== null && assignedTo !== undefined) {
+            // Verify the target user exists and is a SUPPORT user
+            const supportUser = await prisma.user.findFirst({
+                where: { id: assignedTo, role: 'SUPPORT', isActive: true },
+            });
+
+            if (!supportUser) {
+                throw new AppError(400, 'Target user is not a valid active SUPPORT user');
+            }
+        }
+
+        const ticket = await prisma.ticket.update({
+            where: { id: req.params.id },
+            data: { assignedTo: assignedTo || null },
+            include: {
+                assignedUser: {
+                    select: { id: true, name: true, email: true },
+                },
+                merchant: {
+                    select: { companyName: true, email: true },
+                },
+            },
+        });
+
+        res.json({ success: true, ticket });
     } catch (error) {
         next(error);
     }

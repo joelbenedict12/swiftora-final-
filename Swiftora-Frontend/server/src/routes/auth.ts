@@ -159,8 +159,9 @@ router.post('/login', async (req, res, next) => {
       },
     });
 
-    // Check if user is admin
-    const isAdmin = user.email === 'admin@admin.com';
+    // Check if user is admin or support
+    const isAdmin = user.email === 'admin@admin.com' || user.role === 'ADMIN';
+    const isSupport = user.role === 'SUPPORT';
 
     res.json({
       token,
@@ -171,6 +172,7 @@ router.post('/login', async (req, res, next) => {
         role: user.role,
         merchantId: user.merchantId,
         isAdmin,
+        isSupport,
         merchant: user.merchant ? {
           id: user.merchant.id,
           companyName: user.merchant.companyName,
@@ -225,6 +227,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
         role: user.role,
         merchantId: user.merchantId,
         isActive: user.isActive,
+        isAdmin: user.email === 'admin@admin.com' || user.role === 'ADMIN',
+        isSupport: user.role === 'SUPPORT',
         merchant: user.merchant,
       },
     });

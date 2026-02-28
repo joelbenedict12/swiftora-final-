@@ -12,10 +12,22 @@ export default function Tickets() {
   const [resolution, setResolution] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [supportUsers, setSupportUsers] = useState<any[]>([]);
+  const [assigningTicketId, setAssigningTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     loadTickets();
+    loadSupportUsers();
   }, [statusFilter, priorityFilter]);
+
+  const loadSupportUsers = async () => {
+    try {
+      const response = await adminApi.getSupportUsers();
+      setSupportUsers(response.data.users || []);
+    } catch (err) {
+      console.error("Failed to load support users", err);
+    }
+  };
 
   const loadTickets = async () => {
     try {
@@ -63,6 +75,19 @@ export default function Tickets() {
       loadTickets();
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Failed to update ticket");
+    }
+  };
+
+  const handleAssign = async (ticketId: string, userId: string | null) => {
+    try {
+      setAssigningTicketId(ticketId);
+      await adminApi.assignTicket(ticketId, userId);
+      toast.success(userId ? "Ticket assigned" : "Ticket unassigned");
+      loadTickets();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to assign ticket");
+    } finally {
+      setAssigningTicketId(null);
     }
   };
 
@@ -152,6 +177,7 @@ export default function Tickets() {
                 <th>Subject</th>
                 <th>Priority</th>
                 <th>Status</th>
+                <th>Assigned To</th>
                 <th>SLA</th>
                 <th>Actions</th>
               </tr>
@@ -183,13 +209,27 @@ export default function Tickets() {
                     </span>
                   </td>
                   <td>
+                    <select
+                      className="filter-select"
+                      style={{ minWidth: "130px", padding: "4px 8px", fontSize: "0.85em" }}
+                      value={ticket.assignedUser?.id || ""}
+                      disabled={assigningTicketId === ticket.id}
+                      onChange={(e) => handleAssign(ticket.id, e.target.value || null)}
+                    >
+                      <option value="">Unassigned</option>
+                      {supportUsers.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.name || u.email} ({u._count?.assignedTickets || 0})</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
                     <span
                       className={
                         ticket.sla === "Overdue"
                           ? "text-red-600 font-semibold"
                           : ticket.sla === "Resolved"
-                          ? "text-green-600"
-                          : "text-gray-600"
+                            ? "text-green-600"
+                            : "text-gray-600"
                       }
                     >
                       {ticket.sla}
@@ -256,7 +296,7 @@ export default function Tickets() {
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>📋 Ticket Details</h3>
-              <button 
+              <button
                 className="modal-close"
                 onClick={() => {
                   setShowDetailsDialog(false);
@@ -266,7 +306,7 @@ export default function Tickets() {
                 ✕
               </button>
             </div>
-            
+
             <div className="ticket-details-grid">
               {/* Ticket Info Section */}
               <div className="detail-section">
@@ -297,8 +337,8 @@ export default function Tickets() {
                     selectedTicket.sla === "Overdue"
                       ? "text-red-600 fw-medium"
                       : selectedTicket.sla === "Resolved"
-                      ? "text-green-600"
-                      : ""
+                        ? "text-green-600"
+                        : ""
                   }>
                     {selectedTicket.sla}
                   </span>
@@ -343,6 +383,30 @@ export default function Tickets() {
               </div>
             </div>
 
+            {/* Assignment Section */}
+            <div className="detail-section full-width">
+              <h4>👤 Assign to Support</h4>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <select
+                  className="filter-select"
+                  style={{ minWidth: "200px" }}
+                  value={selectedTicket.assignedUser?.id || ""}
+                  onChange={(e) => {
+                    handleAssign(selectedTicket.id, e.target.value || null);
+                    setSelectedTicket({ ...selectedTicket, assignedUser: supportUsers.find((u: any) => u.id === e.target.value) || null });
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {supportUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.name || u.email} ({u._count?.assignedTickets || 0} active)</option>
+                  ))}
+                </select>
+                {selectedTicket.assignedUser && (
+                  <span style={{ color: "#64748b", fontSize: "0.85em" }}>Currently: {selectedTicket.assignedUser.name || selectedTicket.assignedUser.email}</span>
+                )}
+              </div>
+            </div>
+
             {/* Subject & Description */}
             <div className="detail-section full-width">
               <h4>Subject</h4>
@@ -366,6 +430,24 @@ export default function Tickets() {
                     Resolved on {formatDate(selectedTicket.resolvedAt)}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Internal Notes */}
+            {selectedTicket.notes && selectedTicket.notes.length > 0 && (
+              <div className="detail-section full-width" style={{ marginTop: "1rem" }}>
+                <h4>📝 Internal Notes ({selectedTicket.notes.length})</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto" }}>
+                  {selectedTicket.notes.map((note: any) => (
+                    <div key={note.id} style={{ background: "#f8fafc", padding: "0.75rem", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <strong style={{ fontSize: "0.85em" }}>{note.user?.name || note.user?.email} ({note.user?.role})</strong>
+                        <span style={{ fontSize: "0.8em", color: "#94a3b8" }}>{formatDate(note.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: "0.9em" }}>{note.content}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -433,7 +515,7 @@ export default function Tickets() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Resolve Ticket</h3>
-              <button 
+              <button
                 className="modal-close"
                 onClick={() => {
                   setShowResolveDialog(false);

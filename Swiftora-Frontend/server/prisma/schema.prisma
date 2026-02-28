@@ -29,6 +29,8 @@ model User {
   pickups       Pickup[]
   passwordResets PasswordReset[]
   tickets       Ticket[]
+  assignedTickets Ticket[] @relation("TicketAssignee")
+  ticketNotes   TicketNote[]
   
   @@index([merchantId])
   @@index([email])
@@ -38,6 +40,7 @@ model User {
 enum UserRole {
   ADMIN
   MANAGER
+  SUPPORT
   USER
   VIEWER
 }
@@ -478,6 +481,10 @@ model Ticket {
   orderId         String?
   order           Order?         @relation(fields: [orderId], references: [id])
   
+  // Assignment
+  assignedTo      String?
+  assignedUser    User?          @relation("TicketAssignee", fields: [assignedTo], references: [id])
+  
   type            TicketType
   subject         String
   description     String
@@ -496,12 +503,29 @@ model Ticket {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   
+  notes           TicketNote[]
+  
   @@index([merchantId])
   @@index([userId])
   @@index([orderId])
+  @@index([assignedTo])
   @@index([status])
   @@index([priority])
   @@index([createdAt])
+}
+
+model TicketNote {
+  id          String   @id @default(cuid())
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  content     String
+  isInternal  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  @@index([ticketId])
+  @@index([userId])
 }
 
 enum TicketType {

@@ -9,6 +9,7 @@ interface User {
   role: string;
   merchantId?: string;
   isAdmin?: boolean;
+  isSupport?: boolean;
   merchant?: {
     id: string;
     companyName: string;

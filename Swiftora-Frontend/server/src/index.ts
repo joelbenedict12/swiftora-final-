@@ -20,6 +20,7 @@ import { ticketsRouter } from './routes/tickets.js';
 import { billingRouter } from './routes/billing.js';
 import { paymentsRouter } from './routes/payments.js';
 import { shopifyRouter } from './routes/shopify.js';
+import { supportRouter } from './routes/support.js';
 
 dotenv.config();
 
@@ -173,6 +174,7 @@ app.use('/api/tickets', ticketsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/shopify', shopifyRouter);
+app.use('/api/support', supportRouter);
 
 // ============================================================
 // SERVE FRONTEND STATIC FILES (SPA)

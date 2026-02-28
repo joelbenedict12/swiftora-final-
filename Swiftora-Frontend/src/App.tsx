@@ -51,6 +51,11 @@ import AdminAnalytics from "./pages/admin/Analytics";
 import AdminRateCards from "./pages/admin/RateCards";
 import AdminInvoices from "./pages/admin/Invoices";
 
+// Support imports
+import SupportLayout from "./components/support/SupportLayout";
+import SupportDashboard from "./pages/support/SupportDashboard";
+import SupportTickets from "./pages/support/SupportTickets";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -124,6 +129,12 @@ const App = () => (
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="rate-cards" element={<AdminRateCards />} />
             <Route path="invoices" element={<AdminInvoices />} />
+          </Route>
+
+          {/* Support Routes */}
+          <Route path="/support" element={<SupportLayout />}>
+            <Route index element={<SupportDashboard />} />
+            <Route path="tickets" element={<SupportTickets />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

@@ -92,9 +92,11 @@ const Login = () => {
       toast.success("Login successful! Welcome back.");
       setLoginData({ email: "", password: "" });
 
-      // Redirect admin users to admin dashboard, others to regular dashboard
+      // Redirect based on role: admin → /admin, support → /support, others → /dashboard
       if (loggedInUser?.isAdmin) {
         navigate("/admin");
+      } else if (loggedInUser?.isSupport) {
+        navigate("/support");
       } else {
         navigate("/dashboard");
       }

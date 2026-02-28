@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { adminApi } from "../../lib/api";
+import { toast } from "sonner";
 import "./Pages.css";
 
 interface User {
@@ -20,6 +21,7 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -63,6 +65,29 @@ export default function Users() {
     setFilteredUsers(result);
   }, [users, searchTerm, roleFilter, statusFilter]);
 
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      setUpdatingRoleId(userId);
+      await adminApi.updateUserRole(userId, newRole);
+      // Update local state
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      toast.success(`User role updated to ${newRole}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to update role");
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  const getRoleBadgeClass = (role: string) => {
+    switch (role?.toUpperCase()) {
+      case 'ADMIN': return 'admin';
+      case 'SUPPORT': return 'support';
+      case 'MANAGER': return 'manager';
+      default: return 'user';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="page-container">
@@ -94,6 +119,7 @@ export default function Users() {
           <option value="all">All Roles</option>
           <option value="user">User</option>
           <option value="manager">Manager</option>
+          <option value="support">Support</option>
           <option value="admin">Admin</option>
         </select>
         <select
@@ -118,6 +144,7 @@ export default function Users() {
               <th>Company</th>
               <th>Status</th>
               <th>Joined</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -128,7 +155,7 @@ export default function Users() {
                   <td>{user.email}</td>
                   <td>{user.phone || '-'}</td>
                   <td>
-                    <span className={`role-badge ${user.role?.toLowerCase()}`}>
+                    <span className={`role-badge ${getRoleBadgeClass(user.role)}`}>
                       {user.role || 'User'}
                     </span>
                   </td>
@@ -139,11 +166,26 @@ export default function Users() {
                     </span>
                   </td>
                   <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <select
+                      className="filter-select"
+                      style={{ minWidth: "110px", padding: "4px 8px", fontSize: "0.85em" }}
+                      value={user.role || "USER"}
+                      disabled={updatingRoleId === user.id}
+                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                    >
+                      <option value="USER">User</option>
+                      <option value="MANAGER">Manager</option>
+                      <option value="SUPPORT">Support</option>
+                      <option value="ADMIN">Admin</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="no-data-cell">
+                <td colSpan={8} className="no-data-cell">
                   {searchTerm || roleFilter !== "all" || statusFilter !== "all"
                     ? "No users match your filters"
                     : "No users found"}
