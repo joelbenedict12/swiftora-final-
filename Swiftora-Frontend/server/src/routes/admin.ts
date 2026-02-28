@@ -11,9 +11,9 @@ import * as BillingService from '../services/billingService.js';
 const router = Router();
 
 // Middleware to check if user is admin
-const requireAdmin = async (req: AuthRequest, res: any, next: any) => {
+const requireAdmin = (req: AuthRequest, res: any, next: any) => {
     if (!req.user || (req.user.email !== 'admin@admin.com' && req.user.role !== 'ADMIN')) {
-        throw new AppError(403, 'Admin access required');
+        return next(new AppError(403, 'Admin access required'));
     }
     next();
 };
