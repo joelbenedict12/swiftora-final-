@@ -29,7 +29,19 @@ type Remittance = {
     merchant: { companyName: string; email: string };
 };
 
-const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+const fmtINR = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+const statusBadgeStyle: Record<string, React.CSSProperties> = {
+    PENDING: { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600 },
+    RECEIVED_FROM_COURIER: { background: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600 },
+    PAID_TO_VENDOR: { background: "#dcfce7", color: "#166534", border: "1px solid #86efac", padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600 },
+};
+
+const statusLabel: Record<string, string> = {
+    PENDING: "⏳ Pending",
+    RECEIVED_FROM_COURIER: "📦 Received",
+    PAID_TO_VENDOR: "✅ Paid",
+};
 
 export default function CodRemittance() {
     const [stats, setStats] = useState<AdminStats | null>(null);
@@ -83,7 +95,6 @@ export default function CodRemittance() {
             });
             toast.success("Marked as received from courier");
             setDialogMode(null);
-            setSelectedId(null);
             loadData();
         } catch (err: any) {
             toast.error(err?.response?.data?.error || "Failed to update");
@@ -99,220 +110,283 @@ export default function CodRemittance() {
             });
             toast.success("Marked as paid to vendor");
             setDialogMode(null);
-            setSelectedId(null);
             loadData();
         } catch (err: any) {
             toast.error(err?.response?.data?.error || "Failed to update");
         }
     };
 
-    const openReceiveDialog = (id: string) => {
-        setSelectedId(id);
-        setCourierCharges("0");
-        setPlatformFee("0");
-        setDialogMode("receive");
-    };
-
-    const openPayDialog = (id: string) => {
-        setSelectedId(id);
-        setTxnId("");
-        setRemRef("");
-        setDialogMode("pay");
-    };
-
-    const statusBadge = (status: string) => {
-        const map: Record<string, { label: string; cls: string }> = {
-            PENDING: { label: "Pending", cls: "status-badge pending" },
-            RECEIVED_FROM_COURIER: { label: "Received", cls: "status-badge active" },
-            PAID_TO_VENDOR: { label: "Paid", cls: "status-badge completed" },
-        };
-        const s = map[status] || map.PENDING;
-        return <span className={s.cls}>{s.label}</span>;
-    };
+    if (isLoading && !stats) {
+        return <div className="page-container"><div className="loading-state">Loading COD Remittance data...</div></div>;
+    }
 
     return (
-        <div className="admin-page">
+        <div className="page-container">
+            {/* Header */}
             <div className="page-header">
-                <h1>COD Remittance Management</h1>
-                <p>Track and manage COD settlements across all vendors</p>
+                <h2>COD Remittance</h2>
+                <button className="action-btn btn-view" style={{ padding: "0.5rem 1rem" }} onClick={loadData}>
+                    ↻ Refresh
+                </button>
+            </div>
+            <p style={{ color: "#666", marginBottom: 20, fontSize: 14 }}>
+                Track and manage COD settlements across all vendors
+            </p>
+
+            {/* Stats Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+                {[
+                    { label: "Total COD Collected", value: fmtINR(stats?.totalCod || 0), color: "#1e293b", bg: "#f8fafc", border: "#e2e8f0" },
+                    { label: "Pending Settlement", value: fmtINR(stats?.pendingSettlement || 0), color: "#d97706", bg: "#fffbeb", border: "#fcd34d" },
+                    { label: "Total Paid", value: fmtINR(stats?.totalPaid || 0), color: "#059669", bg: "#f0fdf4", border: "#86efac" },
+                    { label: "Platform Earnings", value: fmtINR(stats?.platformEarnings || 0), color: "#7c3aed", bg: "#faf5ff", border: "#c4b5fd" },
+                ].map((stat, i) => (
+                    <div key={i} style={{
+                        background: stat.bg, border: `1px solid ${stat.border}`, borderRadius: 12, padding: "20px 24px",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                            {stat.label}
+                        </div>
+                        <div style={{ fontSize: 28, fontWeight: 700, color: stat.color }}>
+                            {stat.value}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Stats */}
-            <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-                <div className="stat-card">
-                    <div className="stat-label">Total COD Collected</div>
-                    <div className="stat-value">{fmt(stats?.totalCod || 0)}</div>
-                </div>
-                <div className="stat-card" style={{ borderColor: "#f59e0b" }}>
-                    <div className="stat-label">Pending Settlement</div>
-                    <div className="stat-value" style={{ color: "#f59e0b" }}>{fmt(stats?.pendingSettlement || 0)}</div>
-                </div>
-                <div className="stat-card" style={{ borderColor: "#10b981" }}>
-                    <div className="stat-label">Total Paid</div>
-                    <div className="stat-value" style={{ color: "#10b981" }}>{fmt(stats?.totalPaid || 0)}</div>
-                </div>
-                <div className="stat-card" style={{ borderColor: "#6366f1" }}>
-                    <div className="stat-label">Platform Earnings</div>
-                    <div className="stat-value" style={{ color: "#6366f1" }}>{fmt(stats?.platformEarnings || 0)}</div>
-                </div>
+            {/* Filter Bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Search AWB / Order..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (() => { setPage(1); loadData(); })()}
+                    style={{
+                        padding: "8px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14,
+                        width: 240, outline: "none",
+                    }}
+                />
+                <select
+                    value={statusFilter}
+                    onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                    style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, cursor: "pointer" }}
+                >
+                    <option value="all">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="RECEIVED_FROM_COURIER">Received</option>
+                    <option value="PAID_TO_VENDOR">Paid</option>
+                </select>
+                <select
+                    value={courierFilter}
+                    onChange={(e) => { setCourierFilter(e.target.value); setPage(1); }}
+                    style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14, cursor: "pointer" }}
+                >
+                    <option value="all">All Couriers</option>
+                    <option value="Delhivery">Delhivery</option>
+                    <option value="Blitz">Blitz</option>
+                    <option value="Ekart">Ekart</option>
+                    <option value="Xpressbees">Xpressbees</option>
+                </select>
             </div>
 
-            {/* Filters */}
-            <div className="table-container">
-                <div className="table-header">
-                    <h2>All Remittances</h2>
-                    <div className="table-actions">
-                        <input
-                            type="text"
-                            placeholder="Search AWB / Order..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && (() => { setPage(1); loadData(); })()}
-                            className="search-input"
-                        />
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                            className="filter-select"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="PENDING">Pending</option>
-                            <option value="RECEIVED_FROM_COURIER">Received</option>
-                            <option value="PAID_TO_VENDOR">Paid</option>
-                        </select>
-                        <select
-                            value={courierFilter}
-                            onChange={(e) => { setCourierFilter(e.target.value); setPage(1); }}
-                            className="filter-select"
-                        >
-                            <option value="all">All Courier</option>
-                            <option value="Delhivery">Delhivery</option>
-                            <option value="Blitz">Blitz</option>
-                            <option value="Ekart">Ekart</option>
-                            <option value="Xpressbees">Xpressbees</option>
-                        </select>
-                        <button onClick={loadData} className="btn btn-outline" style={{ padding: "6px 12px" }}>↻ Refresh</button>
-                    </div>
-                </div>
-
-                {isLoading ? (
-                    <div className="loading-state">Loading remittances...</div>
-                ) : remittances.length === 0 ? (
-                    <div className="empty-state">
-                        <p>No COD remittance records found</p>
-                        <small>Records are created when COD orders are delivered</small>
-                    </div>
-                ) : (
-                    <>
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Order #</th>
-                                    <th>Vendor</th>
-                                    <th>AWB</th>
-                                    <th>Courier</th>
-                                    <th>COD Amount</th>
-                                    <th>Charges</th>
-                                    <th>Net Payable</th>
-                                    <th>Status</th>
-                                    <th>Transfer Date</th>
-                                    <th>Actions</th>
+            {/* Table */}
+            <div className="data-table-container">
+                <table className="data-table">
+                    <thead>
+                        <tr>
+                            <th>Order #</th>
+                            <th>Vendor</th>
+                            <th>AWB</th>
+                            <th>Courier</th>
+                            <th>COD Amount</th>
+                            <th>Deductions</th>
+                            <th>Net Payable</th>
+                            <th>Status</th>
+                            <th>Transfer Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {remittances.length > 0 ? (
+                            remittances.map((r) => (
+                                <tr key={r.id}>
+                                    <td style={{ fontWeight: 600, color: "#2563eb" }}>{r.order?.orderNumber || "-"}</td>
+                                    <td>
+                                        <div style={{ fontWeight: 500 }}>{r.merchant?.companyName || "-"}</div>
+                                        <div style={{ fontSize: 12, color: "#6b7280" }}>{r.merchant?.email}</div>
+                                    </td>
+                                    <td>
+                                        <code style={{ background: "#f3f4f6", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>
+                                            {r.awbNumber}
+                                        </code>
+                                    </td>
+                                    <td>{r.courierPartner}</td>
+                                    <td style={{ fontWeight: 600 }}>{fmtINR(Number(r.codAmount))}</td>
+                                    <td style={{ color: "#dc2626", fontSize: 13 }}>
+                                        -{fmtINR(Number(r.courierCharges) + Number(r.platformFee))}
+                                        <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                                            C: {fmtINR(Number(r.courierCharges))} | P: {fmtINR(Number(r.platformFee))}
+                                        </div>
+                                    </td>
+                                    <td style={{ fontWeight: 700, color: "#059669" }}>{fmtINR(Number(r.netPayable))}</td>
+                                    <td>
+                                        <span style={statusBadgeStyle[r.status] || statusBadgeStyle.PENDING}>
+                                            {statusLabel[r.status] || r.status}
+                                        </span>
+                                    </td>
+                                    <td style={{ fontSize: 13, color: "#6b7280" }}>
+                                        {r.transferDate ? new Date(r.transferDate).toLocaleDateString("en-IN") : "-"}
+                                    </td>
+                                    <td>
+                                        {r.status === "PENDING" && (
+                                            <button
+                                                className="action-btn btn-edit"
+                                                style={{ padding: "4px 12px", fontSize: 12 }}
+                                                onClick={() => {
+                                                    setSelectedId(r.id);
+                                                    setCourierCharges("0");
+                                                    setPlatformFee("0");
+                                                    setDialogMode("receive");
+                                                }}
+                                            >
+                                                Mark Received
+                                            </button>
+                                        )}
+                                        {r.status === "RECEIVED_FROM_COURIER" && (
+                                            <button
+                                                className="action-btn btn-edit"
+                                                style={{ padding: "4px 12px", fontSize: 12, background: "#059669", color: "#fff" }}
+                                                onClick={() => {
+                                                    setSelectedId(r.id);
+                                                    setTxnId("");
+                                                    setRemRef("");
+                                                    setDialogMode("pay");
+                                                }}
+                                            >
+                                                Mark Paid
+                                            </button>
+                                        )}
+                                        {r.status === "PAID_TO_VENDOR" && (
+                                            <span style={{ color: "#059669", fontSize: 13, fontWeight: 500 }}>✓ Settled</span>
+                                        )}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {remittances.map((r) => (
-                                    <tr key={r.id}>
-                                        <td className="font-medium">{r.order?.orderNumber || "-"}</td>
-                                        <td>{r.merchant?.companyName || "-"}</td>
-                                        <td><code style={{ fontSize: "12px", background: "#f3f4f6", padding: "2px 6px", borderRadius: "4px" }}>{r.awbNumber}</code></td>
-                                        <td>{r.courierPartner}</td>
-                                        <td className="font-semibold">{fmt(Number(r.codAmount))}</td>
-                                        <td style={{ color: "#dc2626", fontSize: "13px" }}>
-                                            -{fmt(Number(r.courierCharges) + Number(r.platformFee))}
-                                        </td>
-                                        <td className="font-semibold" style={{ color: "#059669" }}>{fmt(Number(r.netPayable))}</td>
-                                        <td>{statusBadge(r.status)}</td>
-                                        <td style={{ fontSize: "13px" }}>{r.transferDate ? new Date(r.transferDate).toLocaleDateString("en-IN") : "-"}</td>
-                                        <td>
-                                            {r.status === "PENDING" && (
-                                                <button className="btn btn-primary btn-sm" onClick={() => openReceiveDialog(r.id)}>
-                                                    Mark Received
-                                                </button>
-                                            )}
-                                            {r.status === "RECEIVED_FROM_COURIER" && (
-                                                <button className="btn btn-primary btn-sm" style={{ background: "#059669" }} onClick={() => openPayDialog(r.id)}>
-                                                    Mark Paid
-                                                </button>
-                                            )}
-                                            {r.status === "PAID_TO_VENDOR" && (
-                                                <span style={{ color: "#059669", fontSize: "13px" }}>✓ Settled</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {totalPages > 1 && (
-                            <div className="pagination">
-                                <span>Page {page} of {totalPages}</span>
-                                <div>
-                                    <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="btn btn-outline btn-sm">← Prev</button>
-                                    <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="btn btn-outline btn-sm">Next →</button>
-                                </div>
-                            </div>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={10} className="no-data-cell">
+                                    <div style={{ padding: "40px 0", textAlign: "center" }}>
+                                        <div style={{ fontSize: 40, marginBottom: 8 }}>📦</div>
+                                        <div style={{ fontWeight: 600, color: "#374151" }}>No COD remittance records</div>
+                                        <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 4 }}>
+                                            Records are automatically created when COD orders are delivered
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
                         )}
-                    </>
-                )}
+                    </tbody>
+                </table>
             </div>
 
-            {/* Receive Dialog */}
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, padding: "0 4px" }}>
+                    <span style={{ color: "#6b7280", fontSize: 14 }}>Page {page} of {totalPages}</span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <button className="action-btn btn-view" disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ padding: "4px 14px", fontSize: 13 }}>
+                            ← Prev
+                        </button>
+                        <button className="action-btn btn-view" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ padding: "4px 14px", fontSize: 13 }}>
+                            Next →
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* === RECEIVE DIALOG === */}
             {dialogMode === "receive" && (
-                <div className="modal-overlay" onClick={() => setDialogMode(null)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "420px" }}>
-                        <h3>Mark as Received from Courier</h3>
-                        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "16px" }}>
-                            Enter deductions to calculate net payable amount.
+                <div
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+                    onClick={() => setDialogMode(null)}
+                >
+                    <div
+                        style={{ background: "#fff", borderRadius: 16, padding: 28, width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Mark as Received from Courier</h3>
+                        <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 20 }}>
+                            Enter deductions to calculate the net payable amount to the vendor.
                         </p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                             <div>
-                                <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>Courier Charges (₹)</label>
-                                <input type="number" value={courierCharges} onChange={(e) => setCourierCharges(e.target.value)} className="search-input" style={{ width: "100%" }} />
+                                <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: "#374151" }}>Courier Charges (₹)</label>
+                                <input
+                                    type="number"
+                                    value={courierCharges}
+                                    onChange={(e) => setCourierCharges(e.target.value)}
+                                    style={{ width: "100%", padding: "10px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }}
+                                />
                             </div>
                             <div>
-                                <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>Platform Fee (₹)</label>
-                                <input type="number" value={platformFee} onChange={(e) => setPlatformFee(e.target.value)} className="search-input" style={{ width: "100%" }} />
+                                <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: "#374151" }}>Platform Fee (₹)</label>
+                                <input
+                                    type="number"
+                                    value={platformFee}
+                                    onChange={(e) => setPlatformFee(e.target.value)}
+                                    style={{ width: "100%", padding: "10px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }}
+                                />
                             </div>
                         </div>
-                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "20px" }}>
-                            <button className="btn btn-outline" onClick={() => setDialogMode(null)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={handleReceive}>Confirm Receipt</button>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+                            <button className="action-btn btn-view" onClick={() => setDialogMode(null)} style={{ padding: "8px 20px" }}>Cancel</button>
+                            <button className="action-btn btn-edit" onClick={handleReceive} style={{ padding: "8px 20px" }}>Confirm Receipt</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Pay Dialog */}
+            {/* === PAY DIALOG === */}
             {dialogMode === "pay" && (
-                <div className="modal-overlay" onClick={() => setDialogMode(null)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "420px" }}>
-                        <h3>Mark as Paid to Vendor</h3>
-                        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "16px" }}>
-                            Enter transaction details for the settlement.
+                <div
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+                    onClick={() => setDialogMode(null)}
+                >
+                    <div
+                        style={{ background: "#fff", borderRadius: 16, padding: 28, width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Mark as Paid to Vendor</h3>
+                        <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 20 }}>
+                            Enter the transaction details for audit trail.
                         </p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                             <div>
-                                <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>Transaction ID</label>
-                                <input type="text" value={txnId} onChange={(e) => setTxnId(e.target.value)} className="search-input" style={{ width: "100%" }} placeholder="e.g. TXN-123456" />
+                                <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: "#374151" }}>Transaction ID</label>
+                                <input
+                                    type="text"
+                                    value={txnId}
+                                    onChange={(e) => setTxnId(e.target.value)}
+                                    placeholder="e.g. TXN-123456"
+                                    style={{ width: "100%", padding: "10px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }}
+                                />
                             </div>
                             <div>
-                                <label style={{ fontSize: "13px", fontWeight: 600, display: "block", marginBottom: "4px" }}>Remittance Reference</label>
-                                <input type="text" value={remRef} onChange={(e) => setRemRef(e.target.value)} className="search-input" style={{ width: "100%" }} placeholder="e.g. REM-2026-001" />
+                                <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: "#374151" }}>Remittance Reference</label>
+                                <input
+                                    type="text"
+                                    value={remRef}
+                                    onChange={(e) => setRemRef(e.target.value)}
+                                    placeholder="e.g. REM-2026-001"
+                                    style={{ width: "100%", padding: "10px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 14 }}
+                                />
                             </div>
                         </div>
-                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "20px" }}>
-                            <button className="btn btn-outline" onClick={() => setDialogMode(null)}>Cancel</button>
-                            <button className="btn btn-primary" style={{ background: "#059669" }} onClick={handlePay}>Confirm Payment</button>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+                            <button className="action-btn btn-view" onClick={() => setDialogMode(null)} style={{ padding: "8px 20px" }}>Cancel</button>
+                            <button className="action-btn btn-edit" onClick={handlePay} style={{ padding: "8px 20px", background: "#059669", color: "#fff" }}>Confirm Payment</button>
                         </div>
                     </div>
                 </div>
