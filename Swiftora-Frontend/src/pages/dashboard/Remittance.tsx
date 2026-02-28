@@ -1,269 +1,287 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  DollarSign,
   Search,
   Download,
-  FileText,
   Calendar,
   Package,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  IndianRupee,
+  TrendingUp,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { codRemittanceApi } from "@/lib/api";
+
+type Stats = {
+  totalCod: number;
+  totalPending: number;
+  totalPaid: number;
+  totalPlatformFee: number;
+  totalCourierCharges: number;
+  totalRecords: number;
+};
+
+type Remittance = {
+  id: string;
+  awbNumber: string;
+  courierPartner: string;
+  codAmount: string;
+  courierCharges: string;
+  platformFee: string;
+  netPayable: string;
+  status: string;
+  remittanceRef: string | null;
+  transactionId: string | null;
+  transferDate: string | null;
+  createdAt: string;
+  order: {
+    orderNumber: string;
+    customerName: string;
+    status: string;
+  };
+};
+
+const fmt = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
+  PENDING: { label: "Pending", color: "bg-orange-100 text-orange-700 border-orange-200", icon: Clock },
+  RECEIVED_FROM_COURIER: { label: "Received", color: "bg-blue-100 text-blue-700 border-blue-200", icon: Package },
+  PAID_TO_VENDOR: { label: "Paid", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle2 },
+};
 
 const Remittance = () => {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [remittances, setRemittances] = useState<Remittance[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [courierFilter, setCourierFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  // Sample remittance data
-  const remittances = [
-    {
-      id: "REM-001",
-      remittanceNumber: "DEL123456789",
-      awbNumber: "DEL123456789",
-      transactionId: "TXN-20250115-001",
-      dateOfTransfer: "2025-01-15",
-      status: "Completed",
-      shipmentDetails: {
-        orderId: "ORD-12345",
-        customer: "John Doe",
-        destination: "Mumbai, MH - 400001",
-        codAmount: "₹1,250",
-        weight: "0.5 kg",
-        courier: "Delhivery"
-      },
-      amount: "₹1,250"
-    },
-    {
-      id: "REM-002",
-      remittanceNumber: "BLU987654321",
-      awbNumber: "BLU987654321",
-      transactionId: "TXN-20250115-002",
-      dateOfTransfer: "2025-01-15",
-      status: "Pending",
-      shipmentDetails: {
-        orderId: "ORD-12346",
-        customer: "Jane Smith",
-        destination: "Delhi, DL - 110001",
-        codAmount: "₹890",
-        weight: "0.8 kg",
-        courier: "BlueDart"
-      },
-      amount: "₹890"
-    },
-    {
-      id: "REM-003",
-      remittanceNumber: "DEL987654321",
-      awbNumber: "DEL987654321",
-      transactionId: "TXN-20250114-001",
-      dateOfTransfer: "2025-01-14",
-      status: "Completed",
-      shipmentDetails: {
-        orderId: "RTO-12348",
-        customer: "Sarah Williams",
-        destination: "Pune, MH - 411001",
-        codAmount: "₹750",
-        weight: "0.3 kg",
-        courier: "Delhivery"
-      },
-      amount: "₹750"
-    }
-  ];
-
-  const getStatusBadge = (status: string) => {
-    if (status === "Completed") {
-      return (
-        <Badge className="bg-[blue-600]/20 text-[blue-600] border-gray-200">
-          <CheckCircle2 className="w-3 h-3 mr-1" />
-          Completed
-        </Badge>
-      );
-    } else if (status === "Pending") {
-      return (
-        <Badge className="bg-[orange-600]/20 text-[orange-600] border-orange-200">
-          <Clock className="w-3 h-3 mr-1" />
-          Pending
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge className="bg-foreground/10 text-foreground/60 border-foreground/20">
-          <AlertCircle className="w-3 h-3 mr-1" />
-          {status}
-        </Badge>
-      );
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [statsRes, listRes] = await Promise.all([
+        codRemittanceApi.stats(),
+        codRemittanceApi.list({
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          courier: courierFilter !== "all" ? courierFilter : undefined,
+          search: searchQuery || undefined,
+          page,
+          limit: 15,
+        }),
+      ]);
+      setStats(statsRes.data);
+      setRemittances(listRes.data.remittances);
+      setTotalPages(listRes.data.totalPages || 1);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Failed to load COD remittance data");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleExportRemittance = (remittanceId: string) => {
-    toast.success(`Remittance ${remittanceId} exported successfully`);
+  useEffect(() => {
+    loadData();
+  }, [statusFilter, courierFilter, page]);
+
+  const handleSearch = () => {
+    setPage(1);
+    loadData();
   };
 
-  const filteredRemittances = remittances.filter((remittance) => {
-    const matchesSearch =
-      remittance.remittanceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      remittance.awbNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      remittance.transactionId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      remittance.shipmentDetails.orderId.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || remittance.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalRemittance = remittances
-    .filter(r => r.status === "Completed")
-    .reduce((sum, r) => sum + parseFloat(r.amount.replace('₹', '').replace(',', '')), 0);
-
-  const pendingRemittance = remittances
-    .filter(r => r.status === "Pending")
-    .reduce((sum, r) => sum + parseFloat(r.amount.replace('₹', '').replace(',', '')), 0);
+  if (isLoading && !stats) {
+    return (
+      <div className="p-6 text-center py-12">
+        <p className="text-muted-foreground">Loading COD Remittance...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-[blue-600] to-[orange-600] bg-clip-text text-transparent mb-2">
-          Remittance Management
-        </h1>
-        <p className="text-foreground/70 text-lg">Track COD remittances and transfers</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">COD Remittance</h1>
+          <p className="text-muted-foreground mt-1">Track your Cash on Delivery settlements</p>
+        </div>
+        <Button onClick={loadData} variant="outline" className="gap-2">
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white border border-gray-200 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-sm font-semibold uppercase tracking-wide text-foreground/70">
-              Total Remittance
-            </CardDescription>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide">Total COD</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-[blue-600]">₹{totalRemittance.toLocaleString('en-IN')}</div>
-            <p className="text-sm text-foreground/60 mt-1">Completed transfers</p>
+            <div className="text-2xl font-bold text-gray-900">{fmt(stats?.totalCod || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Collected from orders</p>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-orange-200 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-sm font-semibold uppercase tracking-wide text-foreground/70">
-              Pending Remittance
-            </CardDescription>
+        <Card className="border-orange-200">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide">Pending</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-[orange-600]">₹{pendingRemittance.toLocaleString('en-IN')}</div>
-            <p className="text-sm text-foreground/60 mt-1">Awaiting transfer</p>
+            <div className="text-2xl font-bold text-orange-600">{fmt(stats?.totalPending || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Awaiting settlement</p>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-gray-200 shadow-lg">
-          <CardHeader className="pb-3">
-            <CardDescription className="text-sm font-semibold uppercase tracking-wide text-foreground/70">
-              Total Records
-            </CardDescription>
+        <Card className="border-green-200">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide">Paid</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground">{remittances.length}</div>
-            <p className="text-sm text-foreground/60 mt-1">All remittances</p>
+            <div className="text-2xl font-bold text-green-600">{fmt(stats?.totalPaid || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Settled to you</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide">Platform Fee</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-700">{fmt(stats?.totalPlatformFee || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Service charges</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide">Courier Charges</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-700">{fmt(stats?.totalCourierCharges || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Courier deductions</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Remittance Table */}
-      <Card className="bg-white border border-gray-200 shadow-lg">
-        <CardHeader className="border-b border-gray-200">
+      {/* Filters + Table */}
+      <Card>
+        <CardHeader className="border-b">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <CardTitle className="text-xl font-bold text-foreground">Remittance Records</CardTitle>
-              <CardDescription className="mt-1 text-foreground/70">AWB number = Remittance number</CardDescription>
+              <CardTitle>Remittance Records</CardTitle>
+              <CardDescription>COD settlement details for all delivered orders</CardDescription>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-foreground/40" />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="Search by AWB, Transaction ID..."
+                  placeholder="Search AWB or Order..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-background/50 border-gray-200 focus:border-[blue-600] text-foreground"
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  className="pl-10 w-56"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px] bg-background/50 border-gray-200 text-foreground">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-gray-200">
+              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="RECEIVED_FROM_COURIER">Received</SelectItem>
+                  <SelectItem value="PAID_TO_VENDOR">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={courierFilter} onValueChange={(v) => { setCourierFilter(v); setPage(1); }}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Courier" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Courier</SelectItem>
+                  <SelectItem value="Delhivery">Delhivery</SelectItem>
+                  <SelectItem value="Blitz">Blitz</SelectItem>
+                  <SelectItem value="Ekart">Ekart</SelectItem>
+                  <SelectItem value="Xpressbees">Xpressbees</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
-          <div className="rounded-md border border-gray-200 overflow-x-auto bg-white border border-gray-200">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gradient-to-r from-[blue-600]/10 to-[blue-600]/5 border-b border-gray-200">
-                  <TableHead className="text-foreground">Remittance Number (AWB)</TableHead>
-                  <TableHead className="text-foreground">Transaction ID</TableHead>
-                  <TableHead className="text-foreground">Date of Transfer</TableHead>
-                  <TableHead className="text-foreground">Shipment Details</TableHead>
-                  <TableHead className="text-foreground">Amount</TableHead>
-                  <TableHead className="text-foreground">Status</TableHead>
-                  <TableHead className="text-foreground">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRemittances.map((remittance) => (
-                  <TableRow key={remittance.id} className="hover:bg-blue-50 border-b border-gray-200">
-                    <TableCell className="font-medium text-foreground">
-                      {remittance.remittanceNumber}
-                    </TableCell>
-                    <TableCell className="text-foreground/80">{remittance.transactionId}</TableCell>
-                    <TableCell className="text-foreground/80">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-[blue-600]" />
-                        {remittance.dateOfTransfer}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium text-foreground">
-                          <Package className="w-3 h-3 inline mr-1" />
-                          {remittance.shipmentDetails.orderId}
-                        </div>
-                        <div className="text-xs text-foreground/60">
-                          {remittance.shipmentDetails.customer} • {remittance.shipmentDetails.destination}
-                        </div>
-                        <div className="text-xs text-foreground/60">
-                          COD: {remittance.shipmentDetails.codAmount} • {remittance.shipmentDetails.weight} • {remittance.shipmentDetails.courier}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-semibold text-foreground">{remittance.amount}</TableCell>
-                    <TableCell>{getStatusBadge(remittance.status)}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-200 hover:bg-[blue-600]/10"
-                        onClick={() => handleExportRemittance(remittance.id)}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+        <CardContent className="p-0">
+          {remittances.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Package className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">No COD remittance records</p>
+              <p className="text-xs mt-1">Records will appear when COD orders are delivered</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead>Order #</TableHead>
+                      <TableHead>AWB</TableHead>
+                      <TableHead>Courier</TableHead>
+                      <TableHead>COD Amount</TableHead>
+                      <TableHead>Deductions</TableHead>
+                      <TableHead>Net Payable</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Transfer Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {remittances.map((r) => {
+                      const sc = statusConfig[r.status] || statusConfig.PENDING;
+                      const StatusIcon = sc.icon;
+                      return (
+                        <TableRow key={r.id} className="hover:bg-blue-50/30">
+                          <TableCell className="font-medium text-blue-600">{r.order?.orderNumber || "-"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs">{r.awbNumber || "-"}</Badge>
+                          </TableCell>
+                          <TableCell>{r.courierPartner}</TableCell>
+                          <TableCell className="font-semibold">{fmt(Number(r.codAmount))}</TableCell>
+                          <TableCell className="text-sm text-red-600">
+                            -{fmt(Number(r.courierCharges) + Number(r.platformFee))}
+                          </TableCell>
+                          <TableCell className="font-semibold text-green-700">{fmt(Number(r.netPayable))}</TableCell>
+                          <TableCell>
+                            <Badge className={`${sc.color} gap-1`}>
+                              <StatusIcon className="w-3 h-3" /> {sc.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {r.transferDate ? new Date(r.transferDate).toLocaleDateString("en-IN") : "-"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t">
+                  <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                      <ChevronLeft className="w-4 h-4" /> Prev
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                      Next <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -271,4 +289,3 @@ const Remittance = () => {
 };
 
 export default Remittance;
-

@@ -31,6 +31,7 @@ import RestrictedItems from "./pages/dashboard/RestrictedItems";
 import RTOPredictor from "./pages/dashboard/RTOPredictor";
 import TermsAndConditions from "./pages/dashboard/TermsAndConditions";
 import ChannelIntegration from "./pages/dashboard/ChannelIntegration";
+import Remittance from "./pages/dashboard/Remittance";
 
 import AnalyticsReports from "./pages/dashboard/AnalyticsReports";
 import BusinessSuccessRate from "./pages/dashboard/BusinessSuccessRate";
@@ -50,6 +51,7 @@ import AdminIntegrations from "./pages/admin/Integrations";
 import AdminAnalytics from "./pages/admin/Analytics";
 import AdminRateCards from "./pages/admin/RateCards";
 import AdminInvoices from "./pages/admin/Invoices";
+import AdminCodRemittance from "./pages/admin/CodRemittance";
 
 // Support imports
 import SupportLayout from "./components/support/SupportLayout";
@@ -115,6 +117,7 @@ const App = () => (
               element={<BusinessSuccessRate />}
             />
             <Route path="all-products" element={<AllProducts />} />
+            <Route path="cod-remittance" element={<Remittance />} />
           </Route>
 
           {/* Admin Routes */}
@@ -129,6 +132,7 @@ const App = () => (
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="rate-cards" element={<AdminRateCards />} />
             <Route path="invoices" element={<AdminInvoices />} />
+            <Route path="cod-remittance" element={<AdminCodRemittance />} />
           </Route>
 
           {/* Support Routes */}

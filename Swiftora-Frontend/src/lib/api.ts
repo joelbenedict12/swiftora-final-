@@ -548,3 +548,23 @@ export const shopifyApi = {
   syncOrders: () => api.post('/shopify/sync'),
   updateSettings: (data: { autoFulfill: boolean }) => api.put('/shopify/settings', data),
 };
+
+// ============================================================
+// COD REMITTANCE API
+// ============================================================
+
+export const codRemittanceApi = {
+  // Vendor endpoints
+  stats: () => api.get('/cod-remittance/stats'),
+  list: (params?: { status?: string; courier?: string; startDate?: string; endDate?: string; search?: string; page?: number; limit?: number }) =>
+    api.get('/cod-remittance/list', { params }),
+
+  // Admin endpoints
+  adminStats: () => api.get('/cod-remittance/admin/stats'),
+  adminList: (params?: { status?: string; courier?: string; merchantId?: string; startDate?: string; endDate?: string; search?: string; page?: number; limit?: number }) =>
+    api.get('/cod-remittance/admin/list', { params }),
+  markReceived: (id: string, data: { courierCharges: number; platformFee: number }) =>
+    api.put(`/cod-remittance/admin/${id}/receive`, data),
+  markPaid: (id: string, data: { transactionId?: string; remittanceRef?: string }) =>
+    api.put(`/cod-remittance/admin/${id}/pay`, data),
+};

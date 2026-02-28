@@ -25,6 +25,7 @@ export default function Sidebar() {
     { to: "/admin/vendors", icon: Store, label: "Vendors" },
     { to: "/admin/tickets", icon: Ticket, label: "Tickets" },
     { to: "/admin/payments", icon: CreditCard, label: "Payments" },
+    { to: "/admin/cod-remittance", icon: Wallet, label: "COD Remittance" },
     { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
     { to: "/admin/rate-cards", icon: Wallet, label: "Rate Cards" },
     { to: "/admin/invoices", icon: FileText, label: "Invoices" },

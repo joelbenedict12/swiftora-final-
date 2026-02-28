@@ -113,6 +113,7 @@ model Merchant {
   creditLedgerEntries CreditLedger[]
   monthlyInvoices   MonthlyInvoice[]
   shopifyConnections ShopifyConnection[]
+  codRemittances    CodRemittance[]
   
   @@index([email])
 }
@@ -248,6 +249,7 @@ model Order {
   tickets           Ticket[]
   walletTransactions WalletTransaction[]
   creditLedgerEntries CreditLedger[]
+  codRemittance     CodRemittance?
   
   @@index([merchantId])
   @@index([userId])
@@ -681,4 +683,39 @@ model ShopifyConnection {
   @@unique([merchantId, shopDomain])
   @@index([merchantId])
   @@index([shopDomain])
+}
+
+// COD Remittance - separate from wallet
+model CodRemittance {
+  id               String              @id @default(cuid())
+  merchantId       String
+  merchant         Merchant            @relation(fields: [merchantId], references: [id])
+  orderId          String              @unique
+  order            Order               @relation(fields: [orderId], references: [id])
+  
+  awbNumber        String
+  courierPartner   String
+  codAmount        Decimal             @db.Decimal(10, 2)
+  courierCharges   Decimal             @default(0) @db.Decimal(10, 2)
+  platformFee      Decimal             @default(0) @db.Decimal(10, 2)
+  netPayable       Decimal             @default(0) @db.Decimal(10, 2)
+  
+  status           CodRemittanceStatus @default(PENDING)
+  remittanceRef    String?
+  transactionId    String?
+  transferDate     DateTime?
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@index([merchantId])
+  @@index([status])
+  @@index([awbNumber])
+  @@index([createdAt])
+}
+
+enum CodRemittanceStatus {
+  PENDING
+  RECEIVED_FROM_COURIER
+  PAID_TO_VENDOR
 }

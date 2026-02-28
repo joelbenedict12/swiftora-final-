@@ -154,6 +154,7 @@ const DashboardLayout = () => {
     { name: "Tracking", href: "/dashboard/tracking", icon: Truck },
 
     { name: "Billing & Wallet", href: "/dashboard/billing", icon: Wallet },
+    { name: "COD Remittance", href: "/dashboard/cod-remittance", icon: CreditCard },
     { name: "Pickup Management", href: "/dashboard/pickup", icon: MapPin },
     {
       name: "Support & Disputes",
