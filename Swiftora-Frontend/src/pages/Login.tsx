@@ -73,7 +73,13 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (_hasHydrated && user && token) {
-      navigate("/dashboard", { replace: true });
+      if (user.isAdmin) {
+        navigate("/admin", { replace: true });
+      } else if (user.isSupport) {
+        navigate("/support", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     }
   }, [user, token, _hasHydrated, navigate]);
 

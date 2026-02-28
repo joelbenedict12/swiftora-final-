@@ -50,6 +50,18 @@ export const ProtectedRoute = ({ children, requiredRoles }: ProtectedRouteProps)
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    // Redirect admin/support users away from the customer dashboard
+    // They should use their role-specific dashboards instead
+    const isOnCustomerDashboard = location.pathname.startsWith('/dashboard');
+    if (isOnCustomerDashboard) {
+        if (user.isAdmin) {
+            return <Navigate to="/admin" replace />;
+        }
+        if (user.isSupport) {
+            return <Navigate to="/support" replace />;
+        }
+    }
+
     // Check role-based access
     if (requiredRoles && requiredRoles.length > 0) {
         if (!requiredRoles.includes(user.role)) {
