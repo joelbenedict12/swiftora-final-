@@ -834,30 +834,11 @@ const B2CFastForm = ({
                   </Alert>
                 )}
 
-                {/* Cost Breakdown */}
-                <div className="space-y-2 pt-2 border-t border-blue-100">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Shipping (est.)</span>
-                    <span className="font-semibold text-blue-600">₹{costs.shipping.toFixed(2)}</span>
-                  </div>
-                  {formData.paymentMode === "cod" && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">COD Charges</span>
-                      <span className="font-semibold text-blue-600">₹{costs.cod.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {formData.giftWrap && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Gift Wrap</span>
-                      <span className="font-semibold text-blue-600">₹50.00</span>
-                    </div>
-                  )}
-                  <div className="border-t border-blue-100 pt-2">
-                    <div className="flex justify-between font-semibold text-base">
-                      <span>Total (est.)</span>
-                      <span className="text-blue-600">₹{costs.total.toFixed(2)}</span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1">Final cost shown when you ship</p>
+                {/* Pricing Note */}
+                <div className="pt-2 border-t border-blue-100">
+                  <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg">
+                    <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-blue-500" />
+                    <span>Shipping cost will be calculated when you select a courier during shipping.</span>
                   </div>
                 </div>
 
