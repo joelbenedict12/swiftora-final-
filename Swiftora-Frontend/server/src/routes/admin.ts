@@ -1084,7 +1084,7 @@ router.get('/settings', authenticate, requireAdmin, async (_req, res, next) => {
 
 router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
     try {
-        const { platform_commission_percent, min_recharge_amount, platform_qr_url } = req.body;
+        const { platform_commission_percent, min_recharge_amount, platform_qr_url, qc_charge } = req.body;
 
         if (platform_commission_percent !== undefined) {
             await CommissionService.updateCommissionPercent(Number(platform_commission_percent));
@@ -1094,6 +1094,9 @@ router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res
         }
         if (platform_qr_url !== undefined) {
             await CommissionService.updateQrUrl(String(platform_qr_url));
+        }
+        if (qc_charge !== undefined) {
+            await CommissionService.updateQcCharge(Number(qc_charge));
         }
 
         const settings = await CommissionService.getAllSettings();

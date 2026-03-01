@@ -11,14 +11,23 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { AppError } from '../middleware/error.js';
 import { createReverseShipment } from '../services/ReverseShipmentService.js';
+import { getQcCharge } from '../services/commissionService.js';
 
 const router = Router();
 router.use(authenticate);
 
+// ── QC Settings (for frontend) ───────────────────────────────
+router.get('/settings', async (_req: AuthRequest, res, next) => {
+    try {
+        const qcCharge = await getQcCharge();
+        res.json({ qcCharge });
+    } catch (e) { next(e); }
+});
+
 // ── Initiate Reverse Pickup ──────────────────────────────────
 router.post('/:orderId', async (req: AuthRequest, res, next) => {
     try {
-        const { reason, pickupDate, phone, address } = req.body;
+        const { reason, pickupDate, phone, address, qcRequired } = req.body;
         if (!reason) throw new AppError(400, 'Reverse reason is required');
 
         // Verify order belongs to this vendor (or admin)
@@ -30,7 +39,7 @@ router.post('/:orderId', async (req: AuthRequest, res, next) => {
         }
 
         const result = await createReverseShipment(
-            { forwardOrderId: req.params.orderId, reason, pickupDate, phone, address },
+            { forwardOrderId: req.params.orderId, reason, pickupDate, phone, address, qcRequired: qcRequired === true },
             req.user?.id,
         );
 

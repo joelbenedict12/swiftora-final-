@@ -6,6 +6,7 @@ export default function Settings() {
   const [commission, setCommission] = useState("");
   const [minRecharge, setMinRecharge] = useState("");
   const [qrUrl, setQrUrl] = useState("");
+  const [qcCharge, setQcCharge] = useState("15");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -18,6 +19,7 @@ export default function Settings() {
         setCommission(s.platform_commission_percent || "15");
         setMinRecharge(s.min_recharge_amount || "500");
         setQrUrl(s.platform_qr_url || "");
+        setQcCharge(s.qc_charge || "15");
       } catch (err) {
         console.error("Failed to load settings:", err);
       } finally {
@@ -35,6 +37,7 @@ export default function Settings() {
         platform_commission_percent: Number(commission),
         min_recharge_amount: Number(minRecharge),
         platform_qr_url: qrUrl,
+        qc_charge: Number(qcCharge),
       });
       setMessage("Settings saved successfully!");
     } catch (err: any) {
@@ -87,6 +90,21 @@ export default function Settings() {
           />
           <small style={{ color: "#666" }}>
             Vendors must recharge at least this amount
+          </small>
+        </div>
+        <div className="form-group">
+          <label>QC Charge (₹) — Reverse Pickup</label>
+          <input
+            type="number"
+            className="form-input"
+            value={qcCharge}
+            onChange={(e) => setQcCharge(e.target.value)}
+            min="0"
+            max="100"
+            step="1"
+          />
+          <small style={{ color: "#666" }}>
+            Quality check charge applied when QC is enabled for reverse pickups (₹0–100)
           </small>
         </div>
       </div>

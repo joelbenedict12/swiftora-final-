@@ -15,13 +15,15 @@ import { createDelhiveryReverse } from './reverse/DelhiveryReverse.js';
 import { createXpressbeesReverse } from './reverse/XpressbeesReverse.js';
 import { createBlitzReverse } from './reverse/BlitzReverse.js';
 import { createInnofulfillReverse } from './reverse/InnofulfillReverse.js';
+import { getQcCharge } from './commissionService.js';
 
 export interface ReverseRequest {
     forwardOrderId: string;
     reason: string;
     pickupDate?: string;
-    phone?: string;        // updated phone for reverse pickup
-    address?: string;      // updated address for reverse pickup
+    phone?: string;
+    address?: string;
+    qcRequired?: boolean;
 }
 
 export interface ReverseResponse {
@@ -72,10 +74,17 @@ export async function createReverseShipment(
         return { success: false, message: `Active reverse shipment already exists: ${existingReverse.orderNumber} (AWB: ${existingReverse.awbNumber || 'pending'})` };
     }
 
-    // 5) Generate unique reverse order number
+    // 5) Resolve QC charge
+    const qcRequired = req.qcRequired === true;
+    let qcChargeAmount = 0;
+    if (qcRequired) {
+        qcChargeAmount = await getQcCharge();
+    }
+
+    // 6) Generate unique reverse order number
     const reverseOrderNumber = `RVP-${forward.orderNumber}-${Date.now().toString(36).toUpperCase()}`;
 
-    // 6) Create the reverse order record (initially PENDING)
+    // 7) Create the reverse order record (initially PENDING)
     const reverseOrder = await prisma.order.create({
         data: {
             orderNumber: reverseOrderNumber,
@@ -85,6 +94,8 @@ export async function createReverseShipment(
             shipmentType: 'REVERSE',
             parentOrderId: forward.id,
             reverseReason: req.reason,
+            qcRequired,
+            qcCharge: qcRequired ? qcChargeAmount : null,
             // For reverse: customer address = pickup, warehouse = delivery
             customerName: forward.customerName,
             customerPhone: req.phone || forward.customerPhone,
@@ -96,7 +107,7 @@ export async function createReverseShipment(
             productName: forward.productName,
             productValue: forward.productValue,
             quantity: forward.quantity,
-            paymentMode: 'PREPAID', // Reverse is always prepaid (no COD collection)
+            paymentMode: 'PREPAID',
             weight: forward.weight,
             length: forward.length,
             breadth: forward.breadth,
@@ -150,7 +161,7 @@ export async function createReverseShipment(
             success: true,
             reverseOrderId: reverseOrder.id,
             awbNumber: result.awbNumber,
-            message: `Reverse pickup booked! AWB: ${result.awbNumber}`,
+            message: `Reverse pickup booked! AWB: ${result.awbNumber}${qcRequired ? ` (QC: ₹${qcChargeAmount})` : ''}`,
             raw: result.raw,
         };
     } else {

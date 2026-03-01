@@ -491,6 +491,7 @@ export const adminApi = {
     platform_commission_percent?: number;
     min_recharge_amount?: number;
     platform_qr_url?: string;
+    qc_charge?: number;
   }) => api.put('/admin/settings', data),
 
   // Vendor Pause
@@ -591,7 +592,8 @@ export const ndrApi = {
 // ============================================================
 
 export const reverseApi = {
-  initiate: (orderId: string, data: { reason: string; pickupDate?: string; phone?: string; address?: string }) =>
+  settings: () => api.get('/reverse/settings'),
+  initiate: (orderId: string, data: { reason: string; pickupDate?: string; phone?: string; address?: string; qcRequired?: boolean }) =>
     api.post(`/reverse/${orderId}`, data),
   list: (params?: { status?: string; page?: number; limit?: number }) =>
     api.get('/reverse', { params }),

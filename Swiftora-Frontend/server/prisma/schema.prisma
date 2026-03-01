@@ -175,6 +175,8 @@ model Order {
   parentOrder       Order?      @relation("ReverseShipments", fields: [parentOrderId], references: [id])
   reverseShipments  Order[]     @relation("ReverseShipments")
   reverseReason     String?
+  qcRequired        Boolean     @default(false)
+  qcCharge          Decimal?    @db.Decimal(10, 2)
   
   // Customer
   customerName      String

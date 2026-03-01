@@ -243,6 +243,8 @@ const Orders = () => {
   const [selectedOrderForReverse, setSelectedOrderForReverse] = useState<Order | null>(null);
   const [reverseForm, setReverseForm] = useState({ reason: '', pickupDate: '', phone: '', address: '' });
   const [isCreatingReverse, setIsCreatingReverse] = useState(false);
+  const [qcEnabled, setQcEnabled] = useState(false);
+  const [qcChargeValue, setQcChargeValue] = useState(15);
 
   // Per-row order details (accordion)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -1253,7 +1255,10 @@ const Orders = () => {
                                 onClick={() => {
                                   setSelectedOrderForReverse(order);
                                   setReverseForm({ reason: '', pickupDate: '', phone: '', address: '' });
+                                  setQcEnabled(false);
                                   setShowReverseModal(true);
+                                  // Fetch QC charge setting
+                                  reverseApi.settings().then(r => setQcChargeValue(r.data.qcCharge || 15)).catch(() => { });
                                 }}
                                 className="gap-2 text-purple-600"
                               >
@@ -2480,6 +2485,28 @@ const Orders = () => {
                 rows={2}
               />
             </div>
+            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+              <div>
+                <Label className="text-sm font-medium">QC Required?</Label>
+                <p className="text-xs text-muted-foreground">Quality check on return (₹{qcChargeValue})</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={qcEnabled}
+                onClick={() => setQcEnabled(!qcEnabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${qcEnabled ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${qcEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+              </button>
+            </div>
+            {qcEnabled && (
+              <div className="text-xs text-purple-700 bg-purple-50/50 px-3 py-2 rounded border border-purple-100">
+                QC Charge: <strong>₹{qcChargeValue}</strong> will be added to the reverse shipment cost.
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setShowReverseModal(false)}>
                 Cancel
@@ -2496,6 +2523,7 @@ const Orders = () => {
                       pickupDate: reverseForm.pickupDate || undefined,
                       phone: reverseForm.phone || undefined,
                       address: reverseForm.address || undefined,
+                      qcRequired: qcEnabled,
                     });
                     if (res.data.success) {
                       toast.success(res.data.message || 'Reverse pickup initiated!');
