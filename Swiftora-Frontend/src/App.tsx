@@ -52,6 +52,7 @@ import AdminAnalytics from "./pages/admin/Analytics";
 import AdminRateCards from "./pages/admin/RateCards";
 import AdminInvoices from "./pages/admin/Invoices";
 import AdminCodRemittance from "./pages/admin/CodRemittance";
+import AdminNdrCases from "./pages/admin/NdrCases";
 
 // Support imports
 import SupportLayout from "./components/support/SupportLayout";
@@ -133,6 +134,7 @@ const App = () => (
             <Route path="rate-cards" element={<AdminRateCards />} />
             <Route path="invoices" element={<AdminInvoices />} />
             <Route path="cod-remittance" element={<AdminCodRemittance />} />
+            <Route path="ndr-cases" element={<AdminNdrCases />} />
           </Route>
 
           {/* Support Routes */}

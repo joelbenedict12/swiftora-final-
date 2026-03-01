@@ -8,6 +8,7 @@ import { xpressbeesService } from '../services/courier/XpressbeesService.js';
 import { ekartService } from '../services/courier/EkartService.js';
 import { innofulfillService } from '../services/courier/InnofulfillService.js';
 import { createCodRemittanceIfNeeded } from './codRemittance.js';
+import { createNdrCaseIfNeeded } from '../services/NdrService.js';
 
 const router = Router();
 
@@ -73,6 +74,10 @@ async function syncActiveOrderStatuses(merchantId: string): Promise<void> {
               // Auto-create COD remittance when order is delivered
               if (newStatus === 'DELIVERED') {
                 await createCodRemittanceIfNeeded(order.id);
+              }
+              // Auto-create NDR case when delivery fails
+              if (newStatus === 'NDR_PENDING') {
+                await createNdrCaseIfNeeded(order.id, rawStatus || undefined);
               }
             }
           }

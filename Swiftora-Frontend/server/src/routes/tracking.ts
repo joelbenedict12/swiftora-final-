@@ -7,6 +7,7 @@ import { blitzService } from '../services/courier/BlitzService.js';
 import { xpressbeesService } from '../services/courier/XpressbeesService.js';
 import { ekartService } from '../services/courier/EkartService.js';
 import { innofulfillService } from '../services/courier/InnofulfillService.js';
+import { createNdrCaseIfNeeded } from '../services/NdrService.js';
 
 const router = Router();
 
@@ -29,6 +30,11 @@ async function syncOrderStatusFromTracking(awb: string, rawStatus: string): Prom
         },
       });
       console.log(`Synced order ${order.orderNumber} status to ${status} (from tracking: ${rawStatus})`);
+
+      // Auto-create NDR case when delivery fails
+      if (status === 'NDR_PENDING') {
+        await createNdrCaseIfNeeded(order.id, rawStatus);
+      }
     } else {
       console.warn(`syncOrderStatusFromTracking: no order found for AWB ${awbTrimmed}, status was: ${rawStatus}`);
     }

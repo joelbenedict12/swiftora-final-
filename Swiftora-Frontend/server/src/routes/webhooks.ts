@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { courierStatusToOrderStatus } from '../lib/orderStatus.js';
+import { createNdrCaseIfNeeded } from '../services/NdrService.js';
 
 const router = Router();
 
@@ -8,10 +9,10 @@ const router = Router();
 router.post('/delhivery', async (req, res, next) => {
   try {
     const data = req.body;
-    
+
     // Validate webhook signature if provided
     // const signature = req.headers['x-delhivery-signature'];
-    
+
     if (!data.waybill) {
       return res.status(400).json({ error: 'Missing waybill' });
     }
@@ -55,6 +56,12 @@ router.post('/delhivery', async (req, res, next) => {
     });
 
     console.log(`Webhook processed for AWB ${data.waybill}: ${statusCode}`);
+
+    // Auto-create NDR case when delivery fails
+    if (newStatus === 'NDR_PENDING') {
+      await createNdrCaseIfNeeded(order.id, statusCode);
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Webhook error:', error);

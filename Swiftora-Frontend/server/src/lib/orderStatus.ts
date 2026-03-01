@@ -15,7 +15,8 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'RTO'
   | 'RTO_DELIVERED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'NDR_PENDING';
 
 const OUT_FOR_PICKUP_ALIASES = [
   'out for pickup',
@@ -157,8 +158,21 @@ export function courierStatusToOrderStatus(raw: string | null | undefined): Orde
 
   if (matchesAny(n, CANCELLED_ALIASES)) return 'CANCELLED';
 
+  // NDR aliases — must be checked BEFORE generic FAILED
+  const NDR_ALIASES = [
+    'failed delivery', 'ndr', 'customer unavailable', 'address issue',
+    'delivery attempt failed', 'customer refused', 'wrong address',
+    'customer not available', 'incomplete address', 'door locked',
+    'customer wants open delivery', 'entry restricted',
+    'phn', // Xpressbees: phone not reachable
+    'cna', // Xpressbees: customer not available
+    'ofd-ndr', 'ndr raised', 'ndr initiated', 'ndr pending',
+    'consignee refused', 'refused delivery', 'refused by customer',
+  ];
+  if (matchesAny(n, NDR_ALIASES)) return 'NDR_PENDING';
+
   if (n === 'ready to ship' || n === 'ready_to_ship') return 'READY_TO_SHIP';
-  if (n === 'failed' || n === 'delivery failed' || n === 'undelivered') return 'FAILED';
+  if (n === 'failed' || n === 'delivery failed' || n === 'undelivered') return 'NDR_PENDING';
 
   return null;
 }

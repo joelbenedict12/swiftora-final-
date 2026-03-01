@@ -63,7 +63,7 @@ import {
   Copy,
   Upload,
 } from "lucide-react";
-import { ordersApi, warehousesApi, ticketsApi, trackingApi } from "@/lib/api";
+import { ordersApi, warehousesApi, ticketsApi, trackingApi, ndrApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
@@ -150,7 +150,7 @@ const statusBadgeVariant = (status: string) => {
     return "outline" as const;
   if (["PENDING", "PROCESSING", "MANIFESTED"].includes(normalized))
     return "default" as const;
-  if (["RTO", "RTO_DELIVERED", "FAILED", "CANCELLED"].includes(normalized))
+  if (["RTO", "RTO_DELIVERED", "FAILED", "CANCELLED", "NDR_PENDING"].includes(normalized))
     return "destructive" as const;
   return "outline" as const;
 };
@@ -1003,6 +1003,7 @@ const Orders = () => {
                   <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="rto">RTO</SelectItem>
+                  <SelectItem value="ndr_pending">NDR Pending</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
@@ -1064,211 +1065,211 @@ const Orders = () => {
                       className="hover:bg-muted/50 cursor-pointer align-top"
                       onClick={() => toggleOrderDetails(order)}
                     >
-                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
-                    <TableCell>
-                      <div>{order.customerName || "-"}</div>
-                      <div className="text-sm text-muted-foreground">{order.customerPhone || "-"}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span>
-                          {[order.shippingCity, order.shippingState, order.shippingPincode]
-                            .filter(Boolean)
-                            .join(", ") || "-"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {order.courierName ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
-                          {COURIER_CONFIG[order.courierName]?.label || order.courierName}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
-                        {formatStatus(order.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{order.awbNumber || "-"}</TableCell>
-                    <TableCell>
-                      {order.paymentMode === "COD"
-                        ? `₹${Number(order.codAmount || 0).toFixed(0)}`
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">
-                      {order.createdAt
-                        ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {!order.awbNumber && !order.warehouseId && (
-                            <DropdownMenuItem
-                              onClick={() => openPickupModal(order)}
-                              className="gap-2"
+                      <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
+                      <TableCell>
+                        <div>{order.customerName || "-"}</div>
+                        <div className="text-sm text-muted-foreground">{order.customerPhone || "-"}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span>
+                            {[order.shippingCity, order.shippingState, order.shippingPincode]
+                              .filter(Boolean)
+                              .join(", ") || "-"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {order.courierName ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${COURIER_CONFIG[order.courierName]?.color || 'bg-gray-100 text-gray-700'}`}>
+                            {COURIER_CONFIG[order.courierName]?.label || order.courierName}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
+                          {formatStatus(order.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{order.awbNumber || "-"}</TableCell>
+                      <TableCell>
+                        {order.paymentMode === "COD"
+                          ? `₹${Number(order.codAmount || 0).toFixed(0)}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <Building className="h-4 w-4" />
-                              Assign Pickup Location
-                            </DropdownMenuItem>
-                          )}
-                          {!order.awbNumber && order.warehouseId && (
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {!order.awbNumber && !order.warehouseId && (
+                              <DropdownMenuItem
+                                onClick={() => openPickupModal(order)}
+                                className="gap-2"
+                              >
+                                <Building className="h-4 w-4" />
+                                Assign Pickup Location
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && order.warehouseId && (
+                              <DropdownMenuItem
+                                onClick={() => openPickupModal(order)}
+                                className="gap-2"
+                              >
+                                <Building className="h-4 w-4" />
+                                Change Pickup Location
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'DELHIVERY', 'Delhivery', () => shipAndShowPickup(order.id, 'DELHIVERY'))}
+                                disabled={shippingOrderId === order.id}
+                                className="gap-2 text-blue-600"
+                              >
+                                <Send className="h-4 w-4" />
+                                {shippingOrderId === order.id ? "Shipping..." : "Ship to Delhivery"}
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'BLITZ', 'Blitz', () => shipAndShowPickup(order.id, 'BLITZ'))}
+                                disabled={shippingOrderId === order.id}
+                                className="gap-2 text-orange-600"
+                              >
+                                <Zap className="h-4 w-4" />
+                                {shippingOrderId === order.id ? "Shipping..." : "Ship to Blitz"}
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'EKART', 'Ekart', () => openEkartDateModal(order))}
+                                className="gap-2 text-purple-600"
+                              >
+                                <ShoppingCart className="h-4 w-4" />
+                                Ship to Ekart
+                              </DropdownMenuItem>
+                            )}
+                            {/* Xpressbees option */}
+                            {!order.awbNumber && order.warehouse && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'XPRESSBEES', 'Xpressbees', () => openXpressbeesModal(order))}
+                                className="gap-2 text-green-600"
+                              >
+                                <Truck className="h-4 w-4" />
+                                Ship via Xpressbees
+                              </DropdownMenuItem>
+                            )}
+                            {/* Delhivery with options */}
+                            {!order.awbNumber && order.warehouse && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'DELHIVERY', 'Delhivery (Surface/Express)', () => openDelhiveryModal(order))}
+                                className="gap-2 text-indigo-600"
+                              >
+                                <Package className="h-4 w-4" />
+                                Delhivery (Surface/Express)
+                              </DropdownMenuItem>
+                            )}
+                            {/* Innofulfill option (Surface/Air choice) */}
+                            {!order.awbNumber && order.warehouse && (
+                              <DropdownMenuItem
+                                onClick={() => confirmAndShip(order.id, 'INNOFULFILL', 'Innofulfill', () => openInnofulfillModal(order))}
+                                disabled={shippingOrderId === order.id}
+                                className="gap-2 text-teal-600"
+                              >
+                                <Truck className="h-4 w-4" />
+                                {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill (Surface/Air)"}
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && (
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => openEditModal(order)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Edit Order
+                              </DropdownMenuItem>
+                            )}
+                            {order.awbNumber && (
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => navigate(`/dashboard/tracking?awb=${encodeURIComponent(order.awbNumber!)}`)}
+                              >
+                                <Truck className="h-4 w-4" />
+                                Track Shipment
+                              </DropdownMenuItem>
+                            )}
+                            {order.awbNumber && (
+                              <DropdownMenuItem
+                                onClick={() => handleGenerateShippingLabel(order)}
+                                disabled={generatingLabelId === order.id}
+                                className="gap-2"
+                              >
+                                {generatingLabelId === order.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <FileDown className="h-4 w-4" />
+                                )}
+                                Generate Shipping Label
+                              </DropdownMenuItem>
+                            )}
+                            {order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
+                              <DropdownMenuItem
+                                onClick={() => openCancelDialog(order)}
+                                className="gap-2 text-red-600"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Cancel Order
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
-                              onClick={() => openPickupModal(order)}
-                              className="gap-2"
-                            >
-                              <Building className="h-4 w-4" />
-                              Change Pickup Location
-                            </DropdownMenuItem>
-                          )}
-                          {!order.awbNumber && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'DELHIVERY', 'Delhivery', () => shipAndShowPickup(order.id, 'DELHIVERY'))}
-                              disabled={shippingOrderId === order.id}
-                              className="gap-2 text-blue-600"
-                            >
-                              <Send className="h-4 w-4" />
-                              {shippingOrderId === order.id ? "Shipping..." : "Ship to Delhivery"}
-                            </DropdownMenuItem>
-                          )}
-                          {!order.awbNumber && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'BLITZ', 'Blitz', () => shipAndShowPickup(order.id, 'BLITZ'))}
-                              disabled={shippingOrderId === order.id}
-                              className="gap-2 text-orange-600"
-                            >
-                              <Zap className="h-4 w-4" />
-                              {shippingOrderId === order.id ? "Shipping..." : "Ship to Blitz"}
-                            </DropdownMenuItem>
-                          )}
-                          {!order.awbNumber && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'EKART', 'Ekart', () => openEkartDateModal(order))}
-                              className="gap-2 text-purple-600"
-                            >
-                              <ShoppingCart className="h-4 w-4" />
-                              Ship to Ekart
-                            </DropdownMenuItem>
-                          )}
-                          {/* Xpressbees option */}
-                          {!order.awbNumber && order.warehouse && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'XPRESSBEES', 'Xpressbees', () => openXpressbeesModal(order))}
-                              className="gap-2 text-green-600"
-                            >
-                              <Truck className="h-4 w-4" />
-                              Ship via Xpressbees
-                            </DropdownMenuItem>
-                          )}
-                          {/* Delhivery with options */}
-                          {!order.awbNumber && order.warehouse && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'DELHIVERY', 'Delhivery (Surface/Express)', () => openDelhiveryModal(order))}
-                              className="gap-2 text-indigo-600"
-                            >
-                              <Package className="h-4 w-4" />
-                              Delhivery (Surface/Express)
-                            </DropdownMenuItem>
-                          )}
-                          {/* Innofulfill option (Surface/Air choice) */}
-                          {!order.awbNumber && order.warehouse && (
-                            <DropdownMenuItem
-                              onClick={() => confirmAndShip(order.id, 'INNOFULFILL', 'Innofulfill', () => openInnofulfillModal(order))}
-                              disabled={shippingOrderId === order.id}
-                              className="gap-2 text-teal-600"
-                            >
-                              <Truck className="h-4 w-4" />
-                              {shippingOrderId === order.id ? "Shipping..." : "Ship via Innofulfill (Surface/Air)"}
-                            </DropdownMenuItem>
-                          )}
-                          {!order.awbNumber && (
-                            <DropdownMenuItem
-                              className="gap-2"
-                              onClick={() => openEditModal(order)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                              Edit Order
-                            </DropdownMenuItem>
-                          )}
-                          {order.awbNumber && (
-                            <DropdownMenuItem
-                              className="gap-2"
-                              onClick={() => navigate(`/dashboard/tracking?awb=${encodeURIComponent(order.awbNumber!)}`)}
-                            >
-                              <Truck className="h-4 w-4" />
-                              Track Shipment
-                            </DropdownMenuItem>
-                          )}
-                          {order.awbNumber && (
-                            <DropdownMenuItem
-                              onClick={() => handleGenerateShippingLabel(order)}
-                              disabled={generatingLabelId === order.id}
-                              className="gap-2"
-                            >
-                              {generatingLabelId === order.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <FileDown className="h-4 w-4" />
-                              )}
-                              Generate Shipping Label
-                            </DropdownMenuItem>
-                          )}
-                          {order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
-                            <DropdownMenuItem
-                              onClick={() => openCancelDialog(order)}
-                              className="gap-2 text-red-600"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              Cancel Order
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={() => {
-                              navigate("/dashboard/create-order", {
-                                state: {
-                                  cloneFrom: {
-                                    customerName: order.customerName,
-                                    customerPhone: order.customerPhone,
-                                    shippingAddress: order.shippingAddress,
-                                    shippingCity: order.shippingCity,
-                                    shippingState: order.shippingState,
-                                    shippingPincode: order.shippingPincode,
-                                    paymentMode: order.paymentMode,
-                                    codAmount: order.codAmount,
-                                    warehouseId: order.warehouseId,
+                              onClick={() => {
+                                navigate("/dashboard/create-order", {
+                                  state: {
+                                    cloneFrom: {
+                                      customerName: order.customerName,
+                                      customerPhone: order.customerPhone,
+                                      shippingAddress: order.shippingAddress,
+                                      shippingCity: order.shippingCity,
+                                      shippingState: order.shippingState,
+                                      shippingPincode: order.shippingPincode,
+                                      paymentMode: order.paymentMode,
+                                      codAmount: order.codAmount,
+                                      warehouseId: order.warehouseId,
+                                    },
                                   },
-                                },
-                              });
-                            }}
-                            className="gap-2"
-                          >
-                            <Copy className="h-4 w-4" />
-                            Clone Order
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => openTicketModal(order)}
-                            className="gap-2 text-amber-600"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                            Raise Ticket
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>,
+                                });
+                              }}
+                              className="gap-2"
+                            >
+                              <Copy className="h-4 w-4" />
+                              Clone Order
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openTicketModal(order)}
+                              className="gap-2 text-amber-600"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Raise Ticket
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>,
                     isExpanded && (
                       <TableRow key={`${order.id}-details`} className="bg-muted/40">
                         <TableCell colSpan={9}>

@@ -250,6 +250,7 @@ model Order {
   walletTransactions WalletTransaction[]
   creditLedgerEntries CreditLedger[]
   codRemittance     CodRemittance?
+  ndrCase           NdrCase?
   
   @@index([merchantId])
   @@index([userId])
@@ -281,6 +282,7 @@ enum OrderStatus {
   RTO
   RTO_DELIVERED
   FAILED
+  NDR_PENDING
 }
 
 model Package {
@@ -718,4 +720,24 @@ enum CodRemittanceStatus {
   PENDING
   RECEIVED_FROM_COURIER
   PAID_TO_VENDOR
+}
+
+model NdrCase {
+  id               String   @id @default(cuid())
+  orderId          String   @unique
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  awbNumber        String
+  courierName      String
+  ndrReason        String?
+  actionTaken      String?
+  actionPayload    Json?
+  courierResponse  Json?
+  resolved         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([awbNumber])
+  @@index([courierName])
+  @@index([resolved])
+  @@index([createdAt])
 }

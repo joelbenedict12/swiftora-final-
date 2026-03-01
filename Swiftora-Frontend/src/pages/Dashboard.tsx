@@ -103,17 +103,17 @@ const getStatusBadgeVariant = (status: string) => {
     return "outline" as const;
   if (["PENDING", "PROCESSING", "MANIFESTED"].includes(normalized))
     return "default" as const;
-  if (["RTO", "FAILED"].includes(normalized)) return "destructive" as const;
+  if (["RTO", "FAILED", "NDR_PENDING"].includes(normalized)) return "destructive" as const;
   return "outline" as const;
 };
 
 const formatStatus = (status: string) => {
   return status
     ? status
-        .toLowerCase()
-        .split("_")
-        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-        .join(" ")
+      .toLowerCase()
+      .split("_")
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(" ")
     : "-";
 };
 

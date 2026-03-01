@@ -568,3 +568,20 @@ export const codRemittanceApi = {
   markPaid: (id: string, data: { transactionId?: string; remittanceRef?: string }) =>
     api.put(`/cod-remittance/admin/${id}/pay`, data),
 };
+
+// ============================================================
+// NDR (Non-Delivery Report) API
+// ============================================================
+
+export const ndrApi = {
+  // Vendor
+  stats: () => api.get('/ndr/stats'),
+  list: (params?: { courier?: string; resolved?: string; page?: number; limit?: number }) =>
+    api.get('/ndr', { params }),
+  detail: (orderId: string) => api.get(`/ndr/${orderId}`),
+  action: (orderId: string, data: { action: string; payload?: Record<string, any> }) =>
+    api.post(`/ndr/${orderId}/action`, data),
+
+  // Admin
+  adminStats: () => api.get('/ndr/admin/stats'),
+};
