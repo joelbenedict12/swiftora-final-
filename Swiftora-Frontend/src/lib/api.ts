@@ -585,3 +585,16 @@ export const ndrApi = {
   // Admin
   adminStats: () => api.get('/ndr/admin/stats'),
 };
+
+// ============================================================
+// REVERSE SHIPMENT API
+// ============================================================
+
+export const reverseApi = {
+  initiate: (orderId: string, data: { reason: string; pickupDate?: string; phone?: string; address?: string }) =>
+    api.post(`/reverse/${orderId}`, data),
+  list: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get('/reverse', { params }),
+  detail: (orderId: string) => api.get(`/reverse/${orderId}`),
+  cancel: (orderId: string) => api.post(`/reverse/${orderId}/cancel`),
+};

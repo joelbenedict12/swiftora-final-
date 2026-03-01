@@ -23,6 +23,7 @@ import { shopifyRouter } from './routes/shopify.js';
 import { supportRouter } from './routes/support.js';
 import codRemittanceRouter from './routes/codRemittance.js';
 import { ndrRouter } from './routes/ndr.js';
+import { reverseRouter } from './routes/reverse.js';
 
 dotenv.config();
 
@@ -179,6 +180,7 @@ app.use('/api/shopify', shopifyRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/cod-remittance', codRemittanceRouter);
 app.use('/api/ndr', ndrRouter);
+app.use('/api/reverse', reverseRouter);
 
 // ============================================================
 // SERVE FRONTEND STATIC FILES (SPA)

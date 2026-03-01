@@ -169,6 +169,13 @@ model Order {
   warehouseId       String?
   warehouse         Warehouse?  @relation(fields: [warehouseId], references: [id])
   
+  // Reverse shipment support
+  shipmentType      ShipmentType @default(FORWARD)
+  parentOrderId     String?
+  parentOrder       Order?      @relation("ReverseShipments", fields: [parentOrderId], references: [id])
+  reverseShipments  Order[]     @relation("ReverseShipments")
+  reverseReason     String?
+  
   // Customer
   customerName      String
   customerPhone     String
@@ -261,11 +268,18 @@ model Order {
   @@index([customerPhone])
   @@index([createdAt])
   @@index([shippedAt])
+  @@index([parentOrderId])
+  @@index([shipmentType])
 }
 
 enum PaymentMode {
   PREPAID
   COD
+}
+
+enum ShipmentType {
+  FORWARD
+  REVERSE
 }
 
 enum OrderStatus {

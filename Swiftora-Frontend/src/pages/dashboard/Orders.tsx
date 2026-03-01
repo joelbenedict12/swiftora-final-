@@ -62,8 +62,9 @@ import {
   Wallet,
   Copy,
   Upload,
+  RotateCcw,
 } from "lucide-react";
-import { ordersApi, warehousesApi, ticketsApi, trackingApi, ndrApi } from "@/lib/api";
+import { ordersApi, warehousesApi, ticketsApi, trackingApi, ndrApi, reverseApi } from "@/lib/api";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
@@ -236,6 +237,12 @@ const Orders = () => {
   const [bulkCsvData, setBulkCsvData] = useState<Record<string, string>[]>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkResults, setBulkResults] = useState<any>(null);
+
+  // Reverse pickup state
+  const [showReverseModal, setShowReverseModal] = useState(false);
+  const [selectedOrderForReverse, setSelectedOrderForReverse] = useState<Order | null>(null);
+  const [reverseForm, setReverseForm] = useState({ reason: '', pickupDate: '', phone: '', address: '' });
+  const [isCreatingReverse, setIsCreatingReverse] = useState(false);
 
   // Per-row order details (accordion)
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -1093,6 +1100,11 @@ const Orders = () => {
                         <Badge variant={statusBadgeVariant(order.status)} className="capitalize">
                           {formatStatus(order.status)}
                         </Badge>
+                        {(order as any).shipmentType === 'REVERSE' && (
+                          <Badge variant="outline" className="ml-1 text-purple-600 border-purple-300 bg-purple-50">
+                            Reverse
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>{order.awbNumber || "-"}</TableCell>
                       <TableCell>
@@ -1234,6 +1246,19 @@ const Orders = () => {
                               >
                                 <XCircle className="h-4 w-4" />
                                 Cancel Order
+                              </DropdownMenuItem>
+                            )}
+                            {['DELIVERED', 'NDR_PENDING', 'RTO'].includes(order.status) && (order as any).shipmentType !== 'REVERSE' && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedOrderForReverse(order);
+                                  setReverseForm({ reason: '', pickupDate: '', phone: '', address: '' });
+                                  setShowReverseModal(true);
+                                }}
+                                className="gap-2 text-purple-600"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                                Initiate Reverse Pickup
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
@@ -2396,6 +2421,103 @@ const Orders = () => {
                 </Button>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reverse Pickup Modal */}
+      <Dialog open={showReverseModal} onOpenChange={setShowReverseModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-purple-600" />
+              Initiate Reverse Pickup
+            </DialogTitle>
+            <DialogDescription>
+              Create a return shipment for order {selectedOrderForReverse?.orderNumber}.
+              The customer's address will be used as the pickup location.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>Reason *</Label>
+              <Select value={reverseForm.reason} onValueChange={(v) => setReverseForm({ ...reverseForm, reason: v })}>
+                <SelectTrigger><SelectValue placeholder="Select reason" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Customer Return">Customer Return</SelectItem>
+                  <SelectItem value="Wrong Product Sent">Wrong Product Sent</SelectItem>
+                  <SelectItem value="Damaged Product">Damaged Product</SelectItem>
+                  <SelectItem value="Size/Fit Issue">Size/Fit Issue</SelectItem>
+                  <SelectItem value="Quality Issue">Quality Issue</SelectItem>
+                  <SelectItem value="Not as Described">Not as Described</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Pickup Date (optional)</Label>
+              <Input
+                type="date"
+                value={reverseForm.pickupDate}
+                onChange={(e) => setReverseForm({ ...reverseForm, pickupDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Updated Phone (optional)</Label>
+              <Input
+                type="tel"
+                placeholder="10-digit phone number"
+                value={reverseForm.phone}
+                onChange={(e) => setReverseForm({ ...reverseForm, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Updated Address (optional)</Label>
+              <Textarea
+                placeholder="Updated pickup address (leave empty to use original)"
+                value={reverseForm.address}
+                onChange={(e) => setReverseForm({ ...reverseForm, address: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowReverseModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-purple-600 hover:bg-purple-700"
+                disabled={!reverseForm.reason || isCreatingReverse}
+                onClick={async () => {
+                  if (!selectedOrderForReverse) return;
+                  setIsCreatingReverse(true);
+                  try {
+                    const res = await reverseApi.initiate(selectedOrderForReverse.id, {
+                      reason: reverseForm.reason,
+                      pickupDate: reverseForm.pickupDate || undefined,
+                      phone: reverseForm.phone || undefined,
+                      address: reverseForm.address || undefined,
+                    });
+                    if (res.data.success) {
+                      toast.success(res.data.message || 'Reverse pickup initiated!');
+                      setShowReverseModal(false);
+                      loadOrders();
+                    } else {
+                      toast.error(res.data.message || 'Failed to create reverse pickup');
+                    }
+                  } catch (e: any) {
+                    toast.error(e?.response?.data?.error || e?.message || 'Failed to create reverse pickup');
+                  } finally {
+                    setIsCreatingReverse(false);
+                  }
+                }}
+              >
+                {isCreatingReverse ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</>
+                ) : (
+                  <><RotateCcw className="h-4 w-4 mr-2" /> Create Reverse</>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
