@@ -1,10 +1,91 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
+import { courierStatusToOrderStatus } from '../lib/orderStatus.js';
+import { delhivery } from '../services/delhivery.js';
+import { blitzService } from '../services/courier/BlitzService.js';
+import { xpressbeesService } from '../services/courier/XpressbeesService.js';
+import { ekartService } from '../services/courier/EkartService.js';
+import { innofulfillService } from '../services/courier/InnofulfillService.js';
+import { createCodRemittanceIfNeeded } from './codRemittance.js';
 
 const router = Router();
 
 router.use(authenticate);
+
+/**
+ * Sync active orders with courier tracking APIs (background, non-blocking).
+ * Called automatically when vendor opens dashboard.
+ */
+async function syncActiveOrderStatuses(merchantId: string): Promise<void> {
+  try {
+    const activeOrders = await prisma.order.findMany({
+      where: {
+        merchantId,
+        awbNumber: { not: null },
+        status: { notIn: ['DELIVERED', 'CANCELLED', 'RTO_DELIVERED', 'FAILED'] },
+      },
+      select: { id: true, awbNumber: true, courierName: true, orderNumber: true, status: true, paymentMode: true },
+    });
+
+    if (activeOrders.length === 0) return;
+
+    // Process in batches of 5 to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < activeOrders.length; i += batchSize) {
+      const batch = activeOrders.slice(i, i + batchSize);
+      await Promise.allSettled(batch.map(async (order) => {
+        try {
+          const awb = order.awbNumber!;
+          const courier = (order.courierName || '').toUpperCase();
+          let rawStatus: string | null = null;
+
+          if (courier === 'DELHIVERY') {
+            const trackData = await delhivery.trackShipment({ waybill: awb });
+            rawStatus = trackData?.ShipmentData?.[0]?.Shipment?.Status?.Status || null;
+          } else if (courier === 'BLITZ') {
+            const r = await blitzService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'XPRESSBEES') {
+            const r = await xpressbeesService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'EKART') {
+            const r = await ekartService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          } else if (courier === 'INNOFULFILL') {
+            const r = await innofulfillService.trackShipment({ awbNumber: awb });
+            rawStatus = r?.currentStatus || r?.events?.[0]?.status || null;
+          }
+
+          if (rawStatus) {
+            const newStatus = courierStatusToOrderStatus(rawStatus);
+            if (newStatus && newStatus !== order.status) {
+              await prisma.order.update({
+                where: { id: order.id },
+                data: {
+                  status: newStatus,
+                  trackingStatus: rawStatus,
+                  ...(newStatus === 'DELIVERED' ? { actualDelivery: new Date() } : {}),
+                },
+              });
+              console.log(`[Dashboard Sync] ${order.orderNumber}: ${order.status} → ${newStatus}`);
+
+              // Auto-create COD remittance when order is delivered
+              if (newStatus === 'DELIVERED') {
+                await createCodRemittanceIfNeeded(order.id);
+              }
+            }
+          }
+        } catch (e: any) {
+          // Silently skip failed syncs — don't break dashboard
+          console.warn(`[Dashboard Sync] Failed for ${order.orderNumber}: ${e.message}`);
+        }
+      }));
+    }
+  } catch (e) {
+    console.error('[Dashboard Sync] Error:', e);
+  }
+}
 
 // Dashboard overview
 router.get('/overview', async (req: AuthRequest, res, next) => {
@@ -38,6 +119,9 @@ router.get('/overview', async (req: AuthRequest, res, next) => {
         pendingPickups: 0,
       });
     }
+
+    // Auto-sync active orders from courier APIs before fetching stats
+    await syncActiveOrderStatuses(merchantId);
 
     // Today's date range
     const today = new Date();
