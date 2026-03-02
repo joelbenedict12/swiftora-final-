@@ -150,6 +150,12 @@ const Remittance = () => {
                       Remittance Number
                     </TableHead>
                     <TableHead className="font-semibold text-gray-700 uppercase text-xs tracking-wider py-4">
+                      Order ID
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700 uppercase text-xs tracking-wider py-4">
+                      AWB Number
+                    </TableHead>
+                    <TableHead className="font-semibold text-gray-700 uppercase text-xs tracking-wider py-4">
                       Date
                     </TableHead>
                     <TableHead className="font-semibold text-gray-700 uppercase text-xs tracking-wider py-4">
@@ -170,6 +176,12 @@ const Remittance = () => {
                         <span className="text-blue-600 font-medium cursor-pointer hover:underline">
                           {r.remittanceRef || r.id.slice(0, 20)}
                         </span>
+                      </TableCell>
+                      <TableCell className="py-4 text-gray-700 font-medium">
+                        {r.order?.orderNumber || "-"}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{r.awbNumber || "-"}</span>
                       </TableCell>
                       <TableCell className="py-4 text-gray-700">
                         {fmtDate(r.transferDate || r.createdAt)}
