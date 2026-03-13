@@ -31,6 +31,10 @@ function formatDateTime(ts: string | undefined) {
 export default function HorizontalTimeline({ events, title }: HorizontalTimelineProps) {
   if (!events || events.length === 0) return null;
 
+  // Events come newest-first from courier APIs. The first event (index 0) is the latest/current.
+  // All events have already happened, so they should all show as completed (blue).
+  // The first event (latest) gets the active ring indicator.
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -40,21 +44,21 @@ export default function HorizontalTimeline({ events, title }: HorizontalTimeline
         <div className="flex items-start gap-0 min-w-max">
           {events.map((event, idx) => {
             const isLast = idx === events.length - 1;
-            const isFirst = idx === 0;
+            const isLatest = idx === 0; // First = most recent scan = gets the ring
             return (
               <div key={idx} className="flex items-start">
                 <div className="flex flex-col items-center min-w-[120px] max-w-[160px]">
                   <div
                     className={`w-4 h-4 rounded-full flex-shrink-0 border-2 ${
-                      isFirst
+                      isLatest
                         ? "bg-blue-500 border-blue-300 ring-4 ring-blue-100"
-                        : "bg-gray-300 border-gray-200"
+                        : "bg-blue-400 border-blue-200"
                     }`}
                   />
                   <div className="mt-2 text-center px-1">
                     <div
                       className={`text-xs font-medium leading-tight ${
-                        isFirst ? "text-blue-700" : "text-gray-700"
+                        isLatest ? "text-blue-700" : "text-gray-700"
                       }`}
                     >
                       {event.status}
@@ -74,7 +78,7 @@ export default function HorizontalTimeline({ events, title }: HorizontalTimeline
                   </div>
                 </div>
                 {!isLast && (
-                  <div className="w-8 h-0.5 bg-gray-200 mt-2 flex-shrink-0" />
+                  <div className="w-8 h-0.5 bg-blue-300 mt-2 flex-shrink-0" />
                 )}
               </div>
             );

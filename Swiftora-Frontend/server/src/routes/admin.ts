@@ -193,6 +193,8 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
                 id: true, companyName: true, email: true, phone: true,
                 walletBalance: true, creditLimit: true,
                 isPaused: true, createdAt: true,
+                address: true, city: true, state: true, pincode: true,
+                orderIdPrefix: true, customerType: true,
             } as any,
         });
 
@@ -213,6 +215,7 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
             courierBreakdown,
             creditUsed,
             transactions,
+            warehouses,
         ] = await Promise.all([
             prisma.order.count({ where: { merchantId } }),
             prisma.order.count({ where: { merchantId, createdAt: { gte: monthStart } } }),
@@ -247,6 +250,14 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
                     id: true, amount: true, type: true, status: true,
                     description: true, reference: true,
                     balanceBefore: true, balanceAfter: true, createdAt: true,
+                },
+            }),
+            prisma.warehouse.findMany({
+                where: { merchantId },
+                select: {
+                    id: true, name: true, address: true, city: true,
+                    state: true, pincode: true, phone: true, contactPerson: true,
+                    isDefault: true,
                 },
             }),
         ]);
@@ -317,6 +328,7 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
                 description: t.description,
                 reference: t.reference,
             })),
+            warehouses,
         });
     } catch (error) {
         next(error);

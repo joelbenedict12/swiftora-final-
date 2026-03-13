@@ -464,11 +464,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
       return res.status(400).json({ error: 'Merchant account required' });
     }
 
-    // Generate order number
-    const count = await prisma.order.count({
-      where: { merchantId: req.user!.merchantId },
+    // Generate order number using merchant's custom prefix
+    const merchant = await prisma.merchant.update({
+      where: { id: req.user!.merchantId },
+      data: { orderCounter: { increment: 1 } },
+      select: { orderIdPrefix: true, orderCounter: true },
     });
-    const orderNumber = `ORD${Date.now()}${count + 1}`;
+    const orderNumber = `${merchant.orderIdPrefix}${String(merchant.orderCounter).padStart(6, '0')}`;
     console.log('Generated order number:', orderNumber);
 
     // Calculate volumetric and chargeable weight
@@ -756,7 +758,13 @@ router.post('/bulk/import', async (req: AuthRequest, res, next) => {
           continue;
         }
 
-        const orderNumber = `ORD${Date.now()}${baseCount + successCount + 1}`;
+        // Atomically increment the merchant's order counter
+        const merchantUpdated = await prisma.merchant.update({
+          where: { id: merchantId },
+          data: { orderCounter: { increment: 1 } },
+          select: { orderIdPrefix: true, orderCounter: true },
+        });
+        const orderNumber = `${merchantUpdated.orderIdPrefix}${String(merchantUpdated.orderCounter).padStart(6, '0')}`;
         let volumetricWeight = 0;
         const length = parseFloat(row.length) || undefined;
         const breadth = parseFloat(row.breadth) || undefined;

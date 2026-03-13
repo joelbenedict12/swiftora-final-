@@ -2163,7 +2163,13 @@ const Orders = () => {
             ) : walletInfo ? (
               <div className="space-y-4">
                 {/* Shipping cost */}
-                {shippingEstimate && shippingEstimate.vendorCharge > 0 ? (
+                {walletInfo.customerType === 'CREDIT' ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-sm text-blue-700">
+                      Shipping cost will be billed to your credit account at the end of the billing cycle.
+                    </p>
+                  </div>
+                ) : shippingEstimate && shippingEstimate.vendorCharge > 0 ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex justify-between items-center">
                       <div>
@@ -2197,14 +2203,7 @@ const Orders = () => {
                       <span className="text-muted-foreground">Available Credit</span>
                       <span className="font-bold text-green-600">₹{(walletInfo.availableCredit || 0).toFixed(2)}</span>
                     </div>
-                    {shippingEstimate && shippingEstimate.vendorCharge > 0 && (
-                      <div className="flex justify-between text-sm border-t pt-2">
-                        <span className="text-muted-foreground">After Shipping</span>
-                        <span className={`font-bold ${((walletInfo.availableCredit || 0) - shippingEstimate.vendorCharge) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ₹{((walletInfo.availableCredit || 0) - shippingEstimate.vendorCharge).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
+
                     <p className="text-xs text-blue-600 pt-1">Billed monthly — no wallet deduction</p>
                   </div>
                 ) : (

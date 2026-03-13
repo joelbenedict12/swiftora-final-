@@ -35,6 +35,8 @@ import {
   CreditCard,
   Building2,
   Calculator,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -46,6 +48,10 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('swiftora_sidebar_collapsed') === 'true';
+  });
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [rechargeDialogOpen, setRechargeDialogOpen] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
@@ -278,7 +284,8 @@ const DashboardLayout = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-200 shadow-sm transform transition-transform duration-300 ease-in-out lg:translate-x-0",
+          "fixed top-0 left-0 z-50 h-full bg-white border-r border-gray-200 shadow-sm transform transition-all duration-300 ease-in-out lg:translate-x-0",
+          sidebarCollapsed ? "w-[68px]" : "w-64",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -292,22 +299,39 @@ const DashboardLayout = () => {
                 className="h-16 w-auto object-contain object-left select-none"
               />
             </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden hover:bg-gray-100 text-gray-600"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:flex hover:bg-gray-100 text-gray-500 h-8 w-8"
+                onClick={() => {
+                  const next = !sidebarCollapsed;
+                  setSidebarCollapsed(next);
+                  window.localStorage.setItem('swiftora_sidebar_collapsed', String(next));
+                }}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden hover:bg-gray-100 text-gray-600"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+          <nav className={cn("flex-1 overflow-y-auto py-6 space-y-1", sidebarCollapsed ? "px-2" : "px-4")}>
             <div className="mb-6">
-              <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Main
-              </p>
+              {!sidebarCollapsed && (
+                <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Main
+                </p>
+              )}
               {navigation.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -315,8 +339,10 @@ const DashboardLayout = () => {
                     key={item.name}
                     to={item.href}
                     onClick={() => setSidebarOpen(false)}
+                    title={sidebarCollapsed ? item.name : undefined}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1.5 group",
+                      "flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 mb-1.5 group",
+                      sidebarCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
                       isActive(item.href)
                         ? "bg-blue-50 text-blue-600 border-l-4 border-blue-600"
                         : "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
@@ -324,22 +350,24 @@ const DashboardLayout = () => {
                   >
                     <Icon
                       className={cn(
-                        "w-5 h-5",
+                        "w-5 h-5 flex-shrink-0",
                         isActive(item.href)
                           ? "text-blue-600"
                           : "text-gray-500 group-hover:text-blue-600"
                       )}
                     />
-                    {item.name}
+                    {!sidebarCollapsed && item.name}
                   </Link>
                 );
               })}
             </div>
 
             <div className="mb-6">
-              <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Tools
-              </p>
+              {!sidebarCollapsed && (
+                <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Tools
+                </p>
+              )}
               {toolsNav.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -347,8 +375,10 @@ const DashboardLayout = () => {
                     key={item.name}
                     to={item.href}
                     onClick={() => setSidebarOpen(false)}
+                    title={sidebarCollapsed ? item.name : undefined}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 mb-1.5 group",
+                      "flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 mb-1.5 group",
+                      sidebarCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
                       isActive(item.href)
                         ? "bg-blue-50 text-blue-600 border-l-4 border-blue-600"
                         : "text-gray-700 hover:bg-gray-50 hover:text-blue-600"
@@ -356,13 +386,13 @@ const DashboardLayout = () => {
                   >
                     <Icon
                       className={cn(
-                        "w-5 h-5",
+                        "w-5 h-5 flex-shrink-0",
                         isActive(item.href)
                           ? "text-blue-600"
                           : "text-gray-500 group-hover:text-blue-600"
                       )}
                     />
-                    {item.name}
+                    {!sidebarCollapsed && item.name}
                   </Link>
                 );
               })}
@@ -371,25 +401,44 @@ const DashboardLayout = () => {
 
           {/* User section */}
           <div className="border-t border-gray-200 p-4 bg-white">
-            <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
+            {!sidebarCollapsed ? (
+              <>
+                <div className="flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {user?.name || "User"}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{user?.role || "User"}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg"
+                  onClick={() => setLogoutDialogOpen(true)}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg"
+                  onClick={() => setLogoutDialogOpen(true)}
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {user?.name || "User"}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{user?.role || "User"}</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg"
-              onClick={() => setLogoutDialogOpen(true)}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+            )}
 
             {/* Logout confirmation dialog */}
             <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
@@ -413,7 +462,7 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className={cn("transition-all duration-300", sidebarCollapsed ? "lg:pl-[68px]" : "lg:pl-64")}>
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-8 shadow-sm">
           <Button

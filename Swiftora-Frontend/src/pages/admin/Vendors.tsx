@@ -22,6 +22,8 @@ interface VendorAnalytics {
     id: string; companyName: string; email: string; phone: string;
     customerType: string; walletBalance: number; creditLimit: number;
     isPaused: boolean; createdAt: string;
+    address?: string; city?: string; state?: string; pincode?: string;
+    orderIdPrefix?: string;
   };
   financial: {
     walletBalance: number; creditLimit: number; usedCredit: number;
@@ -37,6 +39,11 @@ interface VendorAnalytics {
   transactions: {
     id: string; date: string; type: string; status: string;
     amount: number; balanceAfter: number; description: string; reference: string;
+  }[];
+  warehouses: {
+    id: string; name: string; address: string; city: string;
+    state: string; pincode: string; phone: string; contactPerson: string;
+    isDefault: boolean;
   }[];
 }
 
@@ -407,7 +414,54 @@ export default function Vendors() {
                   )}
                 </div>
 
-                {/* Section C: Transaction History */}
+                {/* Section C: Address & Warehouses */}
+                <div className="panel-section">
+                  <h4>📍 Address & Warehouses</h4>
+                  {analytics.merchant.address && (
+                    <div className="metric-card" style={{ marginBottom: '12px' }}>
+                      <span className="metric-label">Business Address</span>
+                      <span className="metric-value text-sm">
+                        {analytics.merchant.address}, {analytics.merchant.city}, {analytics.merchant.state} - {analytics.merchant.pincode}
+                      </span>
+                    </div>
+                  )}
+                  {analytics.merchant.orderIdPrefix && (
+                    <div className="metric-card" style={{ marginBottom: '12px' }}>
+                      <span className="metric-label">Order ID Prefix</span>
+                      <span className="metric-value text-sm">{analytics.merchant.orderIdPrefix}</span>
+                    </div>
+                  )}
+                  {analytics.warehouses && analytics.warehouses.length > 0 ? (
+                    <div className="txn-table-container">
+                      <table className="txn-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>City</th>
+                            <th>Pincode</th>
+                            <th>Contact</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analytics.warehouses.map((w) => (
+                            <tr key={w.id}>
+                              <td className="fw-medium">{w.name} {w.isDefault ? '⭐' : ''}</td>
+                              <td>{w.address}</td>
+                              <td>{w.city}, {w.state}</td>
+                              <td>{w.pincode}</td>
+                              <td>{w.contactPerson || '—'}<br/><span className="text-muted text-xs">{w.phone}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-muted" style={{ fontSize: '13px' }}>No warehouses configured</p>
+                  )}
+                </div>
+
+                {/* Section D: Transaction History */}
                 <div className="panel-section">
                   <h4>💳 Transaction History</h4>
                   <div className="txn-table-container">

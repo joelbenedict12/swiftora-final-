@@ -95,6 +95,10 @@ model Merchant {
   delhiveryEnabled  Boolean  @default(false)
   delhiveryLastSync DateTime?
   
+  // Custom Order ID
+  orderIdPrefix     String   @default("SWIFT")
+  orderCounter      Int      @default(0)
+  
   isPaused          Boolean  @default(false)
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
