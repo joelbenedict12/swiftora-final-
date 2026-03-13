@@ -2694,6 +2694,17 @@ const Orders = () => {
                         : 'border-gray-100 bg-gray-50 opacity-60'
                     }`}
                   >
+                    {/* Courier Logo */}
+                    <div className="shrink-0 w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                      {({
+                        DELHIVERY: <img src="/delhivery-logo.webp" alt="Delhivery" className="w-9 h-9 object-contain" />,
+                        XPRESSBEES: <img src="/xpresssbees.png" alt="Xpressbees" className="w-9 h-9 object-contain" />,
+                        EKART: <img src="/ekart-logo.svg" alt="Ekart" className="w-9 h-9 object-contain" />,
+                        INNOFULFILL: <img src="/innofullfil.png" alt="Innofulfill" className="w-9 h-9 object-contain" />,
+                        BLITZ: <Zap className="w-5 h-5 text-orange-500" />,
+                      } as Record<string, React.ReactNode>)[courier.courierName] || <Package className="w-5 h-5 text-gray-400" />}
+                    </div>
+
                     {/* Courier Name */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
