@@ -944,6 +944,146 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
   }
 });
 
+// Compare rates across ALL couriers for an order
+router.post('/:id/compare-rates', async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user?.merchantId) throw new AppError(400, 'Merchant account required');
+
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, merchantId: req.user.merchantId },
+      include: { warehouse: true },
+    });
+    if (!order) throw new AppError(404, 'Order not found');
+
+    if (!order.warehouse?.pincode) {
+      return res.json({ success: false, error: 'Assign a pickup location first' });
+    }
+    if (!order.shippingPincode) {
+      return res.json({ success: false, error: 'Delivery pincode missing' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { accountType: true },
+    });
+    const accountType = user?.accountType || 'B2C';
+    const weight = Number(order.chargeableWeight) || Number(order.weight) || 0.5;
+    const paymentMode = (order.paymentMode as 'PREPAID' | 'COD') || 'PREPAID';
+    const codAmount = Number(order.codAmount || order.productValue || 500);
+
+    const allCouriers = getAvailableCouriers();
+
+    // Labels for display
+    const courierLabels: Record<string, string> = {
+      DELHIVERY: 'Delhivery',
+      BLITZ: 'Blitz',
+      EKART: 'Ekart',
+      XPRESSBEES: 'Xpressbees',
+      INNOFULFILL: 'Innofulfill',
+    };
+
+    // Query ALL couriers in parallel
+    const ratePromises = allCouriers.map(async (courierName) => {
+      try {
+        const service = getCourierService(courierName);
+        if (!service.calculateRate) {
+          return { courierName, label: courierLabels[courierName] || courierName, available: false, error: 'Rate not supported' };
+        }
+
+        const rateResult = await service.calculateRate({
+          originPincode: order.warehouse!.pincode,
+          destinationPincode: order.shippingPincode!,
+          weight,
+          paymentMode,
+          codAmount,
+        });
+
+        if (!rateResult.success || !rateResult.rate || rateResult.rate <= 0) {
+          return { courierName, label: courierLabels[courierName] || courierName, available: false, error: rateResult.error || 'Route not available' };
+        }
+
+        // Apply vendor pricing (margin)
+        const pricing = await estimateVendorCharge({
+          courierName,
+          userAccountType: accountType,
+          weight,
+          paymentMode,
+          courierCostEstimate: rateResult.rate,
+        });
+
+        return {
+          courierName,
+          label: courierLabels[courierName] || courierName,
+          available: true,
+          vendorCharge: pricing.vendorCharge,
+          estimatedDays: rateResult.estimatedDays || null,
+          weight,
+          paymentMode,
+        };
+      } catch (e: any) {
+        return { courierName, label: courierLabels[courierName] || courierName, available: false, error: e.message || 'Failed to fetch rate' };
+      }
+    });
+
+    const results = await Promise.all(ratePromises);
+
+    // Sort: available first, then by price ascending
+    results.sort((a, b) => {
+      if (a.available && !b.available) return -1;
+      if (!a.available && b.available) return 1;
+      if (a.available && b.available) return (a.vendorCharge || 0) - (b.vendorCharge || 0);
+      return 0;
+    });
+
+    // Wallet info
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.user.merchantId },
+      select: { walletBalance: true, creditLimit: true, isPaused: true, customerType: true },
+    });
+
+    let wallet: any;
+    if (merchant?.customerType === 'CREDIT') {
+      const outstanding = await CreditService.calculateOutstanding(req.user.merchantId);
+      const unpaid = await CreditService.hasUnpaidInvoice(req.user.merchantId);
+      wallet = {
+        customerType: 'CREDIT',
+        creditLimit: outstanding.creditLimit,
+        totalOutstanding: outstanding.totalOutstanding,
+        availableCredit: outstanding.availableCredit,
+        hasUnpaidInvoice: unpaid,
+        isPaused: merchant?.isPaused || false,
+        canShip: !merchant?.isPaused && !unpaid,
+      };
+    } else {
+      const walletBal = Number(merchant?.walletBalance || 0);
+      const creditLim = Number(merchant?.creditLimit || 0);
+      wallet = {
+        customerType: 'CASH',
+        balance: walletBal,
+        creditLimit: creditLim,
+        available: walletBal + creditLim,
+        isPaused: merchant?.isPaused || false,
+        canShip: !merchant?.isPaused && (walletBal + creditLim) > 0,
+      };
+    }
+
+    res.json({
+      success: true,
+      couriers: results,
+      orderInfo: {
+        orderNumber: order.orderNumber,
+        pickupPincode: order.warehouse?.pincode,
+        deliveryPincode: order.shippingPincode,
+        weight,
+        paymentMode,
+      },
+      wallet,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Ship order - creates shipment with selected courier and gets AWB
 // Accepts optional courierName in body to override the order's default courier
 router.post('/:id/ship', async (req: AuthRequest, res, next) => {

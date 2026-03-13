@@ -219,6 +219,7 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
             creditUsed,
             transactions,
             warehouses,
+            recentOrders,
         ] = await Promise.all([
             prisma.order.count({ where: { merchantId } }),
             prisma.order.count({ where: { merchantId, createdAt: { gte: monthStart } } }),
@@ -265,6 +266,16 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
                     state: true, pincode: true, phone: true, contactPerson: true,
                     isDefault: true,
                 },
+            }),
+            prisma.order.findMany({
+                where: { merchantId },
+                select: {
+                    id: true, orderNumber: true, awbNumber: true, status: true,
+                    courierName: true, customerName: true, shippingPincode: true,
+                    createdAt: true,
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 20,
             }),
         ]);
 
@@ -338,6 +349,16 @@ router.get('/vendors/:id/analytics', authenticate, requireAdmin, async (req, res
                 reference: t.reference,
             })),
             warehouses,
+            recentOrders: recentOrders.map((o: any) => ({
+                id: o.id,
+                orderNumber: o.orderNumber,
+                awbNumber: o.awbNumber,
+                status: o.status,
+                courierName: o.courierName,
+                customerName: o.customerName,
+                deliveryPincode: o.shippingPincode,
+                date: o.createdAt,
+            })),
         });
     } catch (error) {
         next(error);

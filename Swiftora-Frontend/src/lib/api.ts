@@ -78,6 +78,7 @@ export const authApi = {
 
 // Orders API
 export interface CreateOrderData {
+  orderNumber?: string;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -127,6 +128,9 @@ export const ordersApi = {
 
   shippingEstimate: (orderId: string, courierName: string) =>
     api.post(`/orders/${orderId}/shipping-estimate`, { courierName }),
+
+  compareRates: (orderId: string) =>
+    api.post(`/orders/${orderId}/compare-rates`),
 
   // Generic ship method - pass courier name
   ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL', extra?: Record<string, any>) =>

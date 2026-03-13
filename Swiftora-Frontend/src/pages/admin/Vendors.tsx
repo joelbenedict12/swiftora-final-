@@ -46,6 +46,12 @@ interface VendorAnalytics {
     state: string; pincode: string; phone: string; contactPerson: string;
     isDefault: boolean;
   }[];
+  recentOrders: {
+    id: string; orderNumber: string; awbNumber: string | null;
+    status: string; courierName: string | null;
+    customerName: string; deliveryPincode: string;
+    date: string;
+  }[];
 }
 
 export default function Vendors() {
@@ -507,6 +513,48 @@ export default function Vendors() {
                           ))
                         ) : (
                           <tr><td colSpan={5} className="no-data-cell">No transactions found</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Section E: Recent Orders with AWB */}
+                <div className="panel-section">
+                  <h4>📋 Recent Orders</h4>
+                  <div className="txn-table-container">
+                    <table className="txn-table">
+                      <thead>
+                        <tr>
+                          <th>Order #</th>
+                          <th>AWB</th>
+                          <th>Customer</th>
+                          <th>Courier</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.recentOrders && analytics.recentOrders.length > 0 ? (
+                          analytics.recentOrders.map((o) => (
+                            <tr key={o.id}>
+                              <td className="fw-medium">{o.orderNumber || o.id.slice(0, 8)}</td>
+                              <td>{o.awbNumber || '—'}</td>
+                              <td>{o.customerName || '—'}</td>
+                              <td>{o.courierName || '—'}</td>
+                              <td>
+                                <span className="txn-type-badge" style={{
+                                  color: o.status === 'DELIVERED' ? '#10b981' : o.status === 'CANCELLED' ? '#ef4444' : '#f59e0b',
+                                  background: o.status === 'DELIVERED' ? '#10b98115' : o.status === 'CANCELLED' ? '#ef444415' : '#f59e0b15',
+                                }}>
+                                  {o.status.replace(/_/g, ' ')}
+                                </span>
+                              </td>
+                              <td className="text-muted text-xs">{new Date(o.date).toLocaleDateString()}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={6} className="no-data-cell">No orders found</td></tr>
                         )}
                       </tbody>
                     </table>

@@ -270,6 +270,15 @@ const Orders = () => {
   const [selectedOrderForInnofulfill, setSelectedOrderForInnofulfill] = useState<Order | null>(null);
   const [isShippingInnofulfill, setIsShippingInnofulfill] = useState(false);
 
+  // Courier comparison modal state
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [compareOrderId, setCompareOrderId] = useState<string | null>(null);
+  const [compareResults, setCompareResults] = useState<any[]>([]);
+  const [compareOrderInfo, setCompareOrderInfo] = useState<any>(null);
+  const [compareWallet, setCompareWallet] = useState<any>(null);
+  const [loadingCompare, setLoadingCompare] = useState(false);
+  const [shippingFromCompare, setShippingFromCompare] = useState<string | null>(null);
+
   // Wallet confirmation dialog state
   const [showWalletConfirm, setShowWalletConfirm] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{
@@ -401,6 +410,55 @@ const Orders = () => {
   const openInnofulfillModal = (order: Order) => {
     setSelectedOrderForInnofulfill(order);
     setShowInnofulfillModal(true);
+  };
+
+  // Open courier comparison modal
+  const openCompareModal = async (order: Order) => {
+    setCompareOrderId(order.id);
+    setShowCompareModal(true);
+    setCompareResults([]);
+    setCompareOrderInfo(null);
+    setCompareWallet(null);
+    setLoadingCompare(true);
+    try {
+      const res = await ordersApi.compareRates(order.id);
+      if (res.data.success) {
+        setCompareResults(res.data.couriers);
+        setCompareOrderInfo(res.data.orderInfo);
+        setCompareWallet(res.data.wallet);
+      } else {
+        toast.error(res.data.error || 'Could not compare rates');
+        setShowCompareModal(false);
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Failed to compare courier rates');
+      setShowCompareModal(false);
+    } finally {
+      setLoadingCompare(false);
+    }
+  };
+
+  // Ship from comparison modal
+  const shipFromCompare = async (courierName: string) => {
+    if (!compareOrderId) return;
+    try {
+      setShippingFromCompare(courierName);
+      const response = await ordersApi.ship(
+        compareOrderId,
+        courierName as 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL',
+      );
+      if (response.data.success) {
+        toast.success(`Shipped via ${courierName}! AWB: ${response.data.awbNumber}`);
+        setShowCompareModal(false);
+        loadOrders();
+      } else {
+        toast.error(response.data.error || 'Failed to ship order');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || 'Failed to ship order');
+    } finally {
+      setShippingFromCompare(null);
+    }
   };
 
   const handleShipInnofulfill = async (mode: 'SURFACE' | 'AIR') => {
@@ -1150,6 +1208,15 @@ const Orders = () => {
                               >
                                 <Building className="h-4 w-4" />
                                 Change Pickup Location
+                              </DropdownMenuItem>
+                            )}
+                            {!order.awbNumber && order.warehouseId && (
+                              <DropdownMenuItem
+                                onClick={() => openCompareModal(order)}
+                                className="gap-2 text-emerald-600 font-medium"
+                              >
+                                <Truck className="h-4 w-4" />
+                                Compare & Ship
                               </DropdownMenuItem>
                             )}
                             {!order.awbNumber && (
@@ -2566,6 +2633,130 @@ const Orders = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Courier Comparison Modal */}
+      <Dialog open={showCompareModal} onOpenChange={setShowCompareModal}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Truck className="h-5 w-5" />
+              Select Courier Partner
+            </DialogTitle>
+            <DialogDescription>
+              Compare shipping rates across all available couriers
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingCompare ? (
+            <div className="flex flex-col items-center py-12">
+              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">Fetching rates from all couriers...</p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              {/* Order Info Summary */}
+              {compareOrderInfo && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <span className="text-muted-foreground text-xs block">Pickup</span>
+                    <span className="font-semibold">{compareOrderInfo.pickupPincode}</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <span className="text-muted-foreground text-xs block">Delivery</span>
+                    <span className="font-semibold">{compareOrderInfo.deliveryPincode}</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <span className="text-muted-foreground text-xs block">Weight</span>
+                    <span className="font-semibold">{compareOrderInfo.weight} kg</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <span className="text-muted-foreground text-xs block">Payment</span>
+                    <span className="font-semibold">{compareOrderInfo.paymentMode}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Results count */}
+              <p className="text-sm text-muted-foreground">
+                {compareResults.filter(c => c.available).length} of {compareResults.length} couriers available
+              </p>
+
+              {/* Courier List */}
+              <div className="space-y-2">
+                {compareResults.map((courier) => (
+                  <div
+                    key={courier.courierName}
+                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                      courier.available
+                        ? 'border-gray-200 hover:border-blue-300 hover:shadow-sm bg-white'
+                        : 'border-gray-100 bg-gray-50 opacity-60'
+                    }`}
+                  >
+                    {/* Courier Name */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900">{courier.label}</span>
+                        {compareResults.indexOf(courier) === 0 && courier.available && (
+                          <Badge className="bg-green-100 text-green-700 text-xs">Cheapest</Badge>
+                        )}
+                      </div>
+                      {courier.available ? (
+                        <span className="text-xs text-muted-foreground">
+                          {courier.estimatedDays ? `Est. ${courier.estimatedDays} day${courier.estimatedDays > 1 ? 's' : ''}` : 'Surface'}
+                          {' · '}{courier.weight} kg
+                        </span>
+                      ) : (
+                        <span className="text-xs text-red-500">{courier.error || 'Not available'}</span>
+                      )}
+                    </div>
+
+                    {/* Price */}
+                    {courier.available && (
+                      <div className="text-right shrink-0">
+                        {compareWallet?.customerType === 'CREDIT' ? (
+                          <span className="text-xs text-blue-600">Billed to credit</span>
+                        ) : (
+                          <span className="text-lg font-bold text-gray-900">₹{courier.vendorCharge?.toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Ship Button */}
+                    <div className="shrink-0">
+                      {courier.available ? (
+                        <Button
+                          size="sm"
+                          onClick={() => shipFromCompare(courier.courierName)}
+                          disabled={!!shippingFromCompare}
+                          className="min-w-[80px]"
+                        >
+                          {shippingFromCompare === courier.courierName ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'Ship'
+                          )}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" disabled className="min-w-[80px] opacity-40">
+                          N/A
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Wallet info for CASH */}
+              {compareWallet?.customerType === 'CASH' && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 text-sm">
+                  <span className="text-muted-foreground">Wallet Balance</span>
+                  <span className="font-semibold">₹{(compareWallet.available || 0).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
