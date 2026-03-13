@@ -44,7 +44,6 @@ import {
   Mail,
   Loader2,
   Trash2,
-  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { warehousesApi, pickupsApi, integrationsApi } from "@/lib/api";
@@ -77,8 +76,6 @@ const PickupPage = () => {
   const [scheduledPickups, setScheduledPickups] = useState<Pickup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [isSyncingFromDelhivery, setIsSyncingFromDelhivery] = useState(false);
-  const [delhiveryConnected, setDelhiveryConnected] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -110,55 +107,14 @@ const PickupPage = () => {
     }
   };
 
-  const checkDelhiveryStatus = async () => {
-    try {
-      const response = await integrationsApi.getDelhiveryStatus();
-      setDelhiveryConnected(response.data?.connected || false);
-    } catch (error) {
-      console.error("Failed to check Delhivery status:", error);
-    }
-  };
-
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([loadWarehouses(), loadPickups(), checkDelhiveryStatus()]);
+      await Promise.all([loadWarehouses(), loadPickups()]);
       setIsLoading(false);
     };
     loadData();
   }, []);
-
-  const handleSyncFromDelhivery = async () => {
-    if (!delhiveryConnected) {
-      toast.error("Please connect your Delhivery account first in Settings > Integrations");
-      return;
-    }
-
-    setIsSyncingFromDelhivery(true);
-    try {
-      const response = await warehousesApi.syncFromDelhivery();
-      const data = response.data;
-
-      if (data.success) {
-        toast.success(data.message || `Synced ${data.synced} pickup locations from Delhivery`);
-        if (data.created > 0) {
-          toast.info(`Created ${data.created} new pickup locations`);
-        }
-        if (data.updated > 0) {
-          toast.info(`Updated ${data.updated} existing pickup locations`);
-        }
-        // Reload warehouses to show the synced data
-        await loadWarehouses();
-      } else {
-        toast.error(data.error || "Failed to sync from Delhivery");
-      }
-    } catch (error: any) {
-      console.error("Delhivery sync error:", error);
-      toast.error(error.response?.data?.error || "Failed to sync pickup locations from Delhivery");
-    } finally {
-      setIsSyncingFromDelhivery(false);
-    }
-  };
 
 
   const handleAddPickup = async () => {
@@ -280,21 +236,6 @@ const PickupPage = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          {/* Sync from Delhivery Button */}
-          <Button
-            variant="outline"
-            onClick={handleSyncFromDelhivery}
-            disabled={isSyncingFromDelhivery}
-            className={delhiveryConnected ? "border-green-300 hover:bg-green-50" : "border-gray-300"}
-          >
-            {isSyncingFromDelhivery ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            {isSyncingFromDelhivery ? "Syncing..." : "Sync from Delhivery"}
-          </Button>
-
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-primary bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg ">

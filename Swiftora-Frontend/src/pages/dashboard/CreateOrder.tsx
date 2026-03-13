@@ -724,7 +724,13 @@ const B2CFastForm = ({
                   ) : warehouses.length === 0 ? (
                     <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">
                       ⚠️ No pickup locations found. Please add a warehouse first.
-                      <Link to="/dashboard/pickup" className="block text-blue-600 mt-1 hover:underline">+ Add Pickup Location</Link>
+                      <button
+                        type="button"
+                        onClick={() => setIsNewAddressDialogOpen(true)}
+                        className="block text-blue-600 mt-1 hover:underline cursor-pointer bg-transparent border-none p-0"
+                      >
+                        + Add Pickup Location
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -1740,10 +1746,10 @@ const B2BStructuredForm = ({
                                   slotDate: e.target.value
                                 });
                               }}
-                              min={new Date().toISOString().split("T")[0]}
+                              min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0]}
                               className="mt-1 border-slate-300 focus:border-slate-700 bg-white"
                             />
-                            <p className="text-xs text-slate-500 mt-1">Select a date at least 24 hours in advance</p>
+                            <p className="text-xs text-slate-500 mt-1">Select today or a future date</p>
                           </div>
                           <div>
                             <Label className="text-slate-900 font-semibold text-sm">Time Slot Window *</Label>
