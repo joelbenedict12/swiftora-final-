@@ -2,12 +2,10 @@ import { useState } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -28,176 +26,133 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText,
   Download,
-  Search,
   Truck,
-  DollarSign,
-  MapPin,
-  Rocket,
-  Clock,
+  Info,
+  Package,
+  Plane,
 } from "lucide-react";
 import { toast } from "sonner";
 
+/* ====================================================================
+   RATE CARD DATA — sourced from courier partner agreements
+   ==================================================================== */
+
+// ── XPRESSBEES ──────────────────────────────────────────────────────
+const xpressbeesZones = [
+  "Within City",
+  "Within State",
+  "Regional",
+  "Metro To Metro",
+  "NE, J&K, KL, AN",
+  "Rest Of India",
+];
+
+const xpressbeesRates = [
+  { type: "FWD (Surface)", values: [24, 28, 28, 31, 49, 35] },
+  { type: "RTO", values: [20, 24, 24, 26, 42, 30] },
+  { type: "Add Wt. (0.5 K.G)", values: [22, 25, 25, 29, 47, 32] },
+];
+
+const xpressbeesCOD = { charges: 24, percent: 1.42 };
+
+// ── DELHIVERY ───────────────────────────────────────────────────────
+const delhiveryZones = ["Zone A", "Zone B", "Zone C", "Zone D", "Zone E", "Zone F"];
+
+const delhiverySurface = [
+  { label: "Base Fare (upto 250 g)", values: [26, 30, 31, 33, 41, 46] },
+  { label: "Every Additional 250 g (upto 500 g)", values: [5, 5, 8, 8, 10, 11] },
+  { label: "Every Additional 500 g (upto 5 kg)", values: [8, 13, 17, 22, 31, 35] },
+  { label: "Every Additional 1 kg", values: [20, 22, 26, 31, 40, 47] },
+];
+
+const delhiveryExpress = [
+  { label: "Base Fare (upto 250 g)", values: [26, 30, 37, 41, 50, 56] },
+  { label: "Every Additional 250 g (upto 500 g)", values: [5, 5, 10, 14, 15, 18] },
+  { label: "Every Additional 500 g (upto 5 kg)", values: [0, 0, 0, 0, 0, 0] },
+  { label: "Every Additional 1 kg", values: [0, 0, 0, 0, 0, 0] },
+];
+
+const delhiveryCOD = "₹ 25.00 or 1.25% of product bill value whichever is higher";
+
+// ── INNOFULFILL (ROAD & EXPRESS) ────────────────────────────────────
+const innofulfillZones = ["Local", "Within Zone", "Metro", "ROI", "NE & J&K"];
+
+const innofulfillSurface = [
+  { weight: "Up to 0.5 kg", values: [22, 27, 31, 33, 53] },
+  { weight: "0.5 – 1 kg", values: [39, 45, 57, 64, 92] },
+  { weight: "1 – 1.5 kg", values: [52, 60, 76, 86, 123] },
+  { weight: "1.5 – 2 kg", values: [58, 68, 90, 104, 152] },
+  { weight: "2 – 3 kg", values: [74, 91, 114, 138, 195] },
+  { weight: "3 – 4 kg", values: [91, 112, 139, 169, 234] },
+  { weight: "4 – 5 kg", values: [102, 131, 158, 190, 267] },
+  { weight: "Tariffs beyond Slab (1 kg)", values: [13, 17, 22, 24, 38] },
+];
+
+const innofulfillAir = [
+  { weight: "Up to 0.5 kg", values: [0, 29, 44, 50, 67] },
+  { weight: "Upto 1 kg", values: [0, 51, 82, 91, 120] },
+  { weight: "Upto 2 kg", values: [0, 75, 100, 114, 160] },
+  { weight: "Tariffs beyond Slab (1 kg)", values: [0, 25, 29, 37, 41] },
+];
+
+const innofulfillOther = [
+  { label: "RTO (% of FWD Charges)", value: "80%" },
+  { label: "Vol Divisor (Integer)", value: "5000" },
+  { label: "RVP Charges (FWD+) (₹)", value: "₹15" },
+  { label: "QC Charges (₹)", value: "₹15" },
+  { label: "Fuel Charges (%)", value: "0%" },
+];
+
+/* ==================================================================== */
+
 const RateCard = () => {
   const [selectedCourier, setSelectedCourier] = useState("all");
+  const [showGST, setShowGST] = useState(false);
 
-  const courierLogos = {
-    Delhivery: "/delhivery-logo.webp",
-    BlueDart: "/BlueDart-logo.webp",
-    DTDC: "/DTDC-logo.webp",
-  };
-  const rateCards = {
-    Delhivery: [
-      {
-        weight: "0-0.5 kg",
-        baseRate: 50,
-        perKg: 0,
-        codCharge: "2.5%",
-        express: 75,
-      },
-      {
-        weight: "0.5-1 kg",
-        baseRate: 50,
-        perKg: 30,
-        codCharge: "2.5%",
-        express: 90,
-      },
-      {
-        weight: "1-2 kg",
-        baseRate: 50,
-        perKg: 30,
-        codCharge: "2.5%",
-        express: 120,
-      },
-      {
-        weight: "2-5 kg",
-        baseRate: 50,
-        perKg: 30,
-        codCharge: "2.5%",
-        express: 180,
-      },
-      {
-        weight: "5-10 kg",
-        baseRate: 50,
-        perKg: 30,
-        codCharge: "2.5%",
-        express: 280,
-      },
-    ],
-    BlueDart: [
-      {
-        weight: "0-0.5 kg",
-        baseRate: 60,
-        perKg: 0,
-        codCharge: "2.0%",
-        express: 90,
-      },
-      {
-        weight: "0.5-1 kg",
-        baseRate: 60,
-        perKg: 35,
-        codCharge: "2.0%",
-        express: 110,
-      },
-      {
-        weight: "1-2 kg",
-        baseRate: 60,
-        perKg: 35,
-        codCharge: "2.0%",
-        express: 140,
-      },
-      {
-        weight: "2-5 kg",
-        baseRate: 60,
-        perKg: 35,
-        codCharge: "2.0%",
-        express: 200,
-      },
-      {
-        weight: "5-10 kg",
-        baseRate: 60,
-        perKg: 35,
-        codCharge: "2.0%",
-        express: 300,
-      },
-    ],
-    // Shiprocket: [
-    //   { weight: "0-0.5 kg", baseRate: 45, perKg: 0, codCharge: "2.5%", express: 70 },
-    //   { weight: "0.5-1 kg", baseRate: 45, perKg: 25, codCharge: "2.5%", express: 85 },
-    //   { weight: "1-2 kg", baseRate: 45, perKg: 25, codCharge: "2.5%", express: 110 },
-    //   { weight: "2-5 kg", baseRate: 45, perKg: 25, codCharge: "2.5%", express: 160 },
-    //   { weight: "5-10 kg", baseRate: 45, perKg: 25, codCharge: "2.5%", express: 250 }
-    // ],
-    DTDC: [
-      {
-        weight: "0-0.5 kg",
-        baseRate: 40,
-        perKg: 0,
-        codCharge: "2.0%",
-        express: 65,
-      },
-      {
-        weight: "0.5-1 kg",
-        baseRate: 40,
-        perKg: 28,
-        codCharge: "2.0%",
-        express: 80,
-      },
-      {
-        weight: "1-2 kg",
-        baseRate: 40,
-        perKg: 28,
-        codCharge: "2.0%",
-        express: 105,
-      },
-      {
-        weight: "2-5 kg",
-        baseRate: 40,
-        perKg: 28,
-        codCharge: "2.0%",
-        express: 150,
-      },
-      {
-        weight: "5-10 kg",
-        baseRate: 40,
-        perKg: 28,
-        codCharge: "2.0%",
-        express: 230,
-      },
-    ],
-  };
+  const gst = (v: number) => (showGST ? Math.round(v * 1.18 * 100) / 100 : v);
+  const fmt = (v: number) => `₹${gst(v).toFixed(v % 1 === 0 && !showGST ? 0 : 2)}`;
 
   const handleExport = () => {
     toast.success("Rate card exported successfully");
   };
 
+  const show = (key: string) => selectedCourier === "all" || selectedCourier === key;
+
   return (
     <div className="space-y-8">
+      {/* ── HEADER ──────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-[blue-600] to-[orange-600] bg-clip-text text-transparent mb-2">
-            Rate Card
-          </h1>
-          <p className="text-foreground/70 text-lg">
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">Rate Card</h1>
+          <p className="text-gray-500">
             View shipping rates for all courier partners
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedCourier} onValueChange={setSelectedCourier}>
-            <SelectTrigger className="w-[200px] bg-background/50 border-gray-200 text-foreground">
+            <SelectTrigger className="w-[200px] bg-white border-gray-200">
               <SelectValue placeholder="Filter by courier" />
             </SelectTrigger>
-            <SelectContent className="bg-background border-gray-200">
+            <SelectContent>
               <SelectItem value="all">All Couriers</SelectItem>
+              <SelectItem value="xpressbees">Xpressbees</SelectItem>
               <SelectItem value="delhivery">Delhivery</SelectItem>
-              <SelectItem value="bluedart">BlueDart</SelectItem>
-              <SelectItem value="shiprocket">Shiprocket</SelectItem>
-              <SelectItem value="dtdc">DTDC</SelectItem>
+              <SelectItem value="innofulfill">Innofulfill</SelectItem>
             </SelectContent>
           </Select>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showGST}
+              onChange={() => setShowGST(!showGST)}
+              className="rounded border-gray-300"
+            />
+            Show Rates Inclusive of GST
+          </label>
           <Button
             variant="outline"
             onClick={handleExport}
-            className="border-gray-200 hover:bg-[blue-600]/10"
+            className="border-gray-200"
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -205,209 +160,278 @@ const RateCard = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="standard" className="w-full">
-        <TabsList className="bg-[blue-600]/10 border-gray-200">
-          <TabsTrigger
-            value="standard"
-            className="data-[state=active]:bg-[blue-600]/20 data-[state=active]:text-foreground"
-          >
-            Standard Rates
-          </TabsTrigger>
-          <TabsTrigger
-            value="express"
-            className="data-[state=active]:bg-[blue-600]/20 data-[state=active]:text-foreground"
-          >
-            Express Rates
-          </TabsTrigger>
-        </TabsList>
+      {/* ═══════════════════════════════════════════════════════
+          XPRESSBEES
+         ═══════════════════════════════════════════════════════ */}
+      {show("xpressbees") && (
+        <Card className="border border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-white border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Package className="w-6 h-6 text-purple-600" />
+                <CardTitle className="text-xl font-bold text-gray-900">
+                  Xpressbees
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="border-purple-200 text-purple-700 bg-purple-50">Active</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold text-gray-700 w-[180px]">Courier</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Type</TableHead>
+                    {xpressbeesZones.map((z) => (
+                      <TableHead key={z} className="font-semibold text-gray-700 text-center whitespace-nowrap">{z}</TableHead>
+                    ))}
+                    <TableHead className="font-semibold text-gray-700 text-center">COD Charges</TableHead>
+                    <TableHead className="font-semibold text-gray-700 text-center">COD %</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {xpressbeesRates.map((row, i) => (
+                    <TableRow key={i} className="hover:bg-purple-50/50">
+                      {i === 0 && (
+                        <TableCell rowSpan={3} className="font-medium text-gray-700 border-r">
+                          Xpressbees<br />
+                          <span className="text-xs text-gray-400">Surface</span>
+                        </TableCell>
+                      )}
+                      <TableCell className="font-medium text-gray-800 whitespace-nowrap">{row.type}</TableCell>
+                      {row.values.map((v, j) => (
+                        <TableCell key={j} className="text-center font-semibold text-gray-900">
+                          {fmt(v)}
+                        </TableCell>
+                      ))}
+                      {i === 0 && (
+                        <>
+                          <TableCell rowSpan={3} className="text-center font-semibold text-gray-900 border-l">
+                            {fmt(xpressbeesCOD.charges)}
+                          </TableCell>
+                          <TableCell rowSpan={3} className="text-center font-semibold text-gray-900 border-l">
+                            {xpressbeesCOD.percent}%
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="standard" className="mt-6 space-y-6">
-          {(selectedCourier === "all"
-            ? Object.keys(rateCards)
-            : [
-                selectedCourier.charAt(0).toUpperCase() +
-                  selectedCourier.slice(1),
-              ]
-          ).map((courier) => (
-            <Card
-              key={courier}
-              className="bg-white border border-gray-200 shadow-lg"
-            >
-              <CardHeader className="border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Truck className="w-6 h-6 text-[blue-600]" />
-                    <CardTitle className="text-xl font-bold text-foreground">
-                      {courier in courierLogos ? (
-                        <img
-                          src={
-                            courierLogos[courier as keyof typeof courierLogos]
-                          }
-                          alt={courier}
-                          className="h-5 w-15"
-                        />
-                      ) : (
-                        courier
-                      )}
-                    </CardTitle>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="border-gray-200 text-foreground/80"
-                  >
-                    Active
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="rounded-md border border-gray-200 overflow-x-auto bg-white border border-gray-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gradient-to-r from-[blue-600]/10 to-[blue-600]/5 border-b border-gray-200">
-                        <TableHead className="font-semibold text-foreground">
-                          Weight Slab
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          Base Rate (₹)
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          Per Additional Kg (₹)
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          COD Charge
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          GST (18%)
-                        </TableHead>
+      {/* ═══════════════════════════════════════════════════════
+          DELHIVERY
+         ═══════════════════════════════════════════════════════ */}
+      {show("delhivery") && (
+        <Card className="border border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Truck className="w-6 h-6 text-blue-600" />
+                <CardTitle className="text-xl font-bold text-gray-900">Delhivery</CardTitle>
+              </div>
+              <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">Active</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-8">
+            {/* Surface Rates */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="w-5 h-5 text-gray-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Surface Rates</h3>
+              </div>
+              <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-gray-700 w-[280px]">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4" /> Surface
+                        </div>
+                      </TableHead>
+                      {delhiveryZones.map((z) => (
+                        <TableHead key={z} className="font-semibold text-gray-700 text-center">{z}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {delhiverySurface.map((row, i) => (
+                      <TableRow key={i} className="hover:bg-blue-50/50">
+                        <TableCell className="font-medium text-gray-700">{row.label}</TableCell>
+                        {row.values.map((v, j) => (
+                          <TableCell key={j} className="text-center font-semibold text-gray-900">{fmt(v)}</TableCell>
+                        ))}
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rateCards[courier as keyof typeof rateCards].map(
-                        (rate, index) => (
-                          <TableRow
-                            key={index}
-                            className="hover:bg-blue-50 border-b border-gray-200"
-                          >
-                            <TableCell className="font-medium text-foreground">
-                              {rate.weight}
-                            </TableCell>
-                            <TableCell className="font-semibold text-foreground">
-                              ₹{rate.baseRate}
-                            </TableCell>
-                            <TableCell className="text-foreground/80">
-                              {rate.perKg > 0 ? `₹${rate.perKg}` : "-"}
-                            </TableCell>
-                            <TableCell className="text-foreground/80">
-                              {rate.codCharge}
-                            </TableCell>
-                            <TableCell className="text-foreground/70">
-                              18%
-                            </TableCell>
-                          </TableRow>
-                        )
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="mt-4 p-4 bg-[blue-600]/10 border border-gray-200 rounded-xl">
-                  <p className="text-sm text-foreground/80">
-                    <strong>Note:</strong> Rates are exclusive of GST. Final
-                    amount includes 18% GST. COD charges apply only for Cash on
-                    Delivery orders.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-700">
+                  <strong>CASH ON DELIVERY RATES (COD)</strong> — {delhiveryCOD}
+                </p>
+              </div>
+            </div>
 
-        <TabsContent value="express" className="mt-6 space-y-6">
-          {(selectedCourier === "all"
-            ? Object.keys(rateCards)
-            : [
-                selectedCourier.charAt(0).toUpperCase() +
-                  selectedCourier.slice(1),
-              ]
-          ).map((courier) => (
-            <Card
-              key={courier}
-              className="bg-white border border-gray-200 shadow-lg"
-            >
-              <CardHeader className="border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Truck className="w-6 h-6 text-[orange-600]" />
-                    <CardTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                      {courier in courierLogos ? (
-                        <img
-                          src={
-                            courierLogos[courier as keyof typeof courierLogos]
-                          }
-                          alt={courier}
-                          className="h-8"
-                        />
-                      ) : (
-                        courier
-                      )}
-                      <span>- Express</span>
-                    </CardTitle>
-                  </div>
-                  <img
-                    src="https://img.freepik.com/free-vector/delivery-service-illustrated_23-2148505081.jpg"
-                    alt="Express Delivery"
-                    className="w-24 h-14"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="rounded-md border border-gray-200 overflow-x-auto bg-white border border-gray-200">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gradient-to-r from-[orange-600]/10 to-[orange-600]/5 border-b border-[orange-600]/20">
-                        <TableHead className="font-semibold text-foreground">
-                          Weight Slab
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          Express Rate (₹)
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          Delivery Time
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground">
-                          COD Charge
-                        </TableHead>
+            {/* Express Rates */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Plane className="w-5 h-5 text-orange-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Express Rates</h3>
+              </div>
+              <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-gray-700 w-[280px]">
+                        <div className="flex items-center gap-2">
+                          <Plane className="w-4 h-4" /> Express
+                        </div>
+                      </TableHead>
+                      {delhiveryZones.map((z) => (
+                        <TableHead key={z} className="font-semibold text-gray-700 text-center">{z}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {delhiveryExpress.map((row, i) => (
+                      <TableRow key={i} className="hover:bg-orange-50/50">
+                        <TableCell className="font-medium text-gray-700">{row.label}</TableCell>
+                        {row.values.map((v, j) => (
+                          <TableCell key={j} className="text-center font-semibold text-gray-900">
+                            {v === 0 ? <span className="text-gray-300">₹0.00</span> : fmt(v)}
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rateCards[courier as keyof typeof rateCards].map(
-                        (rate, index) => (
-                          <TableRow
-                            key={index}
-                            className="hover:bg-[orange-600]/5 border-b border-[orange-600]/10"
-                          >
-                            <TableCell className="font-medium text-foreground">
-                              {rate.weight}
-                            </TableCell>
-                            <TableCell className="font-semibold text-[orange-600]">
-                              ₹{rate.express}
-                            </TableCell>
-                            <TableCell className="text-foreground/80">
-                              1-2 days
-                            </TableCell>
-                            <TableCell className="text-foreground/80">
-                              {rate.codCharge}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-3 flex items-start gap-2 bg-orange-50 border border-orange-100 rounded-lg px-4 py-2.5">
+                <Info className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-orange-700">
+                  These rates are exclusive of GST + Diesel Price Hike (DPH) Charges as per Industry Standards
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+          EKART (ROAD & EXPRESS)
+         ═══════════════════════════════════════════════════════ */}
+      {show("innofulfill") && (
+        <Card className="border border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-white border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Truck className="w-6 h-6 text-green-600" />
+                <CardTitle className="text-xl font-bold text-gray-900">Innofulfill</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Minimum order guarantee: 10000</span>
+                <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">Active</Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-8">
+            {/* Surface */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="w-5 h-5 text-gray-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Surface</h3>
+              </div>
+              <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-gray-700 w-[220px]">Weight</TableHead>
+                      {innofulfillZones.map((z) => (
+                        <TableHead key={z} className="font-semibold text-gray-700 text-center">{z}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {innofulfillSurface.map((row, i) => (
+                      <TableRow key={i} className={`hover:bg-green-50/50 ${row.weight.startsWith("Tariffs") ? "bg-gray-50 border-t-2" : ""}`}>
+                        <TableCell className="font-medium text-gray-700">{row.weight}</TableCell>
+                        {row.values.map((v, j) => (
+                          <TableCell key={j} className="text-center font-semibold text-gray-900">{fmt(v)}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Air */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Plane className="w-5 h-5 text-sky-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Air</h3>
+              </div>
+              <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold text-gray-700 w-[220px]">Weight</TableHead>
+                      {innofulfillZones.map((z) => (
+                        <TableHead key={z} className="font-semibold text-gray-700 text-center">{z}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {innofulfillAir.map((row, i) => (
+                      <TableRow key={i} className={`hover:bg-sky-50/50 ${row.weight.startsWith("Tariffs") ? "bg-gray-50 border-t-2" : ""}`}>
+                        <TableCell className="font-medium text-gray-700">{row.weight}</TableCell>
+                        {row.values.map((v, j) => (
+                          <TableCell key={j} className="text-center font-semibold text-gray-900">
+                            {v === 0 ? <span className="text-gray-300">₹0</span> : fmt(v)}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Other Charges */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-5 h-5 text-amber-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Other Charges</h3>
+              </div>
+              <div className="rounded-lg border border-blue-200 overflow-x-auto bg-blue-50/30">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-blue-50">
+                      <TableHead className="font-semibold text-blue-800 w-1/2">Charge Type</TableHead>
+                      <TableHead className="font-semibold text-blue-800">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {innofulfillOther.map((row, i) => (
+                      <TableRow key={i} className="hover:bg-blue-50/50">
+                        <TableCell className="font-medium text-gray-700">{row.label}</TableCell>
+                        <TableCell className="font-semibold text-gray-900">{row.value}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
