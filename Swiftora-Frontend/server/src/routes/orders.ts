@@ -148,6 +148,7 @@ const CreateOrderSchema = z.object({
 
 // Allow editing limited customer + shipping details before shipment
 const UpdateOrderSchema = z.object({
+  orderNumber: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   customerEmail: z.string().email().optional(),

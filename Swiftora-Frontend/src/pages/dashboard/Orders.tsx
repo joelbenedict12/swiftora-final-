@@ -255,6 +255,7 @@ const Orders = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
   const [editForm, setEditForm] = useState({
+    orderNumber: "",
     customerName: "",
     customerPhone: "",
     shippingAddress: "",
@@ -614,6 +615,7 @@ const Orders = () => {
 
     setOrderBeingEdited(order);
     setEditForm({
+      orderNumber: order.orderNumber || "",
       customerName: order.customerName || "",
       customerPhone: order.customerPhone || "",
       shippingAddress: order.shippingAddress || "",
@@ -630,6 +632,7 @@ const Orders = () => {
     try {
       setIsSavingEdit(true);
       const response = await ordersApi.update(orderBeingEdited.id, {
+        orderNumber: editForm.orderNumber,
         customerName: editForm.customerName,
         customerPhone: editForm.customerPhone,
         shippingAddress: editForm.shippingAddress,
@@ -1495,12 +1498,23 @@ const Orders = () => {
           <div className="py-4 space-y-4">
             {orderBeingEdited && (
               <div className="p-3 bg-muted rounded-lg text-sm">
-                <p className="font-medium">Order: {orderBeingEdited.orderNumber}</p>
                 <p className="text-muted-foreground">
                   Created: {new Date(orderBeingEdited.createdAt).toLocaleString()}
                 </p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>Order Number</Label>
+              <Input
+                value={editForm.orderNumber}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, orderNumber: e.target.value })
+                }
+                placeholder="e.g. SWIFT000001"
+              />
+              <p className="text-xs text-muted-foreground">This ID will be sent to the courier partner when you ship.</p>
+            </div>
 
             <div className="space-y-2">
               <Label>Customer Name</Label>
@@ -2074,7 +2088,13 @@ const Orders = () => {
               </div>
             ) : walletInfo && !walletInfo.canShip ? (
               <div className="space-y-4">
-                {shippingEstimate && shippingEstimate.vendorCharge > 0 ? (
+                {walletInfo.customerType === 'CREDIT' ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-sm text-blue-700">
+                      Shipping cost will be billed to your credit account at the end of the billing cycle.
+                    </p>
+                  </div>
+                ) : shippingEstimate && shippingEstimate.vendorCharge > 0 ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-blue-700">Shipping Cost</span>

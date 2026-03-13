@@ -34,6 +34,7 @@ interface VendorAnalytics {
     totalOrders: number; ordersThisMonth: number; topCourier: string | null;
     totalShippingValue: number; avgShippingCost: number;
     delivered: number; cancelled: number; pending: number;
+    inTransit: number; pickedUp: number; outForDelivery: number;
     courierBreakdown: { courier: string; count: number }[];
   };
   transactions: {
@@ -385,6 +386,18 @@ export default function Vendors() {
                     <div className="metric-card">
                       <span className="metric-label">⏳ Pending</span>
                       <span className="metric-value" style={{ color: "#f59e0b" }}>{analytics.shipments.pending}</span>
+                    </div>
+                    <div className="metric-card">
+                      <span className="metric-label">🚛 In Transit</span>
+                      <span className="metric-value" style={{ color: "#3b82f6" }}>{analytics.shipments.inTransit}</span>
+                    </div>
+                    <div className="metric-card">
+                      <span className="metric-label">📦 Picked Up</span>
+                      <span className="metric-value" style={{ color: "#8b5cf6" }}>{analytics.shipments.pickedUp}</span>
+                    </div>
+                    <div className="metric-card">
+                      <span className="metric-label">🚚 Out for Delivery</span>
+                      <span className="metric-value" style={{ color: "#0ea5e9" }}>{analytics.shipments.outForDelivery}</span>
                     </div>
                     <div className="metric-card">
                       <span className="metric-label">Total Shipping Value</span>
