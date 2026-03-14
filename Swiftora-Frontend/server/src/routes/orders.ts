@@ -14,7 +14,7 @@ import {
   xpressbeesService,
   delhiveryService,
 } from '../services/courier/index.js';
-import { calculateVendorPrice, estimateVendorCharge } from '../services/PricingEngine.js';
+import { calculateVendorPrice, estimateVendorCharge, calculateAdditionalChargeTotal } from '../services/PricingEngine.js';
 import { getCommissionPercent } from '../services/commissionService.js';
 import * as WalletService from '../services/WalletService.js';
 import * as CreditService from '../services/creditService.js';
@@ -896,6 +896,7 @@ router.post('/:id/shipping-estimate', async (req: AuthRequest, res, next) => {
       weight,
       paymentMode: order.paymentMode || 'PREPAID',
       courierCostEstimate,
+      merchantId: req.user.merchantId,
     });
 
     // Get wallet info
@@ -1020,6 +1021,7 @@ router.post('/:id/compare-rates', async (req: AuthRequest, res, next) => {
           weight,
           paymentMode,
           courierCostEstimate: rateResult.rate,
+          merchantId: req.user?.merchantId,
         });
 
         return {
@@ -1278,6 +1280,7 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         userAccountType: accountType,
         courierName: selectedCourier,
         weight: shipWeight,
+        merchantId: req.user!.merchantId,
       });
       console.log(`[SHIP] ${selectedCourier} fresh pricing: courierCost=${courierCost}, vendorCharge=${pricing.vendorCharge}, margin=${pricing.margin}`);
     }
@@ -1343,6 +1346,10 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
             : shippingMode === 'Surface' ? 'Surface'
               : bodyDeliveryType || null;
 
+    // Calculate additional charges for this order (if any were pre-configured by admin)
+    const additionalChargeTotal = await calculateAdditionalChargeTotal(order.id, pricing.courierCost);
+    const finalPrice = Math.round((pricing.courierCost + pricing.margin + additionalChargeTotal) * 100) / 100;
+
     // Update order with AWB + pricing data + shipping mode
     const updated = await prisma.order.update({
       where: { id: order.id },
@@ -1352,8 +1359,10 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
         labelUrl: shipmentResponse.labelUrl,
         status: 'READY_TO_SHIP',
         courierCost: pricing.courierCost,
-        vendorCharge: pricing.vendorCharge,
+        vendorCharge: finalPrice,
         margin: pricing.margin,
+        additionalChargeTotal,
+        finalPrice,
         shippedAt: new Date(),
         ...(deliveryTypeLabel && { deliveryType: deliveryTypeLabel }),
       },
@@ -1366,8 +1375,10 @@ router.post('/:id/ship', async (req: AuthRequest, res, next) => {
       labelUrl: shipmentResponse.labelUrl,
       pricing: {
         courierCost: pricing.courierCost,
-        vendorCharge: pricing.vendorCharge,
+        vendorCharge: finalPrice,
         margin: pricing.margin,
+        additionalChargeTotal,
+        finalPrice,
       },
       wallet: walletResult ? {
         debited: walletResult.success,

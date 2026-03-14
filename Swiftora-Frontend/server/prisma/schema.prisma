@@ -89,6 +89,10 @@ model Merchant {
   walletBalance     Decimal  @default(0) @db.Decimal(12, 2)
   creditLimit       Decimal  @default(0) @db.Decimal(12, 2)
   
+  // Per-customer pricing margin
+  marginType        String   @default("percentage")  // "percentage" or "fixed"
+  marginValue       Decimal  @default(0) @db.Decimal(10, 2)
+  
   // Delhivery Integration
   delhiveryApiKey   String?
   delhiveryClientId String?
@@ -218,9 +222,11 @@ model Order {
   manifestUrl       String?
   
   // Pricing (Swiftora margin tracking)
-  courierCost       Decimal?    @db.Decimal(10, 2)  // What Swiftora pays the courier
-  vendorCharge      Decimal?    @db.Decimal(10, 2)  // What the vendor pays Swiftora
-  margin            Decimal?    @db.Decimal(10, 2)  // vendorCharge - courierCost (net profit)
+  courierCost            Decimal?    @db.Decimal(10, 2)  // What Swiftora pays the courier
+  vendorCharge           Decimal?    @db.Decimal(10, 2)  // What the vendor pays Swiftora
+  margin                 Decimal?    @db.Decimal(10, 2)  // vendorCharge - courierCost (net profit)
+  additionalChargeTotal  Decimal?    @db.Decimal(10, 2)  // Sum of extra charges (QC, handling, etc.)
+  finalPrice             Decimal?    @db.Decimal(10, 2)  // courierCost + margin + additionalChargeTotal
   
   // When shipment was successfully booked (AWB assigned)
   shippedAt         DateTime?
@@ -264,6 +270,7 @@ model Order {
   creditLedgerEntries CreditLedger[]
   codRemittance     CodRemittance?
   ndrCase           NdrCase?
+  additionalCharges ShipmentAdditionalCharge[]
   
   @@index([merchantId])
   @@index([userId])
@@ -760,4 +767,16 @@ model NdrCase {
   @@index([courierName])
   @@index([resolved])
   @@index([createdAt])
+}
+
+model ShipmentAdditionalCharge {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  chargeName  String
+  chargeType  String   // "fixed" or "percentage"
+  chargeValue Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
 }

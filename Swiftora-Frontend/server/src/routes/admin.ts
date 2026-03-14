@@ -1045,20 +1045,30 @@ router.get('/analytics/profit', authenticate, requireAdmin, async (req, res, nex
 // Get admin orders list with profit and margin % per order (shipped orders only)
 router.get('/orders', authenticate, requireAdmin, async (req, res, next) => {
     try {
-        const { startDate, endDate, status, limit = '50', offset = '0' } = req.query;
+        const { startDate, endDate, status, search, limit = '50', offset = '0' } = req.query;
         const where: Record<string, unknown> = {
             status: { in: ['READY_TO_SHIP', 'MANIFESTED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
             awbNumber: { not: null },
         };
-        if (status && typeof status === 'string') where.status = status;
+        if (status && typeof status === 'string' && status !== 'all') where.status = status;
+        if (search && typeof search === 'string' && search.trim()) {
+            const q = search.trim();
+            where.OR = [
+                { orderNumber: { contains: q, mode: 'insensitive' } },
+                { customerName: { contains: q, mode: 'insensitive' } },
+                { awbNumber: { contains: q, mode: 'insensitive' } },
+            ];
+        }
         if (startDate || endDate) {
             const range: { gte?: Date; lte?: Date } = {};
             if (startDate) range.gte = new Date(startDate as string);
             if (endDate) range.lte = new Date(endDate as string);
-            where.OR = [
-                { shippedAt: { not: null, ...range } },
-                { shippedAt: null, updatedAt: range },
-            ];
+            if (!where.OR) {
+                where.OR = [
+                    { shippedAt: { not: null, ...range } },
+                    { shippedAt: null, updatedAt: range },
+                ];
+            }
         }
         const take = Math.min(parseInt(limit as string, 10) || 50, 200);
         const skip = parseInt(offset as string, 10) || 0;
@@ -1072,14 +1082,23 @@ router.get('/orders', authenticate, requireAdmin, async (req, res, next) => {
                 id: true,
                 orderNumber: true,
                 customerName: true,
+                customerPhone: true,
                 courierName: true,
+                awbNumber: true,
                 status: true,
+                paymentMode: true,
+                productName: true,
+                productValue: true,
+                weight: true,
                 vendorCharge: true,
                 courierCost: true,
                 margin: true,
+                additionalChargeTotal: true,
+                finalPrice: true,
+                merchantId: true,
                 shippedAt: true,
                 createdAt: true,
-                merchant: { select: { companyName: true } },
+                merchant: { select: { companyName: true, customerType: true } },
             },
         });
 
@@ -1092,13 +1111,25 @@ router.get('/orders', authenticate, requireAdmin, async (req, res, next) => {
                 id: o.id,
                 orderNumber: o.orderNumber,
                 customerName: o.customerName,
+                customerPhone: o.customerPhone,
                 vendorName: o.merchant?.companyName,
                 courierName: AnalyticsService.normalizeCourierName(o.courierName),
+                awbNumber: o.awbNumber,
                 status: o.status,
+                paymentMode: o.paymentMode,
+                productName: o.productName,
+                productValue: Number(o.productValue),
+                weight: Number(o.weight),
                 revenue,
                 courierCost: cost,
+                margin: Number(o.margin || 0),
                 profit,
                 marginPercent,
+                additionalChargeTotal: Number(o.additionalChargeTotal || 0),
+                finalPrice: Number(o.finalPrice || 0),
+                vendorCharge: revenue,
+                merchantId: o.merchantId,
+                merchant: o.merchant,
                 shippedAt: o.shippedAt,
                 createdAt: o.createdAt,
             };
@@ -1259,6 +1290,61 @@ router.put('/vendors/:id/customer-type', authenticate, requireAdmin, async (req:
 });
 
 // ============================================================
+// CUSTOMER PRICING CONFIGURATION
+// ============================================================
+
+router.get('/vendors/:id/pricing', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const merchant = await prisma.merchant.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, companyName: true, marginType: true, marginValue: true },
+        });
+        if (!merchant) throw new AppError(404, 'Vendor not found');
+        res.json({
+            success: true,
+            pricing: {
+                marginType: merchant.marginType,
+                marginValue: Number(merchant.marginValue),
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.put('/vendors/:id/pricing', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { marginType, marginValue } = req.body;
+        if (!marginType || !['percentage', 'fixed'].includes(marginType)) {
+            throw new AppError(400, 'marginType must be "percentage" or "fixed"');
+        }
+        const numValue = Number(marginValue);
+        if (isNaN(numValue) || numValue < 0) {
+            throw new AppError(400, 'marginValue must be >= 0');
+        }
+        if (marginType === 'percentage' && numValue > 100) {
+            throw new AppError(400, 'Percentage marginValue must be between 0 and 100');
+        }
+
+        const merchant = await prisma.merchant.update({
+            where: { id: req.params.id },
+            data: { marginType, marginValue: numValue },
+            select: { id: true, companyName: true, marginType: true, marginValue: true },
+        });
+
+        res.json({
+            success: true,
+            pricing: {
+                marginType: merchant.marginType,
+                marginValue: Number(merchant.marginValue),
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
 // MONTHLY INVOICE GENERATION
 // ============================================================
 
@@ -1318,6 +1404,200 @@ router.put('/billing/invoices/:id/mark-paid', authenticate, requireAdmin, async 
             data: { isPaid: true, paidAt: new Date() },
         });
         res.json({ success: true, invoice });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// SHIPMENT ADDITIONAL CHARGES
+// ============================================================
+
+router.get('/orders/:id/additional-charges', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const charges = await prisma.shipmentAdditionalCharge.findMany({
+            where: { orderId: req.params.id },
+            orderBy: { createdAt: 'asc' },
+        });
+        res.json({
+            success: true,
+            charges: charges.map(c => ({
+                id: c.id,
+                chargeName: c.chargeName,
+                chargeType: c.chargeType,
+                chargeValue: Number(c.chargeValue),
+                createdAt: c.createdAt,
+            })),
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.post('/orders/:id/additional-charges', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const { chargeName, chargeType, chargeValue } = req.body;
+        if (!chargeName || typeof chargeName !== 'string' || !chargeName.trim()) {
+            throw new AppError(400, 'chargeName is required');
+        }
+        if (!chargeType || !['fixed', 'percentage'].includes(chargeType)) {
+            throw new AppError(400, 'chargeType must be "fixed" or "percentage"');
+        }
+        const numValue = Number(chargeValue);
+        if (isNaN(numValue) || numValue < 0) {
+            throw new AppError(400, 'chargeValue must be >= 0');
+        }
+        if (chargeType === 'percentage' && numValue > 100) {
+            throw new AppError(400, 'Percentage chargeValue must be between 0 and 100');
+        }
+
+        const order = await prisma.order.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, courierCost: true, margin: true },
+        });
+        if (!order) throw new AppError(404, 'Order not found');
+
+        const charge = await prisma.shipmentAdditionalCharge.create({
+            data: {
+                orderId: req.params.id,
+                chargeName: chargeName.trim(),
+                chargeType,
+                chargeValue: numValue,
+            },
+        });
+
+        const allCharges = await prisma.shipmentAdditionalCharge.findMany({
+            where: { orderId: req.params.id },
+        });
+        const courierCost = Number(order.courierCost || 0);
+        const marginAmount = Number(order.margin || 0);
+        let additionalTotal = 0;
+        for (const c of allCharges) {
+            if (c.chargeType === 'percentage') {
+                additionalTotal += courierCost * Number(c.chargeValue) / 100;
+            } else {
+                additionalTotal += Number(c.chargeValue);
+            }
+        }
+        additionalTotal = Math.round(additionalTotal * 100) / 100;
+        const finalPrice = Math.round((courierCost + marginAmount + additionalTotal) * 100) / 100;
+
+        await prisma.order.update({
+            where: { id: req.params.id },
+            data: {
+                additionalChargeTotal: additionalTotal,
+                finalPrice,
+                vendorCharge: finalPrice,
+            },
+        });
+
+        res.json({
+            success: true,
+            charge: {
+                id: charge.id,
+                chargeName: charge.chargeName,
+                chargeType: charge.chargeType,
+                chargeValue: Number(charge.chargeValue),
+            },
+            additionalChargeTotal: additionalTotal,
+            finalPrice,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.delete('/orders/:id/additional-charges/:chargeId', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const existing = await prisma.shipmentAdditionalCharge.findFirst({
+            where: { id: req.params.chargeId, orderId: req.params.id },
+        });
+        if (!existing) throw new AppError(404, 'Charge not found');
+
+        await prisma.shipmentAdditionalCharge.delete({ where: { id: req.params.chargeId } });
+
+        const order = await prisma.order.findUnique({
+            where: { id: req.params.id },
+            select: { courierCost: true, margin: true },
+        });
+        const courierCost = Number(order?.courierCost || 0);
+        const marginAmount = Number(order?.margin || 0);
+
+        const remainingCharges = await prisma.shipmentAdditionalCharge.findMany({
+            where: { orderId: req.params.id },
+        });
+        let additionalTotal = 0;
+        for (const c of remainingCharges) {
+            if (c.chargeType === 'percentage') {
+                additionalTotal += courierCost * Number(c.chargeValue) / 100;
+            } else {
+                additionalTotal += Number(c.chargeValue);
+            }
+        }
+        additionalTotal = Math.round(additionalTotal * 100) / 100;
+        const finalPrice = Math.round((courierCost + marginAmount + additionalTotal) * 100) / 100;
+
+        await prisma.order.update({
+            where: { id: req.params.id },
+            data: {
+                additionalChargeTotal: additionalTotal,
+                finalPrice,
+                vendorCharge: finalPrice,
+            },
+        });
+
+        res.json({ success: true, additionalChargeTotal: additionalTotal, finalPrice });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ============================================================
+// ORDER PRICE BREAKDOWN
+// ============================================================
+
+router.get('/orders/:id/price-breakdown', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+    try {
+        const order = await prisma.order.findUnique({
+            where: { id: req.params.id },
+            select: {
+                courierCost: true,
+                margin: true,
+                vendorCharge: true,
+                additionalChargeTotal: true,
+                finalPrice: true,
+                merchantId: true,
+                merchant: { select: { customerType: true, companyName: true } },
+            },
+        });
+        if (!order) throw new AppError(404, 'Order not found');
+
+        const charges = await prisma.shipmentAdditionalCharge.findMany({
+            where: { orderId: req.params.id },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        const courierCost = Number(order.courierCost || 0);
+        const marginAmount = Number(order.margin || 0);
+        const additionalChargeTotal = Number(order.additionalChargeTotal || 0);
+        const finalPrice = Number(order.finalPrice || Number(order.vendorCharge || 0));
+
+        res.json({
+            success: true,
+            breakdown: {
+                courierCost,
+                marginAmount,
+                additionalCharges: charges.map(c => ({
+                    id: c.id,
+                    name: c.chargeName,
+                    type: c.chargeType,
+                    value: Number(c.chargeValue),
+                })),
+                additionalChargeTotal,
+                finalPrice,
+                customerType: order.merchant.customerType,
+            },
+        });
     } catch (error) {
         next(error);
     }

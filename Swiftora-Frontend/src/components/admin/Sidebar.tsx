@@ -13,6 +13,7 @@ import {
   Wallet,
   FileText,
   AlertTriangle,
+  ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -24,6 +25,7 @@ export default function Sidebar() {
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/admin/users", icon: Users, label: "Users" },
     { to: "/admin/vendors", icon: Store, label: "Vendors" },
+    { to: "/admin/orders", icon: ShoppingCart, label: "Orders" },
     { to: "/admin/tickets", icon: Ticket, label: "Tickets" },
     { to: "/admin/payments", icon: CreditCard, label: "Payments" },
     { to: "/admin/cod-remittance", icon: Wallet, label: "COD Remittance" },

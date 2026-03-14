@@ -54,6 +54,7 @@ import AdminRateCards from "./pages/admin/RateCards";
 import AdminInvoices from "./pages/admin/Invoices";
 import AdminCodRemittance from "./pages/admin/CodRemittance";
 import AdminNdrCases from "./pages/admin/NdrCases";
+import AdminOrders from "./pages/admin/Orders";
 
 // Support imports
 import SupportLayout from "./components/support/SupportLayout";
@@ -137,6 +138,7 @@ const App = () => (
             <Route path="invoices" element={<AdminInvoices />} />
             <Route path="cod-remittance" element={<AdminCodRemittance />} />
             <Route path="ndr-cases" element={<AdminNdrCases />} />
+            <Route path="orders" element={<AdminOrders />} />
           </Route>
 
           {/* Support Routes */}

@@ -535,6 +535,24 @@ export const adminApi = {
   getAdminOrders: (params?: Record<string, any>) =>
     api.get('/admin/orders', { params }),
 
+  // Customer Pricing
+  getVendorPricing: (merchantId: string) =>
+    api.get(`/admin/vendors/${merchantId}/pricing`),
+  updateVendorPricing: (merchantId: string, data: { marginType: string; marginValue: number }) =>
+    api.put(`/admin/vendors/${merchantId}/pricing`, data),
+
+  // Shipment Additional Charges
+  getAdditionalCharges: (orderId: string) =>
+    api.get(`/admin/orders/${orderId}/additional-charges`),
+  addAdditionalCharge: (orderId: string, data: { chargeName: string; chargeType: string; chargeValue: number }) =>
+    api.post(`/admin/orders/${orderId}/additional-charges`, data),
+  removeAdditionalCharge: (orderId: string, chargeId: string) =>
+    api.delete(`/admin/orders/${orderId}/additional-charges/${chargeId}`),
+
+  // Order Price Breakdown
+  getOrderPriceBreakdown: (orderId: string) =>
+    api.get(`/admin/orders/${orderId}/price-breakdown`),
+
   // User role management
   updateUserRole: (userId: string, role: string) =>
     api.put(`/admin/users/${userId}/role`, { role }),

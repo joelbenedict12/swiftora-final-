@@ -15,6 +15,7 @@ export interface PricingInput {
     userAccountType: string; // B2B or B2C
     courierName: string;
     weight: number; // in kg
+    merchantId?: string;
 }
 
 export interface PricingResult {
@@ -23,25 +24,96 @@ export interface PricingResult {
     marginType: string;
     marginValue: number;
     courierCost: number;
+    additionalChargeTotal: number;
+    finalPrice: number;
 }
 
 /**
- * Calculate vendor price using platform commission from admin settings.
- * vendorCharge = courierCost + (courierCost * commission%)
- * Changing commission% in admin panel updates ALL prices everywhere.
+ * Calculate vendor price. Uses per-customer margin if configured (marginValue > 0),
+ * otherwise falls back to global platform commission from admin settings.
  */
 export async function calculateVendorPrice(input: PricingInput): Promise<PricingResult> {
-    const { courierCost } = input;
+    const { courierCost, merchantId } = input;
 
-    const platformCommission = await getCommissionPercent();
-    const marginAmount = courierCost * platformCommission / 100;
+    let marginType = 'percentage';
+    let marginValue = 0;
+    let marginAmount = 0;
+
+    let usedCustomerMargin = false;
+    if (merchantId) {
+        const merchant = await prisma.merchant.findUnique({
+            where: { id: merchantId },
+            select: { marginType: true, marginValue: true },
+        });
+        if (merchant && Number(merchant.marginValue) > 0) {
+            marginType = merchant.marginType;
+            marginValue = Number(merchant.marginValue);
+            usedCustomerMargin = true;
+        }
+    }
+
+    if (!usedCustomerMargin) {
+        marginValue = await getCommissionPercent();
+        marginType = 'percentage';
+    }
+
+    if (marginType === 'percentage') {
+        marginAmount = courierCost * marginValue / 100;
+    } else {
+        marginAmount = marginValue;
+    }
+
+    const additionalChargeTotal = merchantId
+        ? await calculateAdditionalChargeTotal(undefined, courierCost)
+        : 0;
+
+    const vendorCharge = Math.round((courierCost + marginAmount) * 100) / 100;
+    const finalPrice = Math.round((courierCost + marginAmount + additionalChargeTotal) * 100) / 100;
 
     return {
-        vendorCharge: Math.round((courierCost + marginAmount) * 100) / 100,
+        vendorCharge,
         margin: Math.round(marginAmount * 100) / 100,
-        marginType: 'percentage',
-        marginValue: platformCommission,
+        marginType,
+        marginValue,
         courierCost,
+        additionalChargeTotal: 0,
+        finalPrice: vendorCharge,
+    };
+}
+
+/**
+ * Calculate the sum of additional charges for an order.
+ * Percentage charges are calculated against the courier cost.
+ */
+export async function calculateAdditionalChargeTotal(orderId?: string, courierCost: number = 0): Promise<number> {
+    if (!orderId) return 0;
+    const charges = await prisma.shipmentAdditionalCharge.findMany({ where: { orderId } });
+    let total = 0;
+    for (const c of charges) {
+        if (c.chargeType === 'percentage') {
+            total += courierCost * Number(c.chargeValue) / 100;
+        } else {
+            total += Number(c.chargeValue);
+        }
+    }
+    return Math.round(total * 100) / 100;
+}
+
+/**
+ * Calculate full pricing for a shipped order including additional charges.
+ */
+export async function calculateFullOrderPrice(input: PricingInput & { orderId?: string }): Promise<PricingResult> {
+    const base = await calculateVendorPrice(input);
+    if (!input.orderId) return base;
+
+    const additionalChargeTotal = await calculateAdditionalChargeTotal(input.orderId, input.courierCost);
+    const finalPrice = Math.round((base.courierCost + base.margin + additionalChargeTotal) * 100) / 100;
+
+    return {
+        ...base,
+        additionalChargeTotal,
+        finalPrice,
+        vendorCharge: finalPrice,
     };
 }
 
@@ -55,24 +127,25 @@ export async function estimateVendorCharge(input: {
     userAccountType: string;
     weight: number;
     paymentMode: string;
-    courierCostEstimate?: number; // from courier rate API if available
+    courierCostEstimate?: number;
+    merchantId?: string;
 }): Promise<PricingResult> {
-    // Use actual courier cost from rate API if available
     if (input.courierCostEstimate && input.courierCostEstimate > 0) {
         return calculateVendorPrice({
             courierCost: input.courierCostEstimate,
             userAccountType: input.userAccountType,
             courierName: input.courierName,
             weight: input.weight,
+            merchantId: input.merchantId,
         });
     }
 
-    // Fallback: zero-cost (actual cost set after courier booking confirms)
     return calculateVendorPrice({
         courierCost: 0,
         userAccountType: input.userAccountType,
         courierName: input.courierName,
         weight: input.weight,
+        merchantId: input.merchantId,
     });
 }
 
