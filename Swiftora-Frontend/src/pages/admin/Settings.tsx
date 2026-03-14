@@ -4,6 +4,7 @@ import "./Pages.css";
 
 export default function Settings() {
   const [commission, setCommission] = useState("");
+  const [commissionNumber, setCommissionNumber] = useState("");
   const [minRecharge, setMinRecharge] = useState("");
   const [qrUrl, setQrUrl] = useState("");
   const [qcCharge, setQcCharge] = useState("15");
@@ -17,6 +18,7 @@ export default function Settings() {
         const res = await adminApi.getSettings();
         const s = res.data;
         setCommission(s.platform_commission_percent || "15");
+        setCommissionNumber(s.platform_commission_number || "0");
         setMinRecharge(s.min_recharge_amount || "500");
         setQrUrl(s.platform_qr_url || "");
         setQcCharge(s.qc_charge || "15");
@@ -35,6 +37,7 @@ export default function Settings() {
     try {
       await adminApi.updateSettings({
         platform_commission_percent: Number(commission),
+        platform_commission_number: Number(commissionNumber),
         min_recharge_amount: Number(minRecharge),
         platform_qr_url: qrUrl,
         qc_charge: Number(qcCharge),
@@ -75,35 +78,22 @@ export default function Settings() {
             step="0.5"
           />
           <small style={{ color: "#666" }}>
-            Applied as markup on all courier costs — also reflected on seller rate cards
+            Percentage markup applied on all courier costs — reflected on seller rate cards
           </small>
-          {Number(commission) > 0 && (
-            <div style={{
-              marginTop: 10,
-              padding: "10px 14px",
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: 8,
-              fontSize: 13,
-              color: "#166534",
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 16,
-            }}>
-              <div>
-                <span style={{ fontWeight: 600 }}>Commission Rate:</span>{" "}
-                {Number(commission)}%
-              </div>
-              <div>
-                <span style={{ fontWeight: 600 }}>On ₹100 courier cost:</span>{" "}
-                ₹{(100 * Number(commission) / 100).toFixed(2)} commission → ₹{(100 + 100 * Number(commission) / 100).toFixed(2)} vendor charge
-              </div>
-              <div>
-                <span style={{ fontWeight: 600 }}>On ₹500 courier cost:</span>{" "}
-                ₹{(500 * Number(commission) / 100).toFixed(2)} commission → ₹{(500 + 500 * Number(commission) / 100).toFixed(2)} vendor charge
-              </div>
-            </div>
-          )}
+        </div>
+        <div className="form-group">
+          <label>Platform Commission (₹)</label>
+          <input
+            type="number"
+            className="form-input"
+            value={commissionNumber}
+            onChange={(e) => setCommissionNumber(e.target.value)}
+            min="0"
+            step="1"
+          />
+          <small style={{ color: "#666" }}>
+            Fixed amount added to all courier costs as platform markup
+          </small>
         </div>
         <div className="form-group">
           <label>Minimum Wallet Recharge (₹)</label>

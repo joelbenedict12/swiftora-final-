@@ -1157,10 +1157,13 @@ router.get('/settings', authenticate, requireAdmin, async (_req, res, next) => {
 
 router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
     try {
-        const { platform_commission_percent, min_recharge_amount, platform_qr_url, qc_charge } = req.body;
+        const { platform_commission_percent, platform_commission_number, min_recharge_amount, platform_qr_url, qc_charge } = req.body;
 
         if (platform_commission_percent !== undefined) {
             await CommissionService.updateCommissionPercent(Number(platform_commission_percent));
+        }
+        if (platform_commission_number !== undefined) {
+            await CommissionService.setSetting('platform_commission_number', String(platform_commission_number));
         }
         if (min_recharge_amount !== undefined) {
             await CommissionService.updateMinRechargeAmount(Number(min_recharge_amount));

@@ -496,6 +496,7 @@ export const adminApi = {
   getSettings: () => api.get('/admin/settings'),
   updateSettings: (data: {
     platform_commission_percent?: number;
+    platform_commission_number?: number;
     min_recharge_amount?: number;
     platform_qr_url?: string;
     qc_charge?: number;
