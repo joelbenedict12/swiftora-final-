@@ -104,12 +104,21 @@ export class ShopifyService {
     // ── HMAC Verification ──────────────────────────────────────
 
     static verifyWebhookHmac(rawBody: Buffer, hmacHeader: string): boolean {
-        if (!SHOPIFY_WEBHOOK_SECRET) return true; // Skip if not configured
+        // Use webhook secret or fall back to client secret (Shopify signs with client secret)
+        const secret = SHOPIFY_WEBHOOK_SECRET || SHOPIFY_CLIENT_SECRET;
+        if (!secret) {
+            console.error('[Shopify] No webhook secret or client secret configured for HMAC verification');
+            return false;
+        }
         const hash = crypto
-            .createHmac('sha256', SHOPIFY_WEBHOOK_SECRET)
+            .createHmac('sha256', secret)
             .update(rawBody)
             .digest('base64');
-        return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmacHeader));
+        try {
+            return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmacHeader));
+        } catch {
+            return false;
+        }
     }
 
     // ── Order Processing ───────────────────────────────────────

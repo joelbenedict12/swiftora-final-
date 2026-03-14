@@ -58,8 +58,8 @@ app.options('*', cors());
 
 app.use(express.json({
   verify: (req: any, _res, buf) => {
-    // Store raw body for Shopify webhook HMAC verification
-    if (req.url === '/api/shopify/webhook') {
+    // Store raw body for Shopify webhook & compliance HMAC verification
+    if (req.url?.startsWith('/api/shopify/')) {
       req.rawBody = buf;
     }
   },

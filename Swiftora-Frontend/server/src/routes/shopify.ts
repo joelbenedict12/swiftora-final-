@@ -231,17 +231,20 @@ router.post('/webhook', async (req, res) => {
         const topic = req.headers['x-shopify-topic'] as string;
         const shop = req.headers['x-shopify-shop-domain'] as string;
 
-        // Verify HMAC
+        // HMAC verification is MANDATORY
         const rawBody = (req as any).rawBody;
-        if (rawBody && hmac) {
-            const isValid = ShopifyService.verifyWebhookHmac(rawBody, hmac);
-            if (!isValid) {
-                console.error('[Shopify Webhook] Invalid HMAC signature');
-                return res.status(401).json({ error: 'Invalid HMAC' });
-            }
+        if (!rawBody || !hmac) {
+            console.error('[Shopify Webhook] Missing rawBody or HMAC header');
+            return res.status(401).json({ error: 'Missing HMAC signature' });
         }
 
-        console.log(`[Shopify Webhook] topic=${topic} shop=${shop}`);
+        const isValid = ShopifyService.verifyWebhookHmac(rawBody, hmac);
+        if (!isValid) {
+            console.error('[Shopify Webhook] Invalid HMAC signature');
+            return res.status(401).json({ error: 'Invalid HMAC signature' });
+        }
+
+        console.log(`[Shopify Webhook] Verified topic=${topic} shop=${shop}`);
 
         switch (topic) {
             case 'orders/create':
@@ -249,12 +252,51 @@ router.post('/webhook', async (req, res) => {
                 break;
 
             case 'orders/updated':
-                // Only process if order doesn't exist yet (avoid duplicate processing)
                 await ShopifyService.processOrder(shop, req.body);
                 break;
 
             case 'app/uninstalled':
                 await ShopifyService.handleUninstall(shop);
+                break;
+
+            // ── GDPR Mandatory Compliance Webhooks ──
+            case 'customers/data_request':
+                console.log(`[Shopify GDPR] Customer data request from ${shop}`);
+                // Respond with customer data if stored (we only store orders)
+                break;
+
+            case 'customers/redact':
+                console.log(`[Shopify GDPR] Customer redact request from ${shop}`, req.body);
+                // Redact customer PII from orders
+                if (req.body?.customer?.id && shop) {
+                    try {
+                        await prisma.order.updateMany({
+                            where: { shopifyShop: shop, customerEmail: req.body.customer.email } as any,
+                            data: {
+                                customerName: 'REDACTED',
+                                customerPhone: 'REDACTED',
+                                customerEmail: null,
+                            } as any,
+                        });
+                        console.log(`[Shopify GDPR] Customer data redacted for shop ${shop}`);
+                    } catch (err: any) {
+                        console.error('[Shopify GDPR] Failed to redact customer data:', err.message);
+                    }
+                }
+                break;
+
+            case 'shop/redact':
+                console.log(`[Shopify GDPR] Shop redact request from ${shop}`);
+                // Deactivate connection and mark for data cleanup
+                try {
+                    await (prisma as any).shopifyConnection.updateMany({
+                        where: { shopDomain: shop },
+                        data: { isActive: false, accessToken: 'REDACTED' },
+                    });
+                    console.log(`[Shopify GDPR] Shop data redacted for ${shop}`);
+                } catch (err: any) {
+                    console.error('[Shopify GDPR] Failed to redact shop data:', err.message);
+                }
                 break;
 
             default:
@@ -265,9 +307,73 @@ router.post('/webhook', async (req, res) => {
         res.status(200).json({ received: true });
     } catch (error: any) {
         console.error('[Shopify Webhook] Error:', error.message);
-        // Still return 200 to prevent Shopify retries for processing errors
         res.status(200).json({ received: true, error: error.message });
     }
+});
+
+// ============================================================
+// GDPR Compliance Endpoints (mandatory for Shopify app review)
+// These are separate POST endpoints Shopify calls directly
+// ============================================================
+
+router.post('/compliance/customers-data-request', async (req, res) => {
+    const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+    const rawBody = (req as any).rawBody;
+
+    if (rawBody && hmac) {
+        const isValid = ShopifyService.verifyWebhookHmac(rawBody, hmac);
+        if (!isValid) return res.status(401).json({ error: 'Invalid HMAC' });
+    }
+
+    console.log('[Shopify GDPR] Customer data request received:', req.body);
+    res.status(200).json({ received: true });
+});
+
+router.post('/compliance/customers-redact', async (req, res) => {
+    const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+    const rawBody = (req as any).rawBody;
+
+    if (rawBody && hmac) {
+        const isValid = ShopifyService.verifyWebhookHmac(rawBody, hmac);
+        if (!isValid) return res.status(401).json({ error: 'Invalid HMAC' });
+    }
+
+    console.log('[Shopify GDPR] Customer redact request received:', req.body);
+    // Redact customer PII
+    if (req.body?.customer?.email && req.body?.shop_domain) {
+        try {
+            await prisma.order.updateMany({
+                where: { shopifyShop: req.body.shop_domain, customerEmail: req.body.customer.email } as any,
+                data: { customerName: 'REDACTED', customerPhone: 'REDACTED', customerEmail: null } as any,
+            });
+        } catch (err: any) {
+            console.error('[Shopify GDPR] Redact error:', err.message);
+        }
+    }
+    res.status(200).json({ received: true });
+});
+
+router.post('/compliance/shop-redact', async (req, res) => {
+    const hmac = req.headers['x-shopify-hmac-sha256'] as string;
+    const rawBody = (req as any).rawBody;
+
+    if (rawBody && hmac) {
+        const isValid = ShopifyService.verifyWebhookHmac(rawBody, hmac);
+        if (!isValid) return res.status(401).json({ error: 'Invalid HMAC' });
+    }
+
+    console.log('[Shopify GDPR] Shop redact request received:', req.body);
+    if (req.body?.shop_domain) {
+        try {
+            await (prisma as any).shopifyConnection.updateMany({
+                where: { shopDomain: req.body.shop_domain },
+                data: { isActive: false, accessToken: 'REDACTED' },
+            });
+        } catch (err: any) {
+            console.error('[Shopify GDPR] Shop redact error:', err.message);
+        }
+    }
+    res.status(200).json({ received: true });
 });
 
 export const shopifyRouter = router;
