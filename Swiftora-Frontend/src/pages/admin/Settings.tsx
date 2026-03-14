@@ -77,6 +77,33 @@ export default function Settings() {
           <small style={{ color: "#666" }}>
             Applied as markup on all courier costs — also reflected on seller rate cards
           </small>
+          {Number(commission) > 0 && (
+            <div style={{
+              marginTop: 10,
+              padding: "10px 14px",
+              background: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "#166534",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 16,
+            }}>
+              <div>
+                <span style={{ fontWeight: 600 }}>Commission Rate:</span>{" "}
+                {Number(commission)}%
+              </div>
+              <div>
+                <span style={{ fontWeight: 600 }}>On ₹100 courier cost:</span>{" "}
+                ₹{(100 * Number(commission) / 100).toFixed(2)} commission → ₹{(100 + 100 * Number(commission) / 100).toFixed(2)} vendor charge
+              </div>
+              <div>
+                <span style={{ fontWeight: 600 }}>On ₹500 courier cost:</span>{" "}
+                ₹{(500 * Number(commission) / 100).toFixed(2)} commission → ₹{(500 + 500 * Number(commission) / 100).toFixed(2)} vendor charge
+              </div>
+            </div>
+          )}
         </div>
         <div className="form-group">
           <label>Minimum Wallet Recharge (₹)</label>

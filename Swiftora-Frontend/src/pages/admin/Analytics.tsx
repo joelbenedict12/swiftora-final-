@@ -12,7 +12,7 @@ import {
     Cell,
     Legend,
 } from "recharts";
-import { adminApi } from "../../lib/api";
+import { adminApi, ordersApi } from "../../lib/api";
 import "./Dashboard.css";
 
 interface ProfitSummary {
@@ -20,6 +20,7 @@ interface ProfitSummary {
     totalCourierCost: number;
     totalProfit: number;
     totalOrders: number;
+    totalCommission: number;
     averageMarginPercent: number;
 }
 
@@ -67,6 +68,7 @@ export default function Analytics() {
     const [dateRange, setDateRange] = useState({ from: "", to: "" });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [commissionPercent, setCommissionPercent] = useState<number>(15);
 
     const loadAnalytics = async () => {
         try {
@@ -82,6 +84,12 @@ export default function Analytics() {
             setByCourier(data.byCourier || []);
             setOrderCountByCourier(data.orderCountByCourier || []);
             setByVendor(data.byVendor || []);
+
+            // Fetch commission %
+            try {
+                const cRes = await ordersApi.getPlatformCommission();
+                setCommissionPercent(cRes.data?.commission ?? 15);
+            } catch { /* keep default */ }
         } catch (err: any) {
             console.error("Failed to load analytics:", err);
             setError(err.response?.data?.error || "Failed to load analytics");
@@ -144,6 +152,12 @@ export default function Analytics() {
             value: `${(summary?.averageMarginPercent ?? 0).toFixed(1)}%`,
             icon: "📊",
             color: "#ef4444",
+        },
+        {
+            title: "Platform Commission",
+            value: `${commissionPercent}% · ${formatCurrency(summary?.totalCommission ?? 0)}`,
+            icon: "⚙️",
+            color: "#8b5cf6",
         },
     ];
 
