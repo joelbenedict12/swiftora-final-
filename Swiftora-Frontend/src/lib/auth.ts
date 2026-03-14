@@ -14,6 +14,7 @@ interface User {
     id: string;
     companyName: string;
     walletBalance: number;
+    kycStatus?: string;
   };
 }
 

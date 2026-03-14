@@ -402,10 +402,14 @@ export const supportApi = {
   getNotes: (ticketId: string) => api.get(`/support/tickets/${ticketId}/notes`),
 };
 
-// KYC (Didit) API — 60s for createSession (cold start + Didit can be slow). Must redeploy frontend for change to apply.
+// KYC API — manual KYC onboarding
 export const kycApi = {
-  getStatus: () => api.get('/kyc', { timeout: 15000 }),
-  createSession: () => api.post('/kyc/session', {}, { timeout: 60000 }),
+  getStatus: () => api.get('/kyc/status'),
+  submit: (formData: FormData) =>
+    api.post('/kyc/submit', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    }),
 };
 
 // Billing / Wallet API (user-facing)
@@ -562,6 +566,16 @@ export const adminApi = {
   getSupportUsers: () => api.get('/admin/support-users'),
   assignTicket: (ticketId: string, assignedTo: string | null) =>
     api.put(`/admin/tickets/${ticketId}/assign`, { assignedTo }),
+
+  // KYC Management
+  getKycMerchants: (params?: { status?: string }) =>
+    api.get('/kyc/admin/merchants', { params }),
+  getKycMerchantDetail: (id: string) =>
+    api.get(`/kyc/admin/merchants/${id}`),
+  approveKyc: (id: string) =>
+    api.post(`/kyc/admin/merchants/${id}/approve`),
+  rejectKyc: (id: string) =>
+    api.post(`/kyc/admin/merchants/${id}/reject`),
 };
 
 // ============================================================

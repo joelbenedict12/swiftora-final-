@@ -24,6 +24,8 @@ import { supportRouter } from './routes/support.js';
 import codRemittanceRouter from './routes/codRemittance.js';
 import { ndrRouter } from './routes/ndr.js';
 import { reverseRouter } from './routes/reverse.js';
+import { kycRouter } from './routes/kyc.js';
+import { UPLOADS_ROOT } from './lib/upload.js';
 
 dotenv.config();
 
@@ -161,8 +163,12 @@ app.get('/api/test-xpressbees', async (req, res) => {
   }
 });
 
+// Serve uploaded KYC documents
+app.use('/uploads', express.static(UPLOADS_ROOT));
+
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/kyc', kycRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/pickups', pickupsRouter);
 app.use('/api/tracking', trackingRouter);

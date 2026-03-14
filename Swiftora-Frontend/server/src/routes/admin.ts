@@ -490,7 +490,8 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
                 role: true,
                 isActive: true,
                 createdAt: true,
-                merchant: { select: { companyName: true } },
+                merchantId: true,
+                merchant: { select: { id: true, companyName: true, kycStatus: true } },
             },
             orderBy: { createdAt: 'desc' },
         });

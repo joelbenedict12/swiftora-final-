@@ -103,6 +103,20 @@ model Merchant {
   orderIdPrefix     String   @default("SWIFT")
   orderCounter      Int      @default(0)
   
+  // KYC
+  kycStatus           String    @default("NOT_STARTED") // NOT_STARTED, PENDING_ADMIN_REVIEW, VERIFIED, REJECTED
+  kycVerifiedAt       DateTime?
+  kycVerifiedBy       String?
+  panNumber           String?
+  panImageUrl         String?
+  aadhaarImageUrl     String?
+  gstCertificateUrl   String?
+  bankAccountName     String?
+  bankName            String?
+  bankAccountNumber   String?
+  bankIfscCode        String?
+  cancelledChequeUrl  String?
+  
   isPaused          Boolean  @default(false)
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())

@@ -177,6 +177,7 @@ router.post('/login', async (req, res, next) => {
           id: user.merchant.id,
           companyName: user.merchant.companyName,
           walletBalance: user.merchant.walletBalance,
+          kycStatus: user.merchant.kycStatus,
         } : null,
       },
     });
@@ -210,6 +211,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
             companyName: true,
             walletBalance: true,
             delhiveryEnabled: true,
+            kycStatus: true,
           },
         },
       },

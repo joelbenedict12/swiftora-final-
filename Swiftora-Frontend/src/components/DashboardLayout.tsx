@@ -37,6 +37,8 @@ import {
   Calculator,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -149,8 +151,11 @@ const DashboardLayout = () => {
     }
   );
 
+  const kycVerified = user?.merchant?.kycStatus === "VERIFIED" || user?.role === "ADMIN";
+
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
+    { name: "Dashboard", href: "/dashboard", icon: BarChart3, alwaysVisible: true },
+    { name: "Personal Information", href: "/dashboard/personal-info", icon: UserCircle, alwaysVisible: true },
     {
       name: "Analytics & Reports",
       href: "/dashboard/analytics-reports",
@@ -334,6 +339,27 @@ const DashboardLayout = () => {
               )}
               {navigation.map((item) => {
                 const Icon = item.icon;
+                const locked = !kycVerified && !(item as any).alwaysVisible;
+                if (locked) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={sidebarCollapsed ? `${item.name} (Locked)` : "Complete KYC to unlock"}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg text-sm font-medium mb-1.5 cursor-not-allowed opacity-40",
+                        sidebarCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
+                      )}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0 text-gray-400" />
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="flex-1">{item.name}</span>
+                          <Lock className="w-3.5 h-3.5 text-gray-400" />
+                        </>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <Link
                     key={item.name}
@@ -370,6 +396,26 @@ const DashboardLayout = () => {
               )}
               {toolsNav.map((item) => {
                 const Icon = item.icon;
+                if (!kycVerified) {
+                  return (
+                    <div
+                      key={item.name}
+                      title={sidebarCollapsed ? `${item.name} (Locked)` : "Complete KYC to unlock"}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg text-sm font-medium mb-1.5 cursor-not-allowed opacity-40",
+                        sidebarCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
+                      )}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0 text-gray-400" />
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="flex-1">{item.name}</span>
+                          <Lock className="w-3.5 h-3.5 text-gray-400" />
+                        </>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <Link
                     key={item.name}
@@ -475,7 +521,7 @@ const DashboardLayout = () => {
           </Button>
 
           <div className="flex items-center gap-2 ml-auto">
-            {b2bEnabled && (
+            {kycVerified && b2bEnabled && (
               <div className="hidden md:flex items-center bg-gray-100 rounded-full p-0.5 mr-2">
                 <button
                   type="button"
@@ -501,23 +547,25 @@ const DashboardLayout = () => {
                 </button>
               </div>
             )}
-            <div className="flex justify-end">
-              <Link to="/dashboard/billing" className="group">
-                <div className="bg-white/60 backdrop-blur-sm border border-white/20 rounded-lg px-5 py-1.5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all inline-flex items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="text-xs text-gray-500 mb-0.5">
-                        {customerType === 'CREDIT' ? 'Available Credit' : 'Wallet Balance'}
-                      </div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {customerType === 'CREDIT' ? availableCredit : walletBalance.available}
+            {kycVerified && (
+              <div className="flex justify-end">
+                <Link to="/dashboard/billing" className="group">
+                  <div className="bg-white/60 backdrop-blur-sm border border-white/20 rounded-lg px-5 py-1.5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all inline-flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-0.5">
+                          {customerType === 'CREDIT' ? 'Available Credit' : 'Wallet Balance'}
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {customerType === 'CREDIT' ? availableCredit : walletBalance.available}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            </div>
-            {customerType !== 'CREDIT' && (
+                </Link>
+              </div>
+            )}
+            {kycVerified && customerType !== 'CREDIT' && (
               <Button
                 onClick={() => setRechargeDialogOpen(true)}
                 className="bg-gradient-to-r from-[hsl(210_100%_60%)] to-[hsl(207,97%,45%)] hover:from-[hsl(210_100%_60%)]/90 hover:to-[hsl(207,97%,45%)]/90 text-white shadow-lg"

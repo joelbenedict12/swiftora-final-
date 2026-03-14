@@ -41,6 +41,8 @@ import {
   Clock,
 } from "lucide-react";
 import { dashboardApi, ordersApi, pickupsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { Shield } from "lucide-react";
 
 type DashboardStats = {
   totalOrders: number;
@@ -119,6 +121,9 @@ const formatStatus = (status: string) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const kycStatus = user?.merchant?.kycStatus;
+  const kycVerified = kycStatus === "VERIFIED" || user?.role === "ADMIN";
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [pickups, setPickups] = useState<Pickup[]>([]);
@@ -174,6 +179,69 @@ const Dashboard = () => {
       <div className="p-6">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!kycVerified) {
+    return (
+      <div className="p-6" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <div style={{ maxWidth: 520, width: "100%", textAlign: "center" }}>
+          {kycStatus === "PENDING_ADMIN_REVIEW" ? (
+            <div style={{
+              background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+              borderRadius: 24, padding: "56px 40px", border: "1px solid #fcd34d",
+            }}>
+              <Clock className="mx-auto mb-5" size={56} style={{ color: "#d97706" }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, color: "#92400e", marginBottom: 12 }}>
+                Verification Under Review
+              </h2>
+              <p style={{ color: "#a16207", fontSize: 15, lineHeight: 1.7 }}>
+                Your KYC documents are being reviewed by our team.
+                You will gain full access once approved.
+              </p>
+            </div>
+          ) : kycStatus === "REJECTED" ? (
+            <div style={{
+              background: "linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)",
+              borderRadius: 24, padding: "56px 40px", border: "1px solid #fca5a5",
+            }}>
+              <AlertCircle className="mx-auto mb-5" size={56} style={{ color: "#dc2626" }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, color: "#991b1b", marginBottom: 12 }}>
+                Verification Rejected
+              </h2>
+              <p style={{ color: "#b91c1c", fontSize: 15, lineHeight: 1.7, marginBottom: 28 }}>
+                Your KYC was not approved. Please re-submit correct documents.
+              </p>
+              <Button
+                onClick={() => navigate("/dashboard/personal-info")}
+                className="bg-red-600 hover:bg-red-700 text-white shadow-lg px-8 py-3 text-base"
+              >
+                Re-submit Documents
+              </Button>
+            </div>
+          ) : (
+            <div style={{
+              background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+              borderRadius: 24, padding: "56px 40px", border: "1px solid #93c5fd",
+            }}>
+              <Shield className="mx-auto mb-5" size={56} style={{ color: "#2563eb" }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, color: "#1e40af", marginBottom: 12 }}>
+                Welcome to Swiftora
+              </h2>
+              <p style={{ color: "#1d4ed8", fontSize: 15, lineHeight: 1.7, marginBottom: 28 }}>
+                Before you can start shipping, please complete your
+                Personal Information verification.
+              </p>
+              <Button
+                onClick={() => navigate("/dashboard/personal-info")}
+                className="bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white shadow-lg px-8 py-3 text-base"
+              >
+                Complete Verification
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );

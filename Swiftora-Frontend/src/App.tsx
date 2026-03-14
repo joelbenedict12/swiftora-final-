@@ -32,6 +32,7 @@ import RTOPredictor from "./pages/dashboard/RTOPredictor";
 import TermsAndConditions from "./pages/dashboard/TermsAndConditions";
 import ChannelIntegration from "./pages/dashboard/ChannelIntegration";
 import Remittance from "./pages/dashboard/Remittance";
+import PersonalInformation from "./pages/dashboard/PersonalInformation";
 
 import AnalyticsReports from "./pages/dashboard/AnalyticsReports";
 import BusinessSuccessRate from "./pages/dashboard/BusinessSuccessRate";
@@ -82,6 +83,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
+            <Route path="personal-info" element={<PersonalInformation />} />
             <Route path="orders" element={<Orders />} />
             <Route path="orders/new" element={<CreateOrder />} />
             <Route path="create-order" element={<CreateOrder />} />
