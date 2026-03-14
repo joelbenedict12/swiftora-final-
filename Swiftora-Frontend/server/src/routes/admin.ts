@@ -1126,7 +1126,7 @@ router.get('/orders', authenticate, requireAdmin, async (req, res, next) => {
                 profit,
                 marginPercent,
                 additionalChargeTotal: Number(o.additionalChargeTotal || 0),
-                finalPrice: Number(o.finalPrice || 0),
+                finalPrice: Number(o.finalPrice || 0) || revenue,
                 vendorCharge: revenue,
                 merchantId: o.merchantId,
                 merchant: o.merchant,

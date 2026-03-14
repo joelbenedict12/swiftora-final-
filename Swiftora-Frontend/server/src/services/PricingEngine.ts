@@ -63,12 +63,7 @@ export async function calculateVendorPrice(input: PricingInput): Promise<Pricing
         marginAmount = marginValue;
     }
 
-    const additionalChargeTotal = merchantId
-        ? await calculateAdditionalChargeTotal(undefined, courierCost)
-        : 0;
-
     const vendorCharge = Math.round((courierCost + marginAmount) * 100) / 100;
-    const finalPrice = Math.round((courierCost + marginAmount + additionalChargeTotal) * 100) / 100;
 
     return {
         vendorCharge,

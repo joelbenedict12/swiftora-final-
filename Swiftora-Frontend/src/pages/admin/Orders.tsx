@@ -232,7 +232,7 @@ export default function Orders() {
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>
-                      {order.finalPrice != null ? formatCurrency(order.finalPrice) : order.vendorCharge != null ? formatCurrency(order.vendorCharge) : '—'}
+                      {formatCurrency(order.finalPrice || order.vendorCharge || 0)}
                     </td>
                     <td style={{ fontSize: 13, color: "#64748b" }}>{new Date(order.createdAt).toLocaleDateString()}</td>
                     <td>
