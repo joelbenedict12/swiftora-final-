@@ -75,7 +75,7 @@ export default function Settings() {
             step="0.5"
           />
           <small style={{ color: "#666" }}>
-            Applied as markup on courier cost when no specific rate card exists
+            Applied as markup on all courier costs — also reflected on seller rate cards
           </small>
         </div>
         <div className="form-group">
@@ -175,13 +175,33 @@ export default function Settings() {
         </div>
       )}
 
-      <div className="form-actions">
+      <div style={{
+        position: "sticky",
+        bottom: 0,
+        background: "linear-gradient(transparent, #f8fafc 20%)",
+        padding: "24px 0 16px",
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: 12,
+        zIndex: 10,
+      }}>
         <button
-          className="action-btn btn-primary"
           onClick={handleSave}
           disabled={isSaving}
+          style={{
+            padding: "12px 32px",
+            fontSize: "15px",
+            fontWeight: 600,
+            color: "#fff",
+            background: isSaving ? "#94a3b8" : "#6366f1",
+            border: "none",
+            borderRadius: "8px",
+            cursor: isSaving ? "not-allowed" : "pointer",
+            boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+            transition: "all 0.2s",
+          }}
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? "Saving..." : "💾 Save Changes"}
         </button>
       </div>
     </div>
