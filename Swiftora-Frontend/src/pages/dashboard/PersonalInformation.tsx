@@ -61,6 +61,10 @@ export default function PersonalInformation() {
       const res = await kycApi.getStatus();
       const d = res.data;
       setKycStatus(d.kycStatus);
+      // Sync auth store so sidebar unlocks immediately
+      if (user?.merchant && d.kycStatus !== user.merchant.kycStatus) {
+        setUser({ ...user, merchant: { ...user.merchant, kycStatus: d.kycStatus } });
+      }
       if (d.data) {
         if (d.data.panNumber) setPanNumber(d.data.panNumber);
         if (d.data.gstNumber) setGstNumber(d.data.gstNumber);

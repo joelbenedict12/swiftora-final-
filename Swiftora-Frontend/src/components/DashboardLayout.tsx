@@ -48,7 +48,7 @@ const WARNING_BEFORE = 60 * 1000; // Show warning 60s before logout
 
 const DashboardLayout = () => {
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, checkSession } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -120,6 +120,11 @@ const DashboardLayout = () => {
       clearAllTimers();
     };
   }, [resetInactivityTimer, clearAllTimers, sessionWarningOpen]);
+
+  // Refresh session on mount to pick up KYC status changes
+  useEffect(() => {
+    checkSession();
+  }, []);
 
   // Read user profile metadata from localStorage
   const storedProfile =
