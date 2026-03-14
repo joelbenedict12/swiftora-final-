@@ -434,31 +434,6 @@ const RateCard = () => {
               </div>
             </div>
 
-            {/* Other Charges */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-5 h-5 text-amber-500" />
-                <h3 className="text-lg font-semibold text-gray-800">Other Charges</h3>
-              </div>
-              <div className="rounded-lg border border-blue-200 overflow-x-auto bg-blue-50/30">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-blue-50">
-                      <TableHead className="font-semibold text-blue-800 w-1/2">Charge Type</TableHead>
-                      <TableHead className="font-semibold text-blue-800">Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {innofulfillOther.map((row, i) => (
-                      <TableRow key={i} className="hover:bg-blue-50/50">
-                        <TableCell className="font-medium text-gray-700">{row.label}</TableCell>
-                        <TableCell className="font-semibold text-gray-900">{row.value}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
