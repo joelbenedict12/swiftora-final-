@@ -43,6 +43,7 @@ interface VendorProfit {
     companyName: string;
     totalOrders: number;
     totalRevenue: number;
+    totalVendorRevenue: number;
     totalCourierCost: number;
     totalProfit: number;
     marginPercent: number;
@@ -340,18 +341,19 @@ export default function Analytics() {
                         <tbody>
                             {byVendor.length > 0 ? (
                                 byVendor.map((vendor, i) => {
+                                    const vendorRev = Number(vendor.totalVendorRevenue || vendor.totalRevenue || 0);
                                     const margin =
-                                        vendor.totalVendorRevenue > 0
-                                            ? ((vendor.totalProfit / vendor.totalVendorRevenue) * 100).toFixed(1)
+                                        vendorRev > 0
+                                            ? ((Number(vendor.totalProfit || 0) / vendorRev) * 100).toFixed(1)
                                             : "0.0";
                                     return (
                                         <tr key={i}>
                                             <td className="fw-medium">{vendor.companyName || vendor.merchantId}</td>
                                             <td>{vendor.totalOrders}</td>
-                                            <td>₹{vendor.totalCourierCost.toLocaleString()}</td>
-                                            <td>₹{vendor.totalVendorRevenue.toLocaleString()}</td>
-                                            <td style={{ color: vendor.totalProfit >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
-                                                ₹{vendor.totalProfit.toLocaleString()}
+                                            <td>₹{Number(vendor.totalCourierCost || 0).toLocaleString()}</td>
+                                            <td>₹{vendorRev.toLocaleString()}</td>
+                                            <td style={{ color: Number(vendor.totalProfit || 0) >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                                                ₹{Number(vendor.totalProfit || 0).toLocaleString()}
                                             </td>
                                             <td>
                                                 <span
