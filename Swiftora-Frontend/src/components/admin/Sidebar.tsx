@@ -14,6 +14,7 @@ import {
   FileText,
   AlertTriangle,
   ShoppingCart,
+  Headset,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -24,6 +25,7 @@ export default function Sidebar() {
   const navItems = [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/admin/users", icon: Users, label: "Users" },
+    { to: "/admin/support-users", icon: Headset, label: "Customer Support" },
     { to: "/admin/vendors", icon: Store, label: "Vendors" },
     { to: "/admin/orders", icon: ShoppingCart, label: "Orders" },
     { to: "/admin/tickets", icon: Ticket, label: "Tickets" },

@@ -56,6 +56,7 @@ import AdminInvoices from "./pages/admin/Invoices";
 import AdminCodRemittance from "./pages/admin/CodRemittance";
 import AdminNdrCases from "./pages/admin/NdrCases";
 import AdminOrders from "./pages/admin/Orders";
+import AdminSupportUsers from "./pages/admin/SupportUsers";
 
 // Support imports
 import SupportLayout from "./components/support/SupportLayout";
@@ -129,6 +130,7 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="support-users" element={<AdminSupportUsers />} />
             <Route path="vendors" element={<AdminVendors />} />
             <Route path="vendors/:id" element={<AdminVendorDetail />} />
             <Route path="tickets" element={<AdminTickets />} />

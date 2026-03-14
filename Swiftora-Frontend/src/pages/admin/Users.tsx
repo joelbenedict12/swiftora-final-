@@ -68,8 +68,9 @@ export default function Users() {
     try {
       setIsLoading(true);
       const response = await adminApi.getUsers();
-      setUsers(response.data);
-      setFilteredUsers(response.data);
+      const nonSupport = response.data.filter((u: User) => u.role !== "SUPPORT");
+      setUsers(nonSupport);
+      setFilteredUsers(nonSupport);
     } catch (error) {
       console.error("Failed to load users:", error);
     } finally {
@@ -102,8 +103,13 @@ export default function Users() {
     try {
       setUpdatingRoleId(userId);
       await adminApi.updateUserRole(userId, newRole);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-      toast.success(`User role updated to ${newRole}`);
+      if (newRole === "SUPPORT") {
+        setUsers(prev => prev.filter(u => u.id !== userId));
+        toast.success("User moved to Customer Support");
+      } else {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+        toast.success(`User role updated to ${newRole}`);
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Failed to update role");
     } finally {
@@ -217,8 +223,8 @@ export default function Users() {
           <option value="all">All Roles</option>
           <option value="user">User</option>
           <option value="manager">Manager</option>
-          <option value="support">Support</option>
           <option value="admin">Admin</option>
+          <option value="viewer">Viewer</option>
         </select>
         <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Status</option>
