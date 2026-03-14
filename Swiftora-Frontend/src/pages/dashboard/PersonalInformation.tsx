@@ -97,12 +97,8 @@ export default function PersonalInformation() {
   };
 
   const handleSubmit = async () => {
-    if (!panNumber.trim()) {
-      toast.error("PAN number is required");
-      return;
-    }
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNumber.trim().toUpperCase())) {
-      toast.error("Invalid PAN format (e.g. ABCDE1234F)");
+    if (!panNumber.trim() || panNumber.trim().length < 10) {
+      toast.error("PAN number is required (10 characters)");
       return;
     }
     if (!bankAccountName.trim() || !bankName.trim() || !bankAccountNumber.trim() || !bankIfscCode.trim()) {
