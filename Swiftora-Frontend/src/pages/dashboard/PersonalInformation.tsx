@@ -172,20 +172,68 @@ export default function PersonalInformation() {
   }
 
   if (kycStatus === "VERIFIED") {
+    const InfoRow = ({ label, value }: { label: string; value: string | null | undefined }) => (
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+        <span style={{ fontSize: 13, color: "#64748b" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{value || "—"}</span>
+      </div>
+    );
+
     return (
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "60px 20px", textAlign: "center" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        {/* Status banner */}
         <div style={{
-          background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)",
-          borderRadius: 20, padding: 48, border: "1px solid #86efac"
+          display: "flex", alignItems: "center", gap: 12, padding: "16px 20px",
+          background: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 28,
         }}>
-          <CheckCircle2 size={56} style={{ color: "#16a34a", margin: "0 auto 20px" }} />
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#166534", marginBottom: 12 }}>
-            Verification Complete
-          </h2>
-          <p style={{ color: "#15803d", fontSize: 15, lineHeight: 1.6 }}>
-            Your identity has been verified. You have full access to all platform features.
-          </p>
+          <CheckCircle2 size={22} style={{ color: "#16a34a", flexShrink: 0 }} />
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#166534" }}>Verified</span>
+            <span style={{ fontSize: 13, color: "#15803d", marginLeft: 8 }}>
+              Your identity has been verified. Full platform access is enabled.
+            </span>
+          </div>
         </div>
+
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1e293b", marginBottom: 24 }}>Personal Information</h1>
+
+        {/* Identity */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", padding: "20px 24px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <Shield size={18} style={{ color: "#2563eb" }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>Identity</span>
+          </div>
+          <InfoRow label="PAN Number" value={panNumber} />
+          {gstNumber && <InfoRow label="GST Number" value={gstNumber} />}
+        </div>
+
+        {/* Bank Details */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", padding: "20px 24px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <Landmark size={18} style={{ color: "#059669" }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>Bank Details</span>
+          </div>
+          <InfoRow label="Account Holder" value={bankAccountName} />
+          <InfoRow label="Bank Name" value={bankName} />
+          <InfoRow label="Account Number" value={bankAccountNumber} />
+          <InfoRow label="IFSC Code" value={bankIfscCode} />
+        </div>
+
+        {/* Documents */}
+        {(existingUrls.panImageUrl || existingUrls.aadhaarImageUrl || existingUrls.gstCertificateUrl || existingUrls.cancelledChequeUrl) && (
+          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", padding: "20px 24px", marginBottom: 32 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <FileText size={18} style={{ color: "#7c3aed" }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>Uploaded Documents</span>
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {existingUrls.panImageUrl && <DocTag label="PAN Card" />}
+              {existingUrls.aadhaarImageUrl && <DocTag label="Aadhaar Card" />}
+              {existingUrls.gstCertificateUrl && <DocTag label="GST Certificate" />}
+              {existingUrls.cancelledChequeUrl && <DocTag label="Cancelled Cheque" />}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -558,6 +606,20 @@ export default function PersonalInformation() {
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+function DocTag({ label }: { label: string }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "6px 14px", borderRadius: 8,
+      background: "#f8fafc", border: "1px solid #e2e8f0",
+      fontSize: 12, fontWeight: 600, color: "#475569",
+    }}>
+      <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
+      {label}
     </div>
   );
 }
