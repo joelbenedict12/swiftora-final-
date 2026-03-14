@@ -132,6 +132,9 @@ export const ordersApi = {
   compareRates: (orderId: string) =>
     api.post(`/orders/${orderId}/compare-rates`),
 
+  getPlatformCommission: () =>
+    api.get('/orders/platform-commission'),
+
   // Generic ship method - pass courier name
   ship: (id: string, courierName: 'DELHIVERY' | 'BLITZ' | 'EKART' | 'XPRESSBEES' | 'INNOFULFILL', extra?: Record<string, any>) =>
     api.post(`/orders/${id}/ship`, { courierName, ...(extra || {}) }),

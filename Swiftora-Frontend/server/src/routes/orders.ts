@@ -15,6 +15,7 @@ import {
   delhiveryService,
 } from '../services/courier/index.js';
 import { calculateVendorPrice, estimateVendorCharge } from '../services/PricingEngine.js';
+import { getCommissionPercent } from '../services/commissionService.js';
 import * as WalletService from '../services/WalletService.js';
 import * as CreditService from '../services/creditService.js';
 import { A4LabelService, A4LabelData } from '../services/A4LabelService.js';
@@ -158,6 +159,16 @@ const UpdateOrderSchema = z.object({
   shippingPincode: z.string().optional(),
   shippingLandmark: z.string().optional(),
   notes: z.string().optional(),
+});
+
+// Get platform commission percentage (for dynamic rate cards)
+router.get('/platform-commission', async (req: AuthRequest, res, next) => {
+  try {
+    const commission = await getCommissionPercent();
+    res.json({ success: true, commissionPercent: commission });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Get available couriers

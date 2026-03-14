@@ -26,64 +26,21 @@ export interface PricingResult {
 }
 
 /**
- * Calculate vendor price based on rate card.
- * vendorCharge = courierCost + margin
+ * Calculate vendor price using platform commission from admin settings.
+ * vendorCharge = courierCost + (courierCost * commission%)
+ * Changing commission% in admin panel updates ALL prices everywhere.
  */
 export async function calculateVendorPrice(input: PricingInput): Promise<PricingResult> {
-    const { courierCost, userAccountType, courierName, weight } = input;
+    const { courierCost } = input;
 
-    // Find matching rate card (with optional weight slab)
-    const rateCard = await prisma.rateCard.findFirst({
-        where: {
-            accountType: userAccountType,
-            courierName: courierName,
-            isActive: true,
-            OR: [
-                // Exact weight slab match
-                {
-                    minWeight: { lte: weight },
-                    maxWeight: { gte: weight },
-                },
-                // No weight slab (applies to all weights)
-                {
-                    minWeight: null,
-                    maxWeight: null,
-                },
-            ],
-        },
-        orderBy: [
-            // Prefer specific weight slab over general
-            { minWeight: 'asc' },
-        ],
-    });
-
-    if (!rateCard) {
-        const platformCommission = await getCommissionPercent();
-        const marginAmount = courierCost * platformCommission / 100;
-        return {
-            vendorCharge: Math.round((courierCost + marginAmount) * 100) / 100,
-            margin: Math.round(marginAmount * 100) / 100,
-            marginType: 'percentage',
-            marginValue: platformCommission,
-            courierCost,
-        };
-    }
-
-    const marginValue = Number(rateCard.marginValue);
-    let marginAmount: number;
-
-    if (rateCard.marginType === 'percentage') {
-        marginAmount = courierCost * marginValue / 100;
-    } else {
-        // flat
-        marginAmount = marginValue;
-    }
+    const platformCommission = await getCommissionPercent();
+    const marginAmount = courierCost * platformCommission / 100;
 
     return {
         vendorCharge: Math.round((courierCost + marginAmount) * 100) / 100,
         margin: Math.round(marginAmount * 100) / 100,
-        marginType: rateCard.marginType,
-        marginValue,
+        marginType: 'percentage',
+        marginValue: platformCommission,
         courierCost,
     };
 }

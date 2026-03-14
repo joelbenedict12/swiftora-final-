@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -30,8 +30,10 @@ import {
   Info,
   Package,
   Plane,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ordersApi } from "@/lib/api";
 
 /* ====================================================================
    RATE CARD DATA — sourced from courier partner agreements
@@ -108,9 +110,32 @@ const innofulfillOther = [
 const RateCard = () => {
   const [selectedCourier, setSelectedCourier] = useState("all");
   const [showGST, setShowGST] = useState(false);
+  const [commission, setCommission] = useState(0);
+  const [loadingCommission, setLoadingCommission] = useState(true);
 
-  const gst = (v: number) => (showGST ? Math.round(v * 1.18 * 100) / 100 : v);
-  const fmt = (v: number) => `₹${gst(v).toFixed(v % 1 === 0 && !showGST ? 0 : 2)}`;
+  // Fetch platform commission on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await ordersApi.getPlatformCommission();
+        setCommission(res.data.commissionPercent || 0);
+      } catch {
+        setCommission(0);
+      } finally {
+        setLoadingCommission(false);
+      }
+    })();
+  }, []);
+
+  // Apply commission markup, then optionally GST
+  const markup = (v: number) => {
+    const withCommission = v * (1 + commission / 100);
+    return showGST ? Math.round(withCommission * 1.18 * 100) / 100 : Math.round(withCommission * 100) / 100;
+  };
+  const fmt = (v: number) => {
+    const m = markup(v);
+    return `₹${m.toFixed(m % 1 === 0 ? 0 : 2)}`;
+  };
 
   const handleExport = () => {
     toast.success("Rate card exported successfully");
@@ -126,6 +151,11 @@ const RateCard = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Rate Card</h1>
           <p className="text-gray-500">
             View shipping rates for all courier partners
+            {!loadingCommission && commission > 0 && (
+              <Badge variant="outline" className="ml-2 text-xs border-blue-200 text-blue-700 bg-blue-50">
+                Includes {commission}% platform markup
+              </Badge>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
