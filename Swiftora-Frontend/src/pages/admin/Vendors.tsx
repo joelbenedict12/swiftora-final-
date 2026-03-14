@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "../../lib/api";
 import "./Pages.css";
 
@@ -55,6 +56,7 @@ interface VendorAnalytics {
 }
 
 export default function Vendors() {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -271,7 +273,7 @@ export default function Vendors() {
                   <td>{vendor.orderCount}</td>
                   <td>{new Date(vendor.createdAt).toLocaleDateString()}</td>
                   <td style={{ display: "flex", gap: "6px" }}>
-                    <button className="action-btn btn-view" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => openAnalytics(vendor.id)}>
+                    <button className="action-btn btn-view" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => navigate(`/admin/vendors/${vendor.id}`)}>
                       View
                     </button>
                     <button

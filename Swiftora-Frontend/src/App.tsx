@@ -44,6 +44,7 @@ import AdminLayout from "./components/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminVendors from "./pages/admin/Vendors";
+import AdminVendorDetail from "./pages/admin/VendorDetail";
 import AdminTickets from "./pages/admin/Tickets";
 import AdminPayments from "./pages/admin/Payments";
 import AdminSettings from "./pages/admin/Settings";
@@ -126,6 +127,7 @@ const App = () => (
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="vendors" element={<AdminVendors />} />
+            <Route path="vendors/:id" element={<AdminVendorDetail />} />
             <Route path="tickets" element={<AdminTickets />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="integrations" element={<AdminIntegrations />} />
